@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Dev Agent 전체 구성도 — 서버 배치와 접근 경로 (Phase 1 종료 시점)",
+    "output": "docs/architecture/dev-agent-overview.html",
+    "locale": "ko",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Lib0823/Dev_Agent-Platform.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "6d73f47508ed875fb009a1c7eec03b181d114f4d"
+    }
+  },
+  "components": [
+    { "id": "user_pc", "type": "frontend", "label": "사용자 PC", "sublabel": "브라우저", "pos": [40, 270], "size": [140, 60],
+      "sources": [{ "path": "docs/02-architecture.md", "line": 23, "end_line": 34, "label": "02 §2.1 사용자 PC·모바일" }] },
+    { "id": "user_mobile", "type": "frontend", "label": "모바일", "sublabel": "브라우저", "pos": [40, 400], "size": [140, 60],
+      "sources": [{ "path": "docs/02-architecture.md", "line": 23, "end_line": 34, "label": "02 §2.1 사용자 PC·모바일" }] },
+    { "id": "tailnet", "type": "cloud", "label": "Tailscale tailnet", "sublabel": "개인 기기만 · ACL", "pos": [250, 330], "size": [160, 64],
+      "sources": [
+        { "path": "docs/02-architecture.md", "line": 286, "end_line": 288, "label": "02 §6 tailnet 소속·ACL" },
+        { "path": "deploy/README.md", "line": 132, "end_line": 133, "label": "funnel 미사용" }
+      ] },
+    { "id": "serve", "type": "security", "label": "tailscale serve", "sublabel": "tailscaled · HTTPS 8443", "pos": [520, 330], "size": [170, 64],
+      "sources": [
+        { "path": "deploy/README.md", "line": 120, "end_line": 133, "label": "절차서 §7 serve 8443" },
+        { "path": "docs/02-architecture.md", "line": 162, "end_line": 176, "label": "02 D-1" }
+      ] },
+    { "id": "app", "type": "backend", "label": "Dev Agent jar", "sublabel": "JDK 21 · 127.0.0.1:8777", "pos": [880, 330], "size": [180, 64],
+      "sources": [
+        { "path": "deploy/systemd/dev-agent.service", "line": 23, "end_line": 41, "label": "unit [Service]" },
+        { "path": "src/main/resources/application.yml", "line": 31, "end_line": 33, "label": "server.address·port" }
+      ] },
+    { "id": "cli", "type": "backend", "label": "Claude Code CLI", "sublabel": "자식 프로세스 · 구독 로그인", "pos": [880, 480], "size": [180, 64],
+      "sources": [
+        { "path": "docs/02-architecture.md", "line": 178, "end_line": 196, "label": "02 D-2" },
+        { "path": "docs/02-architecture.md", "line": 36, "end_line": 54, "label": "02 §2.2" }
+      ] },
+    { "id": "workdir", "type": "database", "label": "작업 디렉터리", "sublabel": "기준 clone · worktree", "pos": [880, 630], "size": [180, 64],
+      "sources": [
+        { "path": "docs/02-architecture.md", "line": 36, "end_line": 54, "label": "02 §2.2" },
+        { "path": "deploy/env.server.example", "line": 19, "label": "GITLAB_WORK_DIR" }
+      ] },
+    { "id": "pg", "type": "database", "label": "PostgreSQL 16 컨테이너", "sublabel": "전용 DB · 전용 role · 127.0.0.1:5432", "pos": [1270, 330], "size": [220, 64], "tag": "다른 서비스 소유",
+      "sources": [
+        { "path": "docs/02-architecture.md", "line": 198, "end_line": 213, "label": "02 D-3" },
+        { "path": "docs/04-project-structure.md", "line": 150, "label": "04 §9 DB" },
+        { "path": "deploy/README.md", "line": 37, "end_line": 71, "label": "절차서 §2·§3" }
+      ] },
+    { "id": "others", "type": "external", "label": "다른 서비스들", "sublabel": "같은 인스턴스 공유", "pos": [1270, 480], "size": [220, 60],
+      "sources": [{ "path": "docs/02-architecture.md", "line": 36, "end_line": 54, "label": "02 §2.2 다른 서비스들" }] },
+    { "id": "github", "type": "external", "label": "GitHub", "sublabel": "REST · git push", "pos": [790, 60], "size": [150, 64], "tag": "Phase 3 예정",
+      "sources": [
+        { "path": "docs/02-architecture.md", "line": 23, "end_line": 34, "label": "02 §2.1" },
+        { "path": "docs/04-project-structure.md", "line": 153, "label": "04 §9 GITHUB_TOKEN(3)" }
+      ] },
+    { "id": "telegram", "type": "external", "label": "Telegram", "sublabel": "long polling · 전송", "pos": [1000, 60], "size": [150, 64], "tag": "Phase 4 예정",
+      "sources": [
+        { "path": "docs/02-architecture.md", "line": 23, "end_line": 34, "label": "02 §2.1" },
+        { "path": "docs/04-project-structure.md", "line": 153, "label": "04 §9 TELEGRAM_BOT_TOKEN(4)" }
+      ] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "개인 서버 · Ubuntu 24.04", "wraps": ["serve", "app", "cli", "workdir", "pg", "others"], "pad": 24 },
+    { "kind": "security-group", "label": "루프백 경계 · 들어오는 연결은 127.0.0.1만", "wraps": ["app", "cli", "workdir", "pg", "others"], "pad": 20 },
+    { "kind": "security-group", "label": "systemd dev-agent.service · <SERVICE_USER>", "wraps": ["app", "cli", "workdir"], "pad": 14 },
+    { "kind": "security-group", "label": "다른 서비스 소유 · compose", "wraps": ["pg", "others"], "pad": 14 }
+  ],
+  "connections": [
+    { "from": "user_pc", "to": "tailnet", "label": "HTTPS", "variant": "emphasis" },
+    { "from": "user_mobile", "to": "tailnet", "label": "HTTPS", "variant": "emphasis" },
+    { "from": "tailnet", "to": "serve", "label": "MagicDNS:8443", "variant": "security" },
+    { "from": "serve", "to": "app", "label": "HTTP 127.0.0.1:8777", "variant": "emphasis" },
+    { "from": "app", "to": "pg", "label": "JDBC · 풀 5" },
+    { "from": "others", "to": "pg", "label": "공유 사용" },
+    { "from": "app", "to": "cli", "label": "자식 프로세스" },
+    { "from": "cli", "to": "workdir", "label": "git · 빌드 도구" },
+    { "from": "app", "to": "github", "label": "나가는 연결", "variant": "dashed" },
+    { "from": "app", "to": "telegram", "label": "나가는 연결", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "접근 경로", "items": ["tailnet 밖으로 여는 입구 없음(funnel 미사용)", "serve HTTPS 8443 → 127.0.0.1:8777", "브라우저 Origin은 ACCESS_ALLOWED_ORIGINS만 신뢰"] },
+    { "dot": "emerald", "title": "서비스 실행", "items": ["User=<SERVICE_USER>(root 아님), WorkingDirectory=<APP_HOME>", "PATH·JAVA_HOME 명시, .env는 앱이 직접 읽음(권한 600)", "Restart=on-failure: 10 재기동 · 0 종료, After=docker.service"] },
+    { "dot": "amber", "title": "공유 PostgreSQL", "items": ["127.0.0.1:5432 공개는 사용자가 compose에 추가(OI-18)", "전용 role은 전용 DB 소유자 권한만, 연결 10 제한", "앱 커넥션 풀 5"] },
+    { "dot": "slate", "title": "예정(점선)", "items": ["GitHub: Phase 3, 토큰 GITHUB_TOKEN", "Telegram: Phase 4, 밖으로 나가는 연결만, 사용자는 1:1 대화", "토큰 값은 서버 .env에만"] }
+  ]
+}

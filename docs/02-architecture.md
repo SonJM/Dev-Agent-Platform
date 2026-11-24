@@ -1,7 +1,7 @@
 # 02. 아키텍처 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.3 · 2026-11-24 · 상태: Draft
+> 버전 0.4 · 2026-11-24 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md)
 
 현재 구조의 상세는 `CLAUDE.md`·`README.md`가 기준이다. 이 문서는 **목표 구조와 바뀌는 부분의 결정**만 적는다.
@@ -36,24 +36,39 @@ flowchart LR
 ### 2.2 컨테이너 구성 (목표, 서버 한 대)
 
 ```mermaid
-flowchart TB
-    subgraph server[개인 서버 · Ubuntu 24.04]
-        tsd[tailscaled<br/>serve: HTTPS → 127.0.0.1:8777]
-        subgraph svc[systemd 서비스 · CLI 로그인된 일반 계정]
-            app[Dev Agent jar<br/>JDK 21 · 127.0.0.1:8777]
-            cli[claude CLI 자식 프로세스]
-            wt[작업 디렉터리<br/>기준 clone · worktree]
+flowchart LR
+    pc([사용자 PC]) -- HTTPS --> tn[Tailscale tailnet<br/>개인 기기만 · ACL]
+    mob([모바일]) -- HTTPS --> tn
+    tn -- "MagicDNS:8443" --> serve
+    subgraph server["개인 서버 · Ubuntu 24.04"]
+        serve["tailscale serve<br/>HTTPS 8443"]
+        subgraph lo["루프백 경계 · 들어오는 연결은 127.0.0.1만"]
+            subgraph svc["systemd dev-agent.service · CLI 로그인된 기존 계정"]
+                app["Dev Agent jar<br/>JDK 21 · 127.0.0.1:8777"]
+                cli["Claude Code CLI<br/>자식 프로세스 · 구독 로그인"]
+                wt[("작업 디렉터리<br/>기준 clone · worktree")]
+            end
+            subgraph own["다른 서비스 소유 · compose"]
+                pg[("PostgreSQL 16 컨테이너<br/>전용 DB · 전용 role · 127.0.0.1:5432")]
+                oth[다른 서비스들]
+            end
         end
-        pg[(기존 공유 PostgreSQL 16 컨테이너<br/>전용 DB · 전용 role · 127.0.0.1:5432)]
-        other[다른 서비스들] --> pg
-        tsd --> app
-        app --> cli
-        cli --> wt
-        app --> pg
     end
+    serve -- "HTTP 127.0.0.1:8777" --> app
+    app -- "JDBC · 풀 5" --> pg
+    oth -- 공유 사용 --> pg
+    app -- 자식 프로세스 --> cli
+    cli -- "git · 빌드 도구" --> wt
+    app -. "Phase 3 예정" .-> gh[(GitHub)]
+    app -. "Phase 4 예정" .-> tg[(Telegram)]
 ```
 
-전체 구성도(큰 그림)는 T-005(devops 그림)가 `docs/architecture/`에 만든다. 완료되면 여기에 링크한다.
+- tailnet 쪽 입구는 `tailscale serve`의 HTTPS 8443 하나다. 앱과 DB는 127.0.0.1에만 바인드된다. 루프백 경계는 **들어오는 연결** 기준이며 나가는 연결은 막지 않는다.
+- PostgreSQL의 127.0.0.1:5432 공개는 사용자가 그 compose에 추가한 뒤에 성립한다(OI-18). 그림은 추가된 뒤의 상태다.
+- 전체 구성도(상자마다 근거 파일 표시): [architecture/dev-agent-overview.html](./architecture/dev-agent-overview.html) — 원본 `architecture/src/dev-agent-overview.json`, 근거 표는 [T-005 변경 설명서](./tasks/results/T-005-전체-구성도.md#근거-표).
+- 그림 범위(T-005 검수 결정): Phase 1 종료 시점의 **배치·접근 경로**만 그린다. 아래는 일부러 그리지 않았다.
+  - GitLab 연동(Phase 1에서 실제로 씀)과 Claude CLI의 외부 연결(구독 로그인 대상): GitLab은 Phase 3(T-010)에서 GitHub로 교체되므로, Phase 3 종료 때 구성도를 갱신하면서 GitHub를 실선으로 바꾸고 CLI의 외부 연결을 함께 넣는다.
+  - 로그(`logs/dev-agent.log`·systemd journal): 배치가 아니라 관측 경로이므로 §6에 둔다.
 
 ### 2.3 컴포넌트 책임 (바뀌는 것만)
 
@@ -304,3 +319,4 @@ flowchart TB
 | 2026-11-24 | 0.1 | 최초 작성 |
 | 2026-11-24 | 0.2 | 사용자 결정 반영: D-1(8443 확정, 신원 확인 폐기), D-2(기존 계정), D-3(공유 PostgreSQL), D-7(포트까지 제거 확정), D-11 추가(운영 MCP·채팅 모델 포트 제거), §5(서버에서 기동 확인) |
 | 2026-11-24 | 0.3 | T-002 반영: §2.3 접근 제어 필터 위치(`config/`)와 적용 범위(경로 무관), §6에 Host 검사 재검토(OI-21)·에이전트 세션의 로컬 API 호출(OI-22) |
+| 2026-11-24 | 0.4 | T-005 반영: §2.2 그림을 전체 구성도 요약으로 교체(루프백 경계·다른 서비스 소유·Phase 3·4 예정 구분), HTML 구성도 링크, 그림 범위 결정(GitLab·CLI 외부 연결은 Phase 3 갱신 때, 로그는 §6) |

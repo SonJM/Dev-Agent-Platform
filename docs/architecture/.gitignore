@@ -1,0 +1,6 @@
+# archify 영수증(로컬 절대 경로 포함) — 커밋하지 않는다
+*.finalize.json
+*.finalize-summary.json
+*.browser-check.json
+*.delivery.json
+.review/
