@@ -1,7 +1,7 @@
 # 03. 데이터 모델 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.1 · 2026-11-24 · 상태: Draft
+> 버전 0.3 · 2026-11-24 · 상태: Draft
 > 대상: **PostgreSQL 16**
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
@@ -70,7 +70,7 @@ erDiagram
 | **Phase 2**: `chat_message`·`chat_room_cursor`·`chat_summary`·`mention_reply` 삭제 | 수집·요약·멘션 제거. 메시지를 저장하지 않는다 | FR-201 |
 | **Phase 2**: `doc_chunk` 삭제 | 사내 문서 RAG 제거(OI-02) | FR-202 |
 | **Phase 2**: `issue_session.wait_after_seq` 삭제 | 답변을 `chat_message.seq` 기준으로 소비하지 않는다([02 §3.1](./02-architecture.md#31-메신저-명령답변-수신-fr-203-fr-204)) | FR-204 |
-| **Phase 2**: 메신저 수신 커서는 `bot_setting`의 키 하나(`messenger_cursor`)로 저장. 테이블을 만들지 않는다 | 값 하나면 충분하다 | FR-203 |
+| **Phase 2**: 메신저 수신 커서는 `bot_setting`의 키 `messenger_cursor.<provider>`(구현체별 하나, 예 `messenger_cursor.telegram`)로 저장. 값은 어댑터가 정한 문자열 그대로. 테이블을 만들지 않는다 | 구현체마다 값 하나면 충분하다. 구현체를 바꿔도 다른 구현체의 커서를 해석하지 않는다(T-006) | FR-203 |
 | **Phase 2**: `bot_setting`의 방 설정 키(자동응답 방 등)와 `messenger_notify_off`의 `summary`·`mention` 값은 쓰지 않는다 | 기능 제거 | FR-205 |
 | **Phase 3**: `issue_session.project_id`(GitLab 숫자 id) 삭제 | GitHub는 `owner/repo`로 식별한다 | FR-301 |
 | **Phase 3**: `issue_session.issue_iid` → `issue_number`, `mr_url` → `pr_url` | GitHub 용어 | FR-305 |
@@ -171,3 +171,4 @@ stateDiagram-v2
 |---|---|---|
 | 2026-11-24 | 0.1 | 최초 작성 |
 | 2026-11-24 | 0.2 | 서버 DB를 공유 PostgreSQL의 전용 DB로 변경(§2), `mcp_server` 유지 명시 |
+| 2026-11-24 | 0.3 | T-006 반영: 수신 커서 키를 구현체별 `messenger_cursor.<provider>`로 정정(§2). 기존 설치의 `issue_session.wait_after_seq` 컬럼은 정의에서만 빠지고 DROP하지 않는다(nullable·미사용, 서버는 Phase 2 종료 때 빈 DB로 다시 시작) |

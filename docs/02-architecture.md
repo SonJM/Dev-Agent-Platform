@@ -1,7 +1,7 @@
 # 02. 아키텍처 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.4 · 2026-11-24 · 상태: Draft
+> 버전 0.5 · 2026-11-24 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md)
 
 현재 구조의 상세는 `CLAUDE.md`·`README.md`가 기준이다. 이 문서는 **목표 구조와 바뀌는 부분의 결정**만 적는다.
@@ -105,18 +105,23 @@ sequenceDiagram
     autonumber
     actor U as 사용자
     participant M as 메신저 어댑터
-    participant R as 명령 라우터
+    participant V as 수신 루프(MessengerReceiver)
+    participant R as 명령 라우터(MessengerCommandRouter)
     participant I as IssueAgentService
     participant Q as ResearchService
     U->>M: 자기 대화에 글
-    M->>R: 새 메시지(사용자가 보낸 것만) + 다음 커서
-    R->>R: 커서 저장(bot_setting)
-    alt 첫 단어가 명령(이슈·질문)
+    V->>M: receiveSelf(cursor, 25초) 차단형
+    M-->>V: SelfInbox(글마다 cursorAfter, nextCursor)
+    loop 글마다
+        V->>V: 커서 저장(bot_setting, 처리 직전)
+        V->>R: route(글)
+    end
+    alt 첫 단어가 명령(이슈·질문·질의)
         R->>I: command(...) 또는
         R->>Q: submitFromMessenger(...)
         R-->>U: 결과 답변
     else 대기 세션 있음 + 답변 형식(진행·중단·피드백: …)
-        R->>I: handleReply(세션, 글)
+        R->>I: deliverReply(글) → handleReply(세션, 글, 대기 세대)
     else 그 외
         R-->>U: 쓸 수 있는 명령 안내(대기 단계당 1회)
     end
@@ -126,7 +131,9 @@ sequenceDiagram
 ```
 
 설계 판단
-- **커서는 코어가 저장한다**(`bot_setting`의 키 하나). 어댑터는 "커서 뒤의 새 메시지와 다음 커서"만 돌려준다. 재시작 뒤 중복 처리 방지(FR-203).
+- **커서는 코어가 저장한다**(`bot_setting`의 키 `messenger_cursor.<provider>` — 구현체별 하나). 어댑터는 "커서 뒤의 새 메시지(글마다 그 글 뒤의 커서 `cursorAfter`)와 다음 커서"만 돌려준다. 코어는 글마다 **처리 직전에** 커서를 저장한다(글 단위 최대 한 번) — 재시작 뒤 같은 명령이 두 번 돌지 않고, 묶음 중간에 죽어도 남은 글은 다음 수신에서 다시 온다(FR-203). 포트 계약: `MessengerPort.receiveSelf(String cursor, Duration timeout)` → `SelfInbox(List<SelfMessage> messages, String nextCursor)`, `SelfMessage(IncomingMessage message, String cursorAfter)`. 실패는 RuntimeException이며 **예외 메시지에 자격증명·URL을 넣지 않는다**(수신 루프는 예외 클래스 이름만 기록).
+- **확인 대기 세대**: 세션이 대기 상태에 들어갈 때마다 세대(메모리 카운터)가 오른다. 답변은 접수 때의 세대를 붙잡고, 처리 시점의 세대와 다르면(그 사이 앞 답변 처리로 새 결과가 나옴) 적용하지 않고 다시 답해 달라고 안내한다. 메신저·대시보드 입력 모두 같은 규칙. 재기동하면 세대는 0부터 다시 센다.
+- 수신 루프는 `SmartLifecycle`로 컨텍스트가 다 뜬 뒤 시작하고 이슈 워커보다 먼저 멈춘다. 어떤 예외(Error 포함)에도 백오프(2~60초)로 재시도하고, 그래도 스레드가 끝나면 알림함(시스템)과 메신저 연동 카드(`receiver` 상태)에 드러난다. `none` 구현체면 시작하지 않는다.
 - **자기 글 제외는 어댑터 책임**이다. Telegram은 봇이 보낸 글이 수신 목록에 오지 않으므로 접두어 제외 로직(`CollectService.isBotGenerated`, `ChatMessageMapper.selectSelfAfter`의 접두어 조건)이 필요 없다. 접두어(`[이슈]` 등)는 사람이 읽기 위한 표시로만 남긴다.
 - **`@AI` 키워드는 없앤다**(`bot.mention.command-keyword`). 자기 대화는 봇 전용이라 호출 표시가 필요 없다.
 - `issue_session.wait_after_seq`는 없앤다. 답변은 도착한 순간 대기 중인 세션에 전달한다(대시보드 입력과 같은 진입점).
@@ -320,3 +327,4 @@ flowchart TB
 | 2026-11-24 | 0.2 | 사용자 결정 반영: D-1(8443 확정, 신원 확인 폐기), D-2(기존 계정), D-3(공유 PostgreSQL), D-7(포트까지 제거 확정), D-11 추가(운영 MCP·채팅 모델 포트 제거), §5(서버에서 기동 확인) |
 | 2026-11-24 | 0.3 | T-002 반영: §2.3 접근 제어 필터 위치(`config/`)와 적용 범위(경로 무관), §6에 Host 검사 재검토(OI-21)·에이전트 세션의 로컬 API 호출(OI-22) |
 | 2026-11-24 | 0.4 | T-005 반영: §2.2 그림을 전체 구성도 요약으로 교체(루프백 경계·다른 서비스 소유·Phase 3·4 예정 구분), HTML 구성도 링크, 그림 범위 결정(GitLab·CLI 외부 연결은 Phase 3 갱신 때, 로그는 §6) |
+| 2026-11-24 | 0.5 | T-006 검수 반영: §3.1 그림을 수신 루프·라우터 구조로, 커서 키(`messenger_cursor.<provider>`)·글 단위 저장·포트 계약·예외 메시지 규약·확인 대기 세대·수신 루프 수명 추가 |

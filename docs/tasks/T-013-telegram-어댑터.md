@@ -20,7 +20,7 @@ DB 접속: 없음
 작성: 2026-11-24
 ```
 
-Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 받는다(외부에서 들어오는 글이 에이전트 명령이 된다).
+Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 받는다(외부에서 들어오는 글이 에이전트 명령이 된다). 보안 리뷰 확인 항목: 허용 chat id 외 글 차단, **토큰이 든 URL이 예외 메시지·원인 체인·로그·`health()`·알림함에 남지 않는지**(T-006 M-4 후속), 전송 실패 응답 본문의 로그 노출.
 
 ## 목적
 봇과의 1:1 대화로 알림을 받고 명령·확인 답변을 보낸다.
@@ -38,6 +38,8 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 
 ## 범위
 - Bot API long polling으로 수신(수신 포트 없음), 텍스트 전송, 한 건 길이 한도에 맞춘 분할.
+- 수신 계약([02 §3.1](../02-architecture.md), T-006에서 확정): `receiveSelf(String cursor, Duration timeout)` → `SelfInbox(List<SelfMessage>, String nextCursor)`. 커서는 `update_id` 기반 문자열(`getUpdates`의 `offset`), 글마다 `SelfMessage.cursorAfter`(= 그 글의 `update_id + 1`, **null 금지**)를 채운다. 버린 글(다른 대화·텍스트 아님)도 `nextCursor`는 전진시킨다. `timeout`(코어 25초)보다 HTTP 응답 제한 시간을 길게 잡는다. 커서 저장은 코어가 키 `messenger_cursor.telegram`으로 한다(어댑터는 저장하지 않는다). 수신 루프·재시도·백오프는 코어(`MessengerReceiver`)에 있으므로 어댑터가 따로 돌리지 않는다.
+- 실패는 RuntimeException으로 던지되 **예외 메시지·원인 체인·로그에 봇 토큰이 든 URL을 넣지 않는다**(코어 수신 루프는 예외 클래스 이름만 남기지만, 어댑터 자체 로그와 `health()` 상세도 같다 — T-006 검토 M-4 후속).
 - 허용 대화는 설정한 chat id 하나. 다른 대화의 글은 버리고 답하지 않는다(커서는 전진). chat id를 알아내는 방법을 절차로 제공한다(예: 미설정 상태에서 받은 대화 id를 로그가 아닌 Doctor 안내로 보여 주는 방식 — 방식은 구현 시 정하고 근거를 적는다).
 - 토큰·chat id는 `.env`로만(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`). 토큰이 들어간 URL을 로그·예외에 남기지 않는다.
 - 연결 끊김·오류 응답에서 재시도 간격을 두고 복구한다. 연속 실패는 연동 카드와 알림함(시스템)에 드러난다.
@@ -68,3 +70,4 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성(단계 수준) |
+| 2026-11-24 | 대기 | PM 수정(T-006 검수): 확정된 수신 계약(`SelfInbox`·`SelfMessage.cursorAfter`·커서 키)과 토큰 비노출 보안 리뷰 항목 추가. 순서: `depends: [T-007]` 유지 — T-007이 `mention/`·`collect/`를 지운 뒤라야 실제 어댑터에서 답 중복이 없다(M-6) |
