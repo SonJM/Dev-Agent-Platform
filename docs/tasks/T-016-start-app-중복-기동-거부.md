@@ -3,7 +3,7 @@
 ```
 id: T-016
 담당: qa (qa)
-상태: 대기
+상태: 완료
 depends: []
 병렬: 가능
 충돌: []
@@ -63,9 +63,13 @@ bash e2e/scripts/stop-app.sh
 ```
 
 ## 검증 증거
-개발 에이전트가 작성.
+- 일시: 2026-11-24 18:40
+- 명령: 위 검증 명령(첫 기동 대기 후 재호출, stop-app.sh)
+- 결과: bash -n 통과, first=200, second_rc=3(`port 8778 in use — run stop-app.sh first`), pgdata-embedded 항목 25→25, after=200, stop 후 8778·54329 리슨 0. 응답 없는 리스너 상태에서도 거부(rc=3)
+- 변경 설명서: [results/T-016-start-app-중복-기동-거부.md](./results/T-016-start-app-중복-기동-거부.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성(T-006 검수 중 발견한 재발 방지) |
+| 2026-11-24 | 완료 | **PM 검수.** 변조 없음(HEAD c27b82f 대비 상태·검증 증거만), 01~07·BOARD·proposals 변경 없음. `git status` 변경 = 파일 지도(`start-app.sh`) + 설명서·지시서. 검증 명령 재실행(8778·54329 비어 있음 확인 뒤): `bash -n` 통과, first=200, second_rc=3(안내 문구 일치), `pgdata-embedded` 25→25, after=200, stop rc=0, 정지 뒤 8778·54329 리슨 없음. 제안 ①(04 §8 한 줄)은 반영, 검증 명령의 앱 기동 형태도 04 §8에 정했다. 제안 ②(`rm -rf` "Directory not empty" 1회)는 같은 시각 T-006 backend-dev의 8778 기동 확인과 겹친 것으로 설명되고(이전 실행의 내장 DB가 살아 있던 상태) 이번 재실행에서 재현되지 않아 OI로 올리지 않는다 |

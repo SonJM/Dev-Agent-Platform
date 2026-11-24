@@ -7,10 +7,17 @@ REPO=$(cd "$(dirname "$0")/../.." && pwd)
 JAR=${QA_JAR:-$REPO/build/libs/dev-agent.jar}
 HOME_DIR=${QA_HOME:-$REPO/e2e/test-results/qa-home}
 [ -f "$JAR" ] || { echo "jar not found: $JAR"; exit 2; }
+PORT=8778
+# Refuse when something already listens: wiping the data dir under a live instance breaks it.
+# Decided by a TCP connect, not an HTTP response, so an unresponsive instance is refused too.
+if timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$PORT" 2>/dev/null; then
+  echo "port $PORT in use — run stop-app.sh first"
+  exit 3
+fi
 mkdir -p "$HOME_DIR"
 rm -rf "$HOME_DIR/pgdata-embedded"
 cd "$HOME_DIR"
-export ADMIN_PORT=8778 PREVIEW_ENABLED=false MAINTAIN_ENABLED=false
+export ADMIN_PORT=$PORT PREVIEW_ENABLED=false MAINTAIN_ENABLED=false
 # No Claude CLI call at startup (warm session prime). One fake target project so the routine
 # screens work without GitLab (adding a project through the UI needs a real GitLab).
 export CLAUDE_WARM=false CLAUDE_WARM_PREWARM=false GITLAB_PROJECTS=qa-group/qa-sample
