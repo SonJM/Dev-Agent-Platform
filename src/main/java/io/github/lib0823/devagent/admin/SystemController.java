@@ -1,6 +1,5 @@
 package io.github.lib0823.devagent.admin;
 
-import jakarta.servlet.http.HttpServletRequest;
 import io.github.lib0823.devagent.boot.Bootstrap;
 import io.github.lib0823.devagent.boot.Launcher;
 import io.github.lib0823.devagent.config.GitLabProperties;
@@ -99,10 +98,7 @@ public class SystemController {
 
     /** 재시작. 작업 중인 세션이 있으면 거부(force=true 로 강행 — 그 세션은 실패 처리된다). */
     @PostMapping("/api/system/restart")
-    public Map<String, Object> restart(@RequestParam(defaultValue = "false") boolean force, HttpServletRequest req) {
-        if (foreign(req)) {
-            return result(false, "이 화면에서만 요청할 수 있습니다.");
-        }
+    public Map<String, Object> restart(@RequestParam(defaultValue = "false") boolean force) {
         if (!supervised()) {
             return result(false, "감시자 없이 실행 중이라 다시 띄울 수 없습니다. 직접 종료 후 시작하세요.");
         }
@@ -117,10 +113,7 @@ public class SystemController {
 
     /** 종료(감시자도 함께 끝난다). */
     @PostMapping("/api/system/shutdown")
-    public Map<String, Object> shutdown(HttpServletRequest req) {
-        if (foreign(req)) {
-            return result(false, "이 화면에서만 요청할 수 있습니다.");
-        }
+    public Map<String, Object> shutdown() {
         log.info("요청으로 종료합니다");
         if (RunMode.writesStopFlag(runMode())) {
             try {
@@ -146,16 +139,6 @@ public class SystemController {
 
     private static boolean supervised() {
         return RunMode.supervised(runMode());
-    }
-
-    /** 다른 사이트의 페이지가 브라우저를 통해 보낸 요청인가(Origin 이 이 서버가 아님). 로컬 도구(curl 등)는 Origin 이 없어 통과. */
-    static boolean foreign(HttpServletRequest req) {
-        String origin = req.getHeader("Origin");
-        if (origin == null || origin.isBlank()) {
-            return false;
-        }
-        String self = ":" + req.getServerPort();
-        return !(origin.equals("http://127.0.0.1" + self) || origin.equals("http://localhost" + self));
     }
 
     private void exitLater(int code) {

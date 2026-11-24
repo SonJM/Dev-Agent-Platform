@@ -181,11 +181,7 @@ public class AdminController {
     @PostMapping("/api/issues-create")
     public Map<String, Object> issuesCreate(@RequestParam String project, @RequestParam String title,
                                             @RequestParam(defaultValue = "") String description,
-                                            @RequestParam(defaultValue = "true") boolean start,
-                                            jakarta.servlet.http.HttpServletRequest req) {
-        if (SystemController.foreign(req)) {
-            return Map.of("ok", false, "result", "이 화면에서만 요청할 수 있습니다.");
-        }
+                                            @RequestParam(defaultValue = "true") boolean start) {
         return issueAgent.createIssue(project, title, description, start);
     }
 
@@ -272,7 +268,7 @@ public class AdminController {
     }
 
     /** LLM 헬스체크 + 레이턴시 측정 (localhost 전용, 방 전송 없음). warm 경로 검증용. */
-    @GetMapping("/api/llm-test")
+    @PostMapping("/api/llm-test")
     public Map<String, Object> llmTest(@RequestParam(defaultValue = "1 더하기 1은? 숫자만 답해.") String prompt) {
         Map<String, Object> m = new LinkedHashMap<>();
         long t0 = System.currentTimeMillis();

@@ -1,6 +1,5 @@
 package io.github.lib0823.devagent.admin;
 
-import jakarta.servlet.http.HttpServletRequest;
 import io.github.lib0823.devagent.skill.AgentSkill;
 import io.github.lib0823.devagent.skill.SkillService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,10 +66,7 @@ public class SkillController {
 
     /** 지워서 없는 기본 스킬만 다시 넣는다(있는 스킬은 고친 내용 그대로). */
     @PostMapping("/api/skills/defaults")
-    public Map<String, Object> restoreDefaults(HttpServletRequest req) {
-        if (SystemController.foreign(req)) {
-            return Map.of("ok", false, "result", "이 화면에서만 요청할 수 있습니다.");
-        }
+    public Map<String, Object> restoreDefaults() {
         int n = skills.restoreDefaults();
         return Map.of("ok", true, "result", n > 0 ? "기본 스킬 " + n + "개를 다시 넣었습니다" : "기본 스킬이 이미 모두 있습니다(고친 내용은 그대로 둡니다)");
     }

@@ -127,7 +127,7 @@
 - **정기 요약 / 멘션 / `@AI`**: 수집은 관리 페이지에서 방별로 켭니다(`☑수집`). `@AI` 는 수집된 방에서만 감지되고, 답은 같은 방(화이트리스트)이나 자기방으로 갑니다.
 - **사내 문서 참고(RAG)**: MkDocs `search_index.json` 을 기동 시 + 매일 06:30 적재(`doc_chunk`), 질문과 관련 섹션이 있을 때만 상위 K 섹션을 프롬프트에 넣고 출처 URL 을 답에 붙입니다. 임베딩 API 가 없어 Postgres 키워드 스코어링(제목 가중, 조사 제거)으로 구현. 점검: `GET /api/docs-status`, `POST /api/docs-refresh`, `GET /api/docs-search?q=`.
 - **운영 MCP 조회**: 자기방(또는 직접응답 방)에서 `@AI 운영 <질문>` 이나 운영 키워드가 든 질문은 `OpsQueryService` 가 one-shot `claude -p`(sonnet/medium) 로 opensearch·postgres·k3s-ops **읽기 전용** 도구를 써서 실제 데이터를 조회해 답합니다(10~60초, 접수 안내 선전송). 설정 파일 `work/mcp-servers.json` 은 기동 시 생성되고 토큰은 env 로만 전달됩니다.
-- **응답 속도**: `claude -p` 콜드스타트 ~20s → 플래그 최적화 ~9.6s → **warm 상주 ~1.4s**. 헬스체크 `GET /api/llm-test?prompt=`.
+- **응답 속도**: `claude -p` 콜드스타트 ~20s → 플래그 최적화 ~9.6s → **warm 상주 ~1.4s**. 헬스체크 `POST /api/llm-test?prompt=`.
 - **메신저 알림 끄기**: 플랫폼이 스스로 자기방에 보내는 알림은 메신저 탭 "메신저 알림" 카드에서 유형별(방 요약 · 멘션 초안 · 이슈 · 리서치 · 시스템)로 끌 수 있습니다. 꺼도 내용은 남습니다 — 요약·멘션 초안은 메신저 탭에, 이슈·리서치·시스템은 알림함에. 메신저에서 직접 친 `@AI` 명령의 답은 알림이 아니므로 항상 갑니다.
 
 ---
@@ -386,6 +386,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 | `BOT_JAVA_OPTS`(환경변수) | 봇 JVM 옵션. 기본 `-XX:+UseSerialGC -Xms32m -Xmx512m -XX:TieredStopAtLevel=1`(로컬 경량 운용) |
 | `GITLAB_WORK_DIR` | 에이전트 작업 디렉터리(clone·worktree·MCP 설정·스킬 파일). **이 저장소 밖 경로로 지정** — 안에 두면 에이전트 세션이 이 저장소의 CLAUDE.md 를 읽는다 |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` / `ADMIN_PORT` | PostgreSQL(`DB_URL` 을 **비우면 내장 DB**, 포트는 `DB_EMBEDDED_PORT` 기본 54329) · 관리 페이지 포트(8777) |
+| `ACCESS_ALLOWED_ORIGINS` | 상태를 바꾸는 요청(경로와 무관하게 `GET`·`HEAD`·`OPTIONS` 외 전부)에서 루프백 외에 허용할 `Origin`(쉼표 구분, 정확히 일치, 기본 빈 값 = 루프백만). `tailscale serve` 뒤에서 쓸 때 `https://<MagicDNS 이름>:8443`. `Origin` 이 없는 요청(curl)은 통과 |
 | `CLAUDE_EXE_COMMAND` | Claude Code 실행 파일 경로. 비우면 자동 탐색(PATH → npm 전역 → `~/.local/bin` → Homebrew) |
 | `DEV_AGENT_HOME` / `DEV_AGENT_JAVA_OPTS`(환경변수) | 실행 파일 모드의 홈 폴더(기본 `~/.dev-agent`) · 앱 JVM 옵션 |
 
@@ -424,7 +425,7 @@ docs/                 images/
 ## 유지보수 · 보안
 
 - **중지/재시작**: 실행 파일 모드는 트레이 메뉴, 소스 실행은 `stop.cmd` / `restart.cmd` 또는 플랫폼 > 시스템 > 재시작(java 를 직접 죽이면 supervisor 가 되살림). 재시작은 이슈 세션이 대기 상태일 때만(`GET /api/issues`).
-- **로그**: `logs/dev-agent.log`(10MB 롤링, 7일). 점검 API: `/api/llm-test`, `/api/docs-status`, `/api/mcp-status`, `/api/preview/status`, `/api/agent/overview`.
+- **로그**: `logs/dev-agent.log`(10MB 롤링, 7일). 점검 API: `POST /api/llm-test`, `/api/docs-status`, `/api/mcp-status`, `/api/preview/status`, `/api/agent/overview`.
 - `.env`(토큰·비밀번호), `work/`, `tools/`, `build/`, `logs/`, `pgdata/` 는 커밋 제외. 토큰은 코드·설정 파일·메모리에 적지 않습니다.
 - 수집 범위(타인 메시지)를 넓힐 때는 정보보안 승인 범위를 재확인하세요. 프리뷰 Tomcat 은 개발 DB/OpenSearch 에 붙으므로 쓰기가 발생할 수 있습니다.
 

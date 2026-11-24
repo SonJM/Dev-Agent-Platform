@@ -1,7 +1,6 @@
 package io.github.lib0823.devagent.admin;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import jakarta.servlet.http.HttpServletRequest;
 import io.github.lib0823.devagent.mcp.McpConfigService;
 import io.github.lib0823.devagent.mcp.McpServer;
 import io.github.lib0823.devagent.research.ResearchService;
@@ -117,13 +116,8 @@ public class BundleController {
 
     /** 번들 적용. 항목별로 검증해 들어간 것과 거부된 것을 알려 준다(하나가 실패해도 나머지는 적용). */
     @PostMapping("/api/bundle/import")
-    public Map<String, Object> importBundle(@RequestBody JsonNode b, HttpServletRequest req) {
+    public Map<String, Object> importBundle(@RequestBody JsonNode b) {
         Map<String, Object> out = new LinkedHashMap<>();
-        if (SystemController.foreign(req)) {
-            out.put("ok", false);
-            out.put("result", "이 화면에서만 요청할 수 있습니다.");
-            return out;
-        }
         if (b == null || !FORMAT.equals(b.path("format").asText())) {
             out.put("ok", false);
             out.put("result", "Dev Agent 구성 묶음 파일이 아닙니다(format 이 " + FORMAT + " 여야 합니다).");

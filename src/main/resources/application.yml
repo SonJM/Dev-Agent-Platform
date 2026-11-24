@@ -23,6 +23,11 @@ spring:
       thread-name-prefix: sched-
 
 # 로컬 관리 페이지 (localhost 전용 — 외부 접속 차단)
+# 접근 제어(FR-104): 상태를 바꾸는 요청(경로와 무관하게 GET·HEAD·OPTIONS 외 전부)의 Origin 이 루프백이 아니면 여기 목록과 정확히 일치해야 한다(쉼표 구분). 비우면 루프백만.
+# tailscale serve 뒤에서 쓸 때 https://<MagicDNS 이름>:8443 을 넣는다. server.address 는 127.0.0.1 고정(환경변수로 바꾸지 않는다).
+access:
+  allowed-origins: ${ACCESS_ALLOWED_ORIGINS:}
+
 server:
   address: 127.0.0.1
   port: ${ADMIN_PORT:8777}

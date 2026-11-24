@@ -20,7 +20,7 @@ async function loadStatus() {
 function stat(l, v, unit){ return `<div class="stat"><div class="l">${l}</div><div class="v">${v}${unit?`<small>${unit}</small>`:''}</div></div>`; }
 async function llmTest() {
   const b = $('llmBtn'), v = $('llmV'); b.disabled = true; v.innerHTML = '<span style="font-weight:500;color:var(--muted)">응답 대기…</span>';
-  try { const r = await (await fetch('/api/llm-test')).json(); v.innerHTML = r.ok ? `<span style="color:var(--ok)">정상</span><small>${r.elapsedMs} ms</small>` : `<span style="color:var(--err)">실패</span>`; if (!r.ok) toast(r.error, 'err'); }
+  try { const r = await (await fetch('/api/llm-test', { method: 'POST' })).json(); v.innerHTML = r.ok ? `<span style="color:var(--ok)">정상</span><small>${r.elapsedMs} ms</small>` : `<span style="color:var(--err)">실패</span>`; if (!r.ok) toast(r.error, 'err'); }
   catch(e) { v.innerHTML = '<span style="color:var(--err)">실패</span>'; }
   b.disabled = false;
 }

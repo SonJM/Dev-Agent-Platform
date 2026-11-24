@@ -1,7 +1,7 @@
 # 05. API 명세서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.1 · 2026-11-24 · 상태: Draft
+> 버전 0.3 · 2026-11-24 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md), [03. 데이터 모델 설계서](./03-data-model.md)
 > 관련 문서: [06. 기능 정의서](./06-functional-specification.md)
 > 기계 판독 명세는 없다. **현행 API의 기준은 `admin/*Controller.java`** 이고, 이 문서는 공통 규칙과 전환으로 바뀌는 목록만 적는다(전수 명세는 범위 밖).
@@ -16,9 +16,12 @@
 
 ### 1.2 인증과 접근 제어
 - 로그인 없음.
-- **신뢰 Origin 확인** (Phase 1, FR-104): `GET`·`HEAD`·`OPTIONS`가 아닌 `/api/**` 요청에 `Origin` 헤더가 있으면 신뢰 목록(루프백 + `ACCESS_ALLOWED_ORIGINS`)과 정확히 일치해야 한다. 아니면 `403`. `Origin`이 없으면 통과(로컬 도구).
-  - 지금은 `SystemController.foreign(req)`를 10곳(이슈 등록, 구성 묶음 가져오기, 플랫폼 관리 3곳, 리서치 첨부, 스킬 기본값, 재시작, 종료)에서만 부르고 루프백 Origin만 허용한다. Phase 1에서 필터 하나로 모아 **전체 상태 변경 API에 적용**한다.
-  - `GET`으로 상태를 바꾸는 엔드포인트가 있는지는 T-002에서 전수 조사해 `POST`로 바꾸거나 같은 확인을 적용한다.
+- **신뢰 Origin 확인** (Phase 1, FR-104, T-002 구현 `config/AccessControlFilter`): `GET`·`HEAD`·`OPTIONS`가 아닌 **모든 요청(경로와 무관)** 에 `Origin` 헤더가 있으면 신뢰 목록과 정확히 일치해야 한다. 아니면 `403` + `{"ok":false,"result":"이 화면에서만 요청할 수 있습니다."}`. `Origin`이 없으면 통과(로컬 도구).
+  - 경로로 거르지 않는 이유: 필터가 보는 원문 URI와 Spring MVC가 매칭하는 경로가 달라 `/api;x/…`·`/%61pi/…` 같은 표기가 `/api/**` 조건을 우회해 컨트롤러에 닿는다(T-002 보안 검토에서 실측). 그래서 `/api` 밖 경로(`/home.html` 등)의 `POST`도 같은 판정을 받는다.
+  - 신뢰 목록: 루프백 `http://127.0.0.1:<server.port>`·`http://localhost:<server.port>`(포트는 요청이 아니라 설정값) + `ACCESS_ALLOWED_ORIGINS`(쉼표 구분, 앞뒤 공백 제거, 대소문자·끝 슬래시 정규화 없음 — OI-21).
+  - 예전에는 `SystemController.foreign(req)`를 10곳에서만 불렀고 거부가 HTTP 200 + `ok:false`였다. T-002에서 `foreign()`을 지우고 필터로 대체했다(거부는 403).
+  - `GET`으로 상태를 바꾸던 엔드포인트는 T-002 전수 조사(79개)에서 `/api/llm-test` 하나였고 `POST`로 바꿨다(§2.2에서 T-007이 삭제 예정).
+  - Host 헤더는 검사하지 않는다(02 §6). 재검토 중 — OI-21.
 - Tailscale 신원 확인은 하지 않는다(FR-105 폐기, OI-05).
 - 거부 응답 본문: `{"ok": false, "result": "<사유 한 줄>"}` (현행 형식).
 
@@ -50,7 +53,8 @@
 ### 2.1 Phase 1
 | 메서드 | 경로 | 변경 | 요구사항 |
 |---|---|---|---|
-| 전체 | 상태 변경 `/api/**` | 신뢰 Origin 확인 일괄 적용(§1.2) | FR-104 |
+| 전체 | `GET`·`HEAD`·`OPTIONS` 외 모든 요청(경로 무관) | 신뢰 Origin 확인 일괄 적용(§1.2) | FR-104 |
+| POST | `/api/llm-test` | `GET`→`POST`(GET이 LLM 호출을 일으킴, T-002) | FR-104 |
 | GET | `/api/system/status` | 실행 방식 값에 `systemd` 추가 | FR-102 |
 | GET | `/api/system/doctor` | Linux 항목 | FR-106 |
 | POST | `/api/system/restart`, `/api/system/shutdown` | systemd 아래에서 동작(종료 코드 10 / 0) | FR-102 |
@@ -64,7 +68,7 @@
 | GET | `/api/preview/**`, `/api/agent/sessions/{id}/shots/**` | 삭제(OI-04) | FR-206 |
 | GET / POST | `/api/messenger-notify` | 유지. 유형에서 `summary`·`mention` 제거 | FR-205 |
 | GET | `/api/status` | 유지하되 수집·요약 항목 제거(화면이 쓰는 항목만 — T-007에서 확인) | FR-207 |
-| GET | `/api/llm-test` | 삭제(채팅 모델 포트 제거) | FR-208 |
+| POST | `/api/llm-test` | 삭제(채팅 모델 포트 제거). T-002에서 GET→POST로 바뀌었다 | FR-208 |
 | POST | `/api/mcp-ask` | 삭제(`운영` 질의 제거) | FR-208 |
 | GET | `/api/mcp-status` | 유지하되 내장 3종 항목 제거 — 사용자 정의 MCP 상태만(화면이 쓰는지 T-007에서 확인) | FR-208 |
 | GET / POST | `/api/mcp-servers`, `/api/mcp-servers/delete` | 유지(가정 AS-07). 예약 이름에서 내장 3종 제외 | FR-208 |
@@ -102,3 +106,4 @@
 |---|---|---|
 | 2026-11-24 | 0.1 | 최초 작성 |
 | 2026-11-24 | 0.2 | 신원 확인 삭제(§1.2), §2.2에 운영 MCP·채팅 모델 관련 API 처리 확정 |
+| 2026-11-24 | 0.3 | T-002 반영: §1.2 신뢰 Origin 확인이 경로와 무관하게 비안전 메서드 전부에 적용(보안 검토 C-1), 루프백 포트는 설정값, 거부 본문, `/api/llm-test` POST 전환(§2.1) |
