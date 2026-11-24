@@ -3,7 +3,7 @@
 ```
 id: T-015
 담당: qa (qa)
-상태: 대기
+상태: 완료
 depends: [T-002]
 병렬: 가능
 충돌: []
@@ -54,9 +54,14 @@ qa 보고서로 갈음: [results/T-015-tc023-core-승격-qa.md](./results/T-015-
 ```
 
 ## 검증 증거
-개발 에이전트가 작성: 실행한 명령, 결과 요약, 일시.
+- 일시: 2026-11-24 16:28
+- 명령: qa-run.sh --grep @core (e2e/scripts/start-app.sh, 8778, 기존 jar)
+- 결과: 6 passed, skipped 0, QA PASS. e2e/tasks/T-002.spec.ts -> e2e/core/access-control.spec.ts(@core)
+- 변경 설명서: [results/T-015-tc023-core-승격-qa.md](./results/T-015-tc023-core-승격-qa.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성(T-002 묶음 제안 채택) |
+| 2026-11-24 | 검수 요청 | qa 실행 6/6 통과 |
+| 2026-11-24 | 완료 | PM 검수: HEAD 대조 이상 없음, `e2e/core/access-control.spec.ts`는 원본과 태그 한 줄만 다름(`@task:T-002`→`@core`), `e2e/tasks/` 비어 있음, `@core` 6개 = 07 §8. 보고서 `## 검증` 마지막 줄 QA PASS = 판정, report.json expected 6·unexpected 0·skipped 0·flaky 0 = 표 |

@@ -14,7 +14,7 @@ const PATHS = [
   `/home.html?name=${HARMLESS}`,
 ];
 
-test('TC-023 다른 출처의 상태 변경 요청은 경로 표기와 무관하게 403', { tag: ['@task:T-002'] }, async ({ page, request }, testInfo) => {
+test('TC-023 다른 출처의 상태 변경 요청은 경로 표기와 무관하게 403', { tag: ['@core'] }, async ({ page, request }, testInfo) => {
   const errors = collectConsoleErrors(page);
   await page.goto('/platform.html');
   await expect(page.locator('#skillList')).not.toContainText('불러오는 중');

@@ -1,0 +1,44 @@
+# Dev Agent systemd unit (틀). <...> 자리표시자를 서버 값으로 바꿔 /etc/systemd/system/dev-agent.service 로 둔다.
+# 실제 계정 이름·경로는 저장소에 적지 않는다. 절차: deploy/README.md §6.
+#
+#   <SERVICE_USER>   Claude CLI 로그인이 돼 있는 기존 일반 계정(root 아님)
+#   <APP_HOME>       앱 홈 절대 경로. .env·dev-agent.jar·logs 가 여기에 놓인다(WorkingDirectory 와 같은 값)
+#   <JAVA_HOME>      JDK 17+ 설치 경로(로그인 셸에서 `readlink -f $(command -v java)` 로 확인)
+#   <TOOLS_PATH>     claude·git·node·gradle 이 있는 디렉터리를 ':' 로 이은 값(로그인 셸의 `command -v` 결과의 디렉터리)
+#
+# 앱 규약: 화면의 「재시작」= 종료 코드 10, 「종료」= 종료 코드 0.
+#   Restart=on-failure 라서 10 은 다시 뜨고 0 은 다시 뜨지 않는다. Restart=always 로 바꾸면 「종료」가 듣지 않고,
+#   Restart=no 로 바꾸면 「재시작」이 듣지 않는다.
+
+[Unit]
+Description=Dev Agent
+# 공유 DB 컨테이너(docker)보다 뒤에 시작. docker 를 Requires 로 묶지 않는다(docker 재시작이 앱을 끄지 않게).
+# DB 가 아직 안 떴으면 앱이 종료 코드 non-zero 로 끝나고 아래 Restart 로 다시 시도한다.
+After=network-online.target docker.service
+Wants=network-online.target
+# 재기동 폭주 방지: 3분 안에 5회를 넘기면 멈춘다(systemctl reset-failed dev-agent 후 다시 시작)
+StartLimitIntervalSec=180
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=<SERVICE_USER>
+WorkingDirectory=<APP_HOME>
+# systemd 는 로그인 셸 PATH 를 쓰지 않는다. 필요한 도구 경로를 모두 적는다.
+Environment=PATH=<TOOLS_PATH>:<JAVA_HOME>/bin:/usr/local/bin:/usr/bin:/bin
+Environment=JAVA_HOME=<JAVA_HOME>
+Environment=DEV_AGENT_RUN_MODE=systemd
+# java -jar 직접 실행은 DEV_AGENT_HOME 을 보지 않고 작업 디렉터리를 홈으로 쓴다 → WorkingDirectory 가 필수.
+# 설정(.env)은 앱이 <APP_HOME>/.env 를 직접 읽는다(EnvironmentFile 을 쓰지 않는다).
+ExecStart=<JAVA_HOME>/bin/java -Djava.awt.headless=true -XX:+UseSerialGC -Xmx512m -jar <APP_HOME>/dev-agent.jar
+Restart=on-failure
+RestartForceExitStatus=10
+RestartSec=5
+# systemctl stop 의 SIGTERM(143)은 정상 종료로 본다
+SuccessExitStatus=143
+TimeoutStopSec=60
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.3 · 2026-11-24 · 상태: Draft
+> 버전 0.4 · 2026-11-24 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -19,7 +19,7 @@ Dev_Agent-Platform/
 │   └── dist/env.template        # 첫 기동 때 만드는 .env 틀
 ├── src/test/java/               # 단위 테스트 (Spring 컨텍스트 없음)
 ├── db/schema.sql                # 빈 DB 첫 기동 때 실행
-├── deploy/                      # (신규, T-003) systemd unit · 서버용 compose · 절차서
+├── deploy/                      # (T-003) systemd unit · 전용 DB 준비 SQL · 서버 .env 예시 · 절차서
 ├── e2e/                         # (신규, T-004) qa의 Playwright 테스트
 ├── web/                         # (신규, 5단계) Vite + React + TypeScript
 └── docs/                        # 이 문서 세트
@@ -162,3 +162,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-24 | 0.1 | 최초 작성 |
 | 2026-11-24 | 0.2 | 사용자 결정 반영: §2(`llm/`·`mcp/` 처리), §3 그림, §7 환경변수, §9(공유 DB, SSH·로그인 셸, 8443 확정) |
 | 2026-11-24 | 0.3 | T-004 확인 결과로 §8 확정(기동·종료 스크립트, warm 끄기, `-Duser.home` 격리, 작업 디렉터리·DB 초기화 위치). T-001 결과로 §9 unit `WorkingDirectory`·Claude CLI 탐색 경로·Linux 기동 동작 추가 |
+| 2026-11-24 | 0.4 | T-003 완료: §1 `deploy/` 설명을 실제 구성(서버용 compose 없음, 전용 DB 준비 SQL)으로 정정 |
