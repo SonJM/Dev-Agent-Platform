@@ -6,6 +6,7 @@ import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.config.McpProperties;
 import io.github.lib0823.devagent.config.PreviewProperties;
+import io.github.lib0823.devagent.platform.Os;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -329,12 +330,21 @@ public class McpConfigService {
         });
     }
 
-    /** Playwright MCP(stdio) 서버 정의. Windows 에서 npx 는 cmd /c 로 감싼다(실제 호출로 확인). */
+    /** Playwright MCP(stdio) 서버 정의. Windows 에서만 npx 를 cmd /c 로 감싼다(실제 호출로 확인). Linux/macOS 는 npx 를 직접. */
     public static ObjectNode playwrightNode(PreviewProperties p, Path shotsDir) {
+        return playwrightNode(p, shotsDir, Os.isWindows());
+    }
+
+    static ObjectNode playwrightNode(PreviewProperties p, Path shotsDir, boolean windows) {
         ObjectNode n = new ObjectMapper().createObjectNode();
-        n.put("command", "cmd");
         var args = n.putArray("args");
-        args.add("/c").add("npx").add("-y").add("@playwright/mcp@" + (p.playwrightVersion() == null || p.playwrightVersion().isBlank() ? "latest" : p.playwrightVersion().strip()));
+        if (windows) {
+            n.put("command", "cmd");
+            args.add("/c").add("npx");
+        } else {
+            n.put("command", "npx");
+        }
+        args.add("-y").add("@playwright/mcp@" + (p.playwrightVersion() == null || p.playwrightVersion().isBlank() ? "latest" : p.playwrightVersion().strip()));
         args.add("--browser").add(p.browser() == null || p.browser().isBlank() ? "msedge" : p.browser().strip());
         if (p.headless()) {
             args.add("--headless");

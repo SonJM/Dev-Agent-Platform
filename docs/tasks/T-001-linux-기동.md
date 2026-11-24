@@ -3,7 +3,7 @@
 ```
 id: T-001
 담당: backend-dev (backend-dev)
-상태: 대기
+상태: 완료
 depends: []
 병렬: 가능            # T-004와 동시 가능
 충돌: [T-002]         # admin/SystemController.java
@@ -85,10 +85,15 @@ bash deploy/smoke/server-smoke.sh
 ```
 
 ## 검증 증거
-개발 에이전트가 작성: 실행한 명령, 결과 요약(통과/실패 수), 일시.
+- 일시: 2026-11-24
+- 명령: `./gradlew.bat test bootJar -q` / `bash deploy/smoke/server-smoke.sh`
+- 결과: gradlew test bootJar 통과(86 테스트, 실패 0). server-smoke.sh 는 DEV_AGENT_SSH 환경변수가 없어 **실행하지 못함**(SMOKE SKIP, TC-001 미확인 — 메인 세션/사용자가 실행 필요). 가짜 ssh 로 로컬에서 실패 경로·정리만 확인.
+- 변경 설명서: [results/T-001-linux-기동.md](./results/T-001-linux-기동.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성 |
 | 2026-11-24 | 대기 | PM 수정(착수 전): Docker 기반 smoke를 서버 격리 실행(`server-smoke.sh`, SSH·로그인 셸)으로 변경 — OI-12 결정 |
+| 2026-11-24 | 검수 요청 | backend-dev 구현 완료(smoke는 `DEV_AGENT_SSH` 없어 미실행) |
+| 2026-11-24 | 완료 | PM 검수: `gradlew.bat test bootJar` 재실행 통과(86개, 실패 0). `server-smoke.sh`는 메인 세션이 `DEV_AGENT_SSH` 세션에서 실행한 원문으로 판정 — `SMOKE PASS`(status·doctor 200, runMode=systemd, supervised=true, Doctor agent·git ok, 기동 예외 없음, 앱·내장 DB 종료, `~/bin unchanged`, cleanup ok). 실행 뒤 서버 잔여물 0 별도 확인. 스크립트에 주소·계정·`sudo`·`docker` 없음, trap 정리 확인. 지시서 변조 없음. 제안 2건은 T-003 범위에 이미 있음(`WorkingDirectory`, unit PATH) → 04 §9에 근거로 반영(모드 C) |

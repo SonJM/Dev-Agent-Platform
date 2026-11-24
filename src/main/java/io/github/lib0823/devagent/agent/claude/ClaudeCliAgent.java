@@ -3,6 +3,7 @@ package io.github.lib0823.devagent.agent.claude;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.llm.claude.ClaudeCliProbe;
 import io.github.lib0823.devagent.platform.CallStats;
+import io.github.lib0823.devagent.platform.Os;
 import io.github.lib0823.devagent.platform.PortHealth;
 import io.github.lib0823.devagent.gitlab.IssueEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -760,46 +761,19 @@ public class ClaudeCliAgent implements CodingAgent {
      * 그래서 scripts/bin 을 PATH 에 붙여도 `jspcheck: command not found` 가 난다(2026-11-11 실측). Git Bash 의 로그인 PATH 맨 앞에는
      * 항상 `~/bin`(%USERPROFILE%\bin)이 있으므로 거기에 실행 심을 써 둔다: preview / jscheck / jspcheck → 저장소 스크립트,
      * mvn → 프리뷰용 Maven(JDK 21). 필요한 환경변수는 심 안에 절대값으로 박아 Bash 도구 환경과 무관하게 만든다. 멱등(내용 같으면 안 씀).
+     * Linux 서버에서는 프리뷰가 꺼져 있으면 아무것도 쓰지 않고, 사용자의 기존 파일은 덮어쓰지 않는다({@link AgentShims}).
      */
     @jakarta.annotation.PostConstruct
     void installShims() {
         try {
             Path bin = Path.of(System.getProperty("user.home")).resolve("bin");
-            java.nio.file.Files.createDirectories(bin);
-            Path scripts = Path.of("scripts", "bin").toAbsolutePath();
-            String envLines = "export DEV_AGENT_PORT=\"" + adminPort + "\"\n"
-                    + (preview != null && preview.enabled()
-                       ? "export PREVIEW_JAVA_HOME=\"" + fwd(preview.javaHome()) + "\"\n"
-                       + "export PREVIEW_CATALINA_HOME=\"" + fwd(preview.catalinaHome()) + "\"\n"
-                       + "export PREVIEW_URL=\"" + preview.url() + "\"\n" : "");
-            for (String name : List.of("preview", "jscheck", "jspcheck")) {
-                writeShim(bin.resolve(name), "#!/usr/bin/env bash\n# dev-agent 이 생성한 심 — 수정하지 말 것(기동 때 다시 씀)\n" + envLines
-                        + "exec \"" + fwd(scripts.resolve(name).toString()) + "\" \"$@\"\n");
+            List<String> written = AgentShims.install(bin, Path.of("scripts", "bin").toAbsolutePath(), adminPort, preview, Os.isWindows());
+            if (!written.isEmpty()) {
+                log.info("에이전트 실행 심 준비: {} {}", bin, written);
             }
-            if (preview != null && preview.enabled() && preview.mavenHome() != null && !preview.mavenHome().isBlank()
-                    && java.nio.file.Files.isRegularFile(Path.of(preview.mavenHome()).resolve("bin").resolve("mvn.cmd"))) {
-                writeShim(bin.resolve("mvn"), "#!/usr/bin/env bash\n# dev-agent 이 생성한 심 — 프리뷰용 Maven(JDK " + "21" + ")\n"
-                        + "export JAVA_HOME=\"" + fwd(preview.javaHome()) + "\"\n"
-                        + "export PATH=\"" + fwd(preview.javaHome()) + "/bin:$PATH\"\n"
-                        + "exec \"" + fwd(Path.of(preview.mavenHome()).resolve("bin").resolve("mvn.cmd").toString()) + "\" \"$@\"\n");
-            }
-            log.info("에이전트 실행 심 준비: {} (preview, jscheck, jspcheck{})", bin, java.nio.file.Files.exists(bin.resolve("mvn")) ? ", mvn" : "");
         } catch (IOException e) {
             log.warn("~/bin 심 생성 실패(에이전트가 jspcheck/preview 를 못 찾을 수 있음): {}", e.toString());
         }
-    }
-
-    private static void writeShim(Path file, String content) throws IOException {
-        if (java.nio.file.Files.isRegularFile(file) && content.equals(java.nio.file.Files.readString(file, StandardCharsets.UTF_8))) {
-            return;
-        }
-        java.nio.file.Files.writeString(file, content, StandardCharsets.UTF_8);   // LF 유지(bash 스크립트)
-        file.toFile().setExecutable(true);                                        // macOS/Linux: 실행 권한(Windows 는 무시됨)
-    }
-
-    /** Windows 경로를 bash 가 그대로 받는 "C:/..." 슬래시 형태로. */
-    private static String fwd(String p) {
-        return p == null ? "" : p.replace('\\', '/');
     }
 
     private static String nz(String s) {

@@ -9,6 +9,7 @@ import io.github.lib0823.devagent.maintain.MaintainService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.ops.Doctor;
 import io.github.lib0823.devagent.platform.Os;
+import io.github.lib0823.devagent.platform.RunMode;
 import io.github.lib0823.devagent.research.ResearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,7 +122,7 @@ public class SystemController {
             return result(false, "이 화면에서만 요청할 수 있습니다.");
         }
         log.info("요청으로 종료합니다");
-        if ("run.cmd".equals(runMode())) {
+        if (RunMode.writesStopFlag(runMode())) {
             try {
                 Files.writeString(Path.of("bot-stop.flag"), "stop");     // run.cmd 감시 루프가 다시 띄우지 않게
             } catch (IOException e) {
@@ -138,16 +139,13 @@ public class SystemController {
         return issues.busySessionIds().size() + (research.busy() ? 1 : 0) + (maintain.busy() ? 1 : 0);
     }
 
-    /** launcher(실행 파일·dev-agent.sh) | run.cmd(작업 스케줄러 감시 루프) | direct(java -jar 직접). */
+    /** launcher | systemd | run.cmd | direct — 판별은 {@link RunMode}. */
     private static String runMode() {
-        if ("1".equals(System.getenv(Launcher.ENV_FLAG))) {
-            return "launcher";
-        }
-        return "1".equals(System.getenv("DEV_AGENT_SUPERVISED")) ? "run.cmd" : "direct";
+        return RunMode.detect();
     }
 
     private static boolean supervised() {
-        return !"direct".equals(runMode());
+        return RunMode.supervised(runMode());
     }
 
     /** 다른 사이트의 페이지가 브라우저를 통해 보낸 요청인가(Origin 이 이 서버가 아님). 로컬 도구(curl 등)는 Origin 이 없어 통과. */

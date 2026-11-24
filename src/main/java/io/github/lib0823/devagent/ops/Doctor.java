@@ -66,7 +66,7 @@ public class Doctor {
         out.add(database());
         out.add(codingAgent());
         out.add(claudeLogin());
-        out.add(tool("git", "Git", List.of("git", "--version"), "fail", "저장소 clone·worktree·푸시에 필요합니다. Git 을 설치하세요."));
+        out.add(tool("git", "Git", List.of("git", "--version"), "fail", (Os.isWindows() ? "저장소 clone·worktree·푸시에 필요합니다. Git 을 설치하세요." : "저장소 clone·worktree·푸시에 필요합니다. 패키지 관리자로 git 을 설치하세요(예: apt install git).")));
         out.add(messengerCheck());
         out.add(gitlabCheck());
         out.add(workDir());
@@ -122,8 +122,11 @@ public class Doctor {
             return check("login", "Claude 로그인", "ok", "로그인 정보 있음(~/.claude)", null);
         }
         if (!Os.isWindows()) {
-            return check("login", "Claude 로그인", "warn", "로그인 파일이 없습니다(macOS 는 키체인에 저장되므로 정상일 수 있음)",
-                    "터미널에서 claude 를 한 번 실행해 로그인돼 있는지 확인하세요. 구독 사용률 게이지는 추정치로 표시됩니다.");
+            boolean mac = "macOS".equals(Os.name());
+            return check("login", "Claude 로그인", "warn", mac ? "로그인 파일이 없습니다(macOS 는 키체인에 저장되므로 정상일 수 있음)"
+                            : "로그인 파일이 없습니다(" + cred + ")",
+                    mac ? "터미널에서 claude 를 한 번 실행해 로그인돼 있는지 확인하세요. 구독 사용률 게이지는 추정치로 표시됩니다."
+                            : "이 앱을 실행하는 계정으로 터미널에서 claude 를 실행해 로그인하세요(서비스로 띄우면 그 계정의 홈을 봅니다). 구독 사용률 게이지는 추정치로 표시됩니다.");
         }
         return check("login", "Claude 로그인", "fail", "로그인 정보가 없습니다", "터미널에서 claude 를 실행해 로그인하세요(구독 계정).");
     }
@@ -188,7 +191,7 @@ public class Doctor {
                 && !blank(preview.javaHome()) && Files.isDirectory(Path.of(preview.javaHome()));
         return tools ? check("preview", "로컬 프리뷰(화면 검증)", "ok", "도구 설치됨(" + preview.catalinaHome() + ")", null)
                 : check("preview", "로컬 프리뷰(화면 검증)", "warn", "도구(JDK 21·Maven·Tomcat)가 설치돼 있지 않습니다",
-                "화면 검증이 필요하면 scripts/setup-preview.ps1 을 실행하세요(Windows). 쓰지 않으면 PREVIEW_ENABLED=false 로 끕니다.");
+                "화면 검증은 Windows 에서만 지원합니다(scripts/setup-preview.ps1). 쓰지 않으면 PREVIEW_ENABLED=false 로 끕니다.");
     }
 
     private Map<String, Object> knowledgeCheck() {

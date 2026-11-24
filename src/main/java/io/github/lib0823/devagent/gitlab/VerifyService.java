@@ -122,7 +122,7 @@ public class VerifyService {
                 Map<String, String> env = new LinkedHashMap<>();
                 if (preview != null && preview.enabled() && Files.isDirectory(Path.of(nz(preview.javaHome())))) {
                     env.put("JAVA_HOME", preview.javaHome());
-                    env.put("PATH", Path.of(preview.javaHome()).resolve("bin") + ";" + System.getenv().getOrDefault("Path", System.getenv().getOrDefault("PATH", "")));
+                    env.put("PATH", Path.of(preview.javaHome()).resolve("bin") + java.io.File.pathSeparator + System.getenv().getOrDefault("Path", System.getenv().getOrDefault("PATH", "")));
                 }
                 out.add(exec("빌드: " + String.join(" ", displayCmd(build)), worktree, build, env, cfg().commandTimeoutMs()));
             }

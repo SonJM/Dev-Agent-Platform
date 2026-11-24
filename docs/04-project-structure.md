@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.1 · 2026-11-24 · 상태: Draft
+> 버전 0.3 · 2026-11-24 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -114,21 +114,23 @@ flowchart LR
 
 ## 8. 로컬 실행
 
-qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. **가정**(OI-11) — T-004에서 실제로 확인해 고친다. 개발 PC에 사용자의 인스턴스가 8777에서 돌고 있을 수 있으므로 포트와 작업 디렉터리를 분리한다.
+qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 띄워 확인했다(2026-11-24, OI-11 해소). 개발 PC에 사용자의 인스턴스가 8777에서 돌고 있을 수 있으므로 포트·작업 디렉터리·사용자 홈을 분리한다.
 
 | 항목 | 값 |
 |---|---|
-| 띄우기 명령 | ① `gradlew.bat bootJar` ② 빈 작업 디렉터리에서 `ADMIN_PORT=8778`·`PREVIEW_ENABLED=false`·`MAINTAIN_ENABLED=false`를 준 뒤 `java -jar <저장소>/build/libs/dev-agent.jar` (`DB_URL`을 주지 않아 내장 DB 사용) |
+| 빌드 | `gradlew.bat bootJar` (JDK 17 toolchain. 첫 실행은 Gradle 배포판 다운로드가 필요하다) |
+| 띄우기 명령 | `bash e2e/scripts/start-app.sh` (jar는 `QA_JAR`, 없으면 `build/libs/dev-agent.jar`). 스크립트가 주는 값: `ADMIN_PORT=8778`·`PREVIEW_ENABLED=false`·`MAINTAIN_ENABLED=false`·`CLAUDE_WARM=false`·`CLAUDE_WARM_PREWARM=false`(없으면 기동 때 Claude CLI warm 프로세스가 뜬다)·`GITLAB_PROJECTS=qa-group/qa-sample`(가짜 대상 프로젝트 — 루틴 저장에 프로젝트가 필요하다), JVM 인자 `-Duser.home=<작업 디렉터리>/home`(없으면 앱이 사용자 홈 `~/bin`의 심을 덮어쓴다). `DB_URL`을 주지 않아 내장 DB를 쓴다 |
+| 작업 디렉터리 | 기본 `e2e/test-results/qa-home/`(git 제외). 앱은 **현재 디렉터리**를 홈으로 써서 `.env`(틀 자동 생성)·`pgdata-embedded/`·`pg-bin/`·`logs/`·`work/`를 그 안에 만든다 |
 | 준비 확인 URL | `http://127.0.0.1:8778/api/system/status` |
-| 내리기 명령 | `POST http://127.0.0.1:8778/api/system/shutdown` (내장 DB까지 내린다). 응답이 없으면 프로세스 종료 |
+| 내리기 명령 | `bash e2e/scripts/stop-app.sh` = `POST http://127.0.0.1:8778/api/system/shutdown`(Origin 없는 요청 허용). 앱과 내장 DB가 함께 내려간다(확인됨). 응답이 없으면 프로세스 종료 |
 | 화면 주소 | 준비 확인 URL과 같은 origin |
-| DB 초기화 | 기동 전에 작업 디렉터리의 내장 DB 데이터 디렉터리를 지운다(위치는 T-004에서 확인) |
-| DB 접속 | 내장 DB(포트 54329, 127.0.0.1). 사용자의 인스턴스가 내장 DB를 쓰고 있으면 포트가 겹친다 — T-004에서 확인 |
+| DB 초기화 | 기동 전에 `<작업 디렉터리>/pgdata-embedded/`를 지운다(`start-app.sh`가 한다). `pg-bin/`은 남겨 재사용. initdb 포함 기동 약 30초 |
+| DB 접속 | 내장 DB(포트 54329 고정, 127.0.0.1). 사용자의 인스턴스가 내장 DB로 떠 있으면 **포트가 겹친다**. `DB_EMBEDDED_PORT`로 바꿀 수 있으나 QA 실행에서 검증하지 않았다(OI-19) |
 | 인증 방식 | 없음 |
-| e2e 경로 | `e2e/` |
+| e2e 경로 | `e2e/` (핵심 묶음 `e2e/core/`, 데이터 생성 `e2e/seed/`) |
 | 기본 포트 | 8778 (QA용. 사용자의 인스턴스는 8777) |
 
-주의: 인스턴스 2개가 뜨면 `~/bin` 심을 서로 덮어쓴다(`CLAUDE.md`). QA 실행은 짧게, 에이전트 실행(Claude CLI 호출)을 일으키지 않는 흐름만 다룬다.
+주의: 앱은 기동 때 `<user.home>/bin`에 에이전트 심을 쓴다(Windows는 항상 덮어쓴다 — `CLAUDE.md` "인스턴스 2개"). QA는 `-Duser.home`으로 이를 작업 디렉터리 안에 가둔다 — 이 인자를 빼고 띄우지 않는다. QA 실행은 짧게, 에이전트 실행(Claude CLI 호출)을 일으키지 않는 흐름만 다룬다.
 
 ## 9. 배포
 
@@ -140,7 +142,8 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. **가정**(OI-11) — T
 | 배포 구성 경로 | `deploy/` — `systemd/dev-agent.service`(틀), `sql/create-db.sql`(전용 DB·role 생성), `env.server.example`, `README.md`(절차서) — T-003. `smoke/server-smoke.sh`(서버 기동 확인) — T-001 |
 | 실행 계정 | CLI 로그인이 돼 있는 기존 일반 계정(자리표시자 `<SERVICE_USER>`). 2026-11-24 확정 |
 | 서버 접속 | SSH. 주소·계정은 문서·저장소에 적지 않는다(환경변수 `DEV_AGENT_SSH`). **서버의 java·claude·gradle·node는 로그인 셸 PATH에서만 보인다** — 원격 명령은 로그인 셸(`bash -lc`)로 실행한다 |
-| unit 환경 | `Environment=PATH=<JDK bin>:<~/.local/bin>:<node bin>:/usr/bin:/bin`, `JAVA_HOME=<JDK 경로>`, `DEV_AGENT_RUN_MODE=systemd`. `ExecStart`의 java는 절대 경로. systemd는 로그인 셸 PATH를 쓰지 않는다 |
+| unit 환경 | `WorkingDirectory=<앱 홈>`, `Environment=PATH=<JDK bin>:<~/.local/bin>:<node bin>:/usr/bin:/bin`, `JAVA_HOME=<JDK 경로>`, `DEV_AGENT_RUN_MODE=systemd`. `ExecStart`의 java는 절대 경로. systemd는 로그인 셸 PATH를 쓰지 않는다. `java -jar` 직접 실행에서는 `DEV_AGENT_HOME`이 적용되지 않고 **작업 디렉터리가 홈**이다(T-001 확인) — `WorkingDirectory`가 필수다. Claude CLI 탐색(`ClaudeCliLocator`)은 PATH·`~/.local/bin`·`~/.claude/local`·`/usr/local/bin`만 보고 npm 전역·nvm 경로는 찾지 않는다 — 서버의 claude가 그런 위치면 그 경로를 PATH에 넣는다 |
+| Linux 기동 동작 | 프리뷰가 꺼져 있으면 `~/bin`에 심을 쓰지 않고, 켜져 있어도 표식 없는 기존 파일은 덮어쓰지 않는다. `DEV_AGENT_RUN_MODE=systemd`면 재시작 = 종료 코드 10, 종료 = 0(stop 플래그 파일 없음) — T-001 |
 | 실행 런타임 | 서버에 있는 Temurin JDK 21(앱 대상은 17+) |
 | 산출물 전달 | 개발 PC에서 만든 `dev-agent.jar`를 서버로 복사(기본). 서버 빌드는 Java 17 toolchain이 필요하다 |
 | 접근 경로 | `tailscale serve`(HTTPS **8443** 확정) → `127.0.0.1:8777` |
@@ -158,3 +161,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. **가정**(OI-11) — T
 |---|---|---|
 | 2026-11-24 | 0.1 | 최초 작성 |
 | 2026-11-24 | 0.2 | 사용자 결정 반영: §2(`llm/`·`mcp/` 처리), §3 그림, §7 환경변수, §9(공유 DB, SSH·로그인 셸, 8443 확정) |
+| 2026-11-24 | 0.3 | T-004 확인 결과로 §8 확정(기동·종료 스크립트, warm 끄기, `-Duser.home` 격리, 작업 디렉터리·DB 초기화 위치). T-001 결과로 §9 unit `WorkingDirectory`·Claude CLI 탐색 경로·Linux 기동 동작 추가 |
