@@ -4,12 +4,14 @@ import io.github.lib0823.devagent.messenger.IncomingMessage;
 import io.github.lib0823.devagent.messenger.MessengerPort;
 import io.github.lib0823.devagent.messenger.Room;
 import io.github.lib0823.devagent.messenger.RoomKind;
+import io.github.lib0823.devagent.messenger.SelfInbox;
 import io.github.lib0823.devagent.platform.PortHealth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -63,6 +65,11 @@ public class NoMessengerAdapter implements MessengerPort {
     @Override
     public List<IncomingMessage> after(Room room, String sinceMessageId, int size) {
         return List.of();
+    }
+
+    @Override
+    public SelfInbox receiveSelf(String cursor, Duration timeout) {
+        return SelfInbox.empty(cursor);   // 받을 곳 없음(수신 루프는 none 이면 시작하지 않는다)
     }
 
     @Override

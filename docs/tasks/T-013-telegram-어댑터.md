@@ -52,6 +52,7 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 ## 완료 조건
 - [ ] `TC-018`, `TC-019`, `TC-020`이 단위 테스트로 존재하고 통과한다
 - [ ] `platform.messenger=none`(기본)에서 동작이 바뀌지 않는다, 토큰 없이 `telegram`을 켜도 기동은 된다
+- [ ] `telegram`일 때 `GET /api/platform`의 messenger details에 `receiver`(running/stopped/died)가 보인다(`none`에서는 키가 없는 것이 정상 — T-006 검수). 단위 테스트 또는 설명서의 확인 절차로 증명
 - [ ] "사용자가 확인할 것"(봇 만들기, chat id 확인, 알림 수신, `이슈 스캔` 왕복, 확인 대기 `진행`) 절차가 변경 설명서에 있다
 - [ ] 변경 설명서(`docs/tasks/results/T-013-telegram-어댑터.md`)가 그림·설명과 함께 있다
 
@@ -71,3 +72,4 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성(단계 수준) |
 | 2026-11-24 | 대기 | PM 수정(T-006 검수): 확정된 수신 계약(`SelfInbox`·`SelfMessage.cursorAfter`·커서 키)과 토큰 비노출 보안 리뷰 항목 추가. 순서: `depends: [T-007]` 유지 — T-007이 `mention/`·`collect/`를 지운 뒤라야 실제 어댑터에서 답 중복이 없다(M-6) |
+| 2026-11-24 | 대기 | PM 수정(T-006 완료): 실제 어댑터에서 `receiver` 상태 노출 확인을 완료 조건에 추가 |

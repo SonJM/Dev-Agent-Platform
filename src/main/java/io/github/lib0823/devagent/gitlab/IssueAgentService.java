@@ -4,9 +4,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.collect.ChatMessageMapper;
-import io.github.lib0823.devagent.collect.ChatMessageRow;
-import io.github.lib0823.devagent.config.BotProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.docs.KnowledgeSource;
 import io.github.lib0823.devagent.messenger.MessengerService;
@@ -59,12 +56,10 @@ public class IssueAgentService {
     private static final Pattern URL_REF = Pattern.compile("https?://[^\\s]+?/([A-Za-z0-9_.\\-/]+?)/-/issues/(\\d+)");
 
     private final GitLabProperties props;
-    private final BotProperties bot;
     private final GitLabClient gitlab;
     private final GitRunner git;
     private final CodingAgent agent;
     private final IssueSessionMapper sessions;
-    private final ChatMessageMapper messages;
     private final MessengerService client;
     private final AlertService alert;
     private final SettingService settings;
@@ -104,9 +99,16 @@ public class IssueAgentService {
     private final Map<Long, Long> lastRemindAt = new ConcurrentHashMap<>();
     /** 자기방 무시 안내를 보낸 "세션id:상태" — 대기 단계당 1회만 안내. */
     private final Set<String> guidedStates = ConcurrentHashMap.newKeySet();
+    /**
+     * 세션별 "확인 대기 세대": 대기 상태(DESIGN_WAIT/REVIEW_WAIT)에 들어갈 때마다 1 올라간다. 답변은 접수 때 세대를 붙잡고
+     * handleReply 가 비교한다 — 「피드백」 처리가 끝나 같은 대기 상태로 돌아왔을 때, 그 전에 접수된 「진행」이 사용자가 보지 못한
+     * 새 결과를 승인하는 것을 막는다(상태 이름만으로는 구분되지 않는다). 메모리에만 둔다: 재기동하면 처리 중이던 답변도 함께 사라지고,
+     * 이후 접수되는 답변은 그때의 값을 붙잡으므로 DB 컬럼 없이도 안전하다.
+     */
+    private final Map<Long, Long> waitGenerations = new ConcurrentHashMap<>();
 
-    public IssueAgentService(GitLabProperties props, BotProperties bot, GitLabClient gitlab, GitRunner git,
-                             CodingAgent agent, IssueSessionMapper sessions, ChatMessageMapper messages,
+    public IssueAgentService(GitLabProperties props, GitLabClient gitlab, GitRunner git,
+                             CodingAgent agent, IssueSessionMapper sessions,
                              MessengerService client, AlertService alert, SettingService settings, KnowledgeSource docs, IssueEventBus events, PreviewService preview, VerifyService verifier,
                              IssueReferences refs, IssueProjects projectReg, IssueNotifier notifier, IssuePrompts prompts,
                              io.github.lib0823.devagent.llm.UsageService usage,
@@ -125,12 +127,10 @@ public class IssueAgentService {
             return t;
         });
         this.props = props;
-        this.bot = bot;
         this.gitlab = gitlab;
         this.git = git;
         this.agent = agent;
         this.sessions = sessions;
-        this.messages = messages;
         this.client = client;
         this.alert = alert;
         this.settings = settings;
@@ -221,101 +221,103 @@ public class IssueAgentService {
         return added;
     }
 
+    /** 메신저 명령 라우터가 받은 확인 답변 후보의 처리 결과. */
+    public enum ReplyOutcome {
+        /** 대기 세션에 전달했다(작업은 워커에서 진행). */
+        DELIVERED,
+        /** 답변 형식이 아니라 무시했다(대기 단계당 1회 안내는 이미 보냈다). */
+        IGNORED,
+        /** 대기 세션이 2건 이상인데 세션 참조(repo#n)가 없어 전달하지 않았다(안내는 이미 보냈다). */
+        NEEDS_REF,
+        /** 답변을 기다리는 세션이 없다 — 호출측(라우터)이 명령 안내를 한다. */
+        NO_WAITING
+    }
+
     /**
-     * 대기 중인 세션이 있으면 자기방의 새 메시지를 답변으로 소비한다.
-     * 동시 처리: 대기 세션이 1건이면 지금처럼 그 세션으로, 2건 이상이면 메시지 앞에 세션 참조(#1, shop#1, group/repo#1)가 있어야 한다.
-     * 참조 없는 메시지는 무시하고 안내(대기 단계당 1회). 커서는 대기 세션 전부 함께 넘겨 한 메시지가 두 세션에 가지 않게 한다.
+     * 메신저 명령 라우터가 넘긴 글을 확인 답변으로 전달한다(도착하는 순간 — 대시보드 입력과 같은 {@code handleReply} 진입점).
+     * 대기 세션이 1건이면 그 세션으로, 2건 이상이면 글 앞에 세션 참조(#1, shop#1, group/repo#1)가 있어야 한다.
+     * 답변으로 인정하는 것은 명령(진행/승인/중단/diff/상태/검증)과 「피드백: …」 뿐이다 — 스티커·잡담이 설계 피드백으로 소비돼
+     * 재설계가 돌았던 부작용(2026-11-10) 방지. 무시·참조 누락 안내는 대기 단계당 1회 여기서 보낸다.
      */
-    public void pollReplies() {
+    public ReplyOutcome deliverReply(String text) {
+        if (!props.enabled()) {
+            return ReplyOutcome.NO_WAITING;
+        }
+        // 세대는 상태 조회보다 먼저 읽는다 — 나중에 읽으면 "옛 상태 + 새 세대"가 검사를 통과한다
+        final Map<Long, Long> generations = Map.copyOf(waitGenerations);
+        // 워커가 앞선 답변을 처리하는 중인 세션도 대상이다: 세션별 직렬 체인이 순서를 지키고, 그 사이 단계가 바뀌면 handleReply 가 버린다
+        List<IssueSession> waiting = sessions.findWaiting();
+        if (waiting.isEmpty()) {
+            return ReplyOutcome.NO_WAITING;
+        }
+        String body = text == null ? "" : text.strip();
+        IssueSession target = waiting.size() == 1 ? waiting.get(0) : null;
+        String rest = body;
+        if (waiting.size() > 1) {
+            String[] split = splitSessionRef(body, waiting);
+            if (split == null) {
+                return rejectWithoutTarget(waiting, body);
+            }
+            target = waiting.stream().filter(w -> w.getId() == Long.parseLong(split[0])).findFirst().orElse(null);
+            rest = split[1];
+        }
+        String accepted = parseSelfReply(rest);
+        if (accepted == null || target == null) {
+            guideIgnored(waiting.get(0), body);
+            return ReplyOutcome.IGNORED;
+        }
+        dispatchReply(target, accepted, generations.getOrDefault(target.getId(), 0L));
+        return ReplyOutcome.DELIVERED;
+    }
+
+    /** 대기 세션이 여럿인데 참조가 없는 글: 답변 형식이면 참조를 요청하고, 아니면 무시한다. */
+    private ReplyOutcome rejectWithoutTarget(List<IssueSession> waiting, String body) {
+        IssueSession first = waiting.get(0);
+        if (body.isEmpty() || parseSelfReply(body) == null) {
+            guideIgnored(first, body);
+            return ReplyOutcome.IGNORED;
+        }
+        String refs = waiting.stream().map(w -> "#" + w.getIssueIid() + "(" + w.getProjectPath().substring(w.getProjectPath().lastIndexOf('/') + 1) + ")")
+                .collect(Collectors.joining(", "));
+        events.emit(first.getId(), IssueEvent.INFO, "대상 세션이 없는 답변 무시: " + abbreviate(body, 160));
+        if (guidedStates.add("multi:" + waiting.stream().map(w -> String.valueOf(w.getId())).collect(Collectors.joining(",")))) {
+            notifier.sendSelf(PFX + "확인 대기 중인 이슈가 " + waiting.size() + "건이라 답변 앞에 대상을 붙여 주세요. 예) 「shop#1 진행」「#7 피드백: …」 (대기: " + refs + ")"
+                    + "\n방금 메시지는 적용하지 않았습니다: 「" + abbreviate(body, 40) + "」");
+        }
+        return ReplyOutcome.NEEDS_REF;
+    }
+
+    /** 답변이 아닌 글을 무시했다는 기록. 문장처럼 보일 때만 대기 단계당 한 번 안내한다(스티커 같은 짧은 것은 조용히 무시). */
+    private void guideIgnored(IssueSession first, String body) {
+        if (body.isEmpty()) {
+            return;
+        }
+        log.info("자기 대화 메시지 무시(명령/피드백 아님): {}", abbreviate(body, 60));
+        events.emit(first.getId(), IssueEvent.INFO, "자기 대화 메시지 무시(명령/피드백: 접두어 아님): " + abbreviate(body, 200));
+        String guideKey = first.getId() + ":" + first.getState();
+        if (looksLikeSentence(body) && guidedStates.add(guideKey)) {
+            notifier.sendSelf(PFX + SELF_REPLY_GUIDE + " 방금 메시지는 적용하지 않았습니다: 「" + abbreviate(body, 40) + "」");
+        }
+    }
+
+    private void dispatchReply(IssueSession s, String reply, long generation) {
+        final long id = s.getId();
+        final String expected = s.getState();   // 같은 대기 단계·같은 세대(상태 조회 전에 읽은 값)의 답변만 적용
+        log.info("이슈 {} 답변 수신: {}", s.ref(), abbreviate(reply, 80));
+        events.emit(id, IssueEvent.REPLY, "자기 대화 답변: " + abbreviate(reply, 200), reply);
+        submit(id, () -> handleReply(id, reply, expected, generation, null));
+    }
+
+    private long waitGeneration(long id) {
+        return waitGenerations.getOrDefault(id, 0L);
+    }
+
+    /** 확인 대기가 길어진 세션을 상기시킨다(스케줄러가 주기적으로 호출). */
+    public void remindWaiting() {
         if (!props.enabled()) {
             return;
         }
-        List<IssueSession> waiting = sessions.findWaiting().stream().filter(w -> !isBusy(w.getId())).toList();
-        if (waiting.isEmpty()) {
-            return;
-        }
-        long after = waiting.stream().mapToLong(w -> w.getWaitAfterSeq() == null ? 0L : w.getWaitAfterSeq()).min().orElse(0L);
-        List<ChatMessageRow> rows = messages.selectSelfAfter(after);
-        if (rows.isEmpty()) {
-            waiting.forEach(this::remindIfStale);
-            return;
-        }
-        // 자기방은 명령(진행/중단/diff/상태/이슈 …)과 「피드백: …」 만 답변으로 인정한다. 스티커·잡담이 설계 피드백으로
-        // 소비돼 재설계가 돌았던 부작용(2026-11-10) 방지. 대시보드 입력(injectReply)은 접두어 없이 전부 피드백.
-        Map<Long, StringBuilder> texts = new LinkedHashMap<>();
-        List<String> ignored = new ArrayList<>();
-        List<String> unaddressed = new ArrayList<>();
-        for (ChatMessageRow r : rows) {
-            String body = r.getBody() == null ? "" : r.getBody().strip();
-            IssueSession target = waiting.size() == 1 ? waiting.get(0) : null;
-            String rest = stripCommand(body);
-            if (waiting.size() > 1) {
-                String[] split = splitSessionRef(rest, waiting);
-                if (split == null) {
-                    if (!body.isEmpty() && parseSelfReply(rest) != null) {
-                        unaddressed.add(body);                 // 명령이긴 한데 어느 세션인지 모름
-                    } else if (!body.isEmpty()) {
-                        ignored.add(body);
-                    }
-                    continue;
-                }
-                target = waiting.stream().filter(w -> w.getId() == Long.parseLong(split[0])).findFirst().orElse(null);
-                rest = split[1];
-            }
-            String accepted = parseSelfReply(rest);
-            if (accepted == null || target == null) {
-                if (!body.isEmpty()) {
-                    ignored.add(body);
-                }
-                continue;
-            }
-            StringBuilder sb = texts.computeIfAbsent(target.getId(), k -> new StringBuilder());
-            if (sb.length() > 0) {
-                sb.append('\n');
-            }
-            sb.append(accepted);
-        }
-        long lastId = rows.get(rows.size() - 1).getSeq();
-        // 커서는 상태가 그대로일 때만 갱신(그 사이 워커가 중단/전이했으면 이 답변은 버린다). 대기 세션 전부 함께 넘긴다.
-        Set<Long> advanced = new java.util.HashSet<>();
-        for (IssueSession w : waiting) {
-            long cur = w.getWaitAfterSeq() == null ? 0L : w.getWaitAfterSeq();
-            if (cur >= lastId || sessions.setWaitAfter(w.getId(), lastId, w.getState()) == 1) {
-                advanced.add(w.getId());
-            }
-        }
-        IssueSession first = waiting.get(0);
-        if (!ignored.isEmpty()) {
-            String list = ignored.stream().map(t -> abbreviate(t, 60)).collect(Collectors.joining(" | "));
-            log.info("자기방 메시지 무시(명령/피드백 아님): {}", list);
-            events.emit(first.getId(), IssueEvent.INFO, "자기방 메시지 무시(명령/피드백: 접두어 아님): " + abbreviate(list, 200));
-            // 문장처럼 보이는 메시지를 무시했을 때만, 대기 단계당 한 번 안내한다(스티커 같은 짧은 것은 조용히 무시)
-            String guideKey = first.getId() + ":" + first.getState();
-            if (ignored.stream().anyMatch(IssueTexts::looksLikeSentence) && guidedStates.add(guideKey)) {
-                notifier.sendSelf(PFX + SELF_REPLY_GUIDE + " 방금 메시지는 적용하지 않았습니다: 「" + abbreviate(ignored.get(ignored.size() - 1), 40) + "」");
-            }
-        }
-        if (!unaddressed.isEmpty()) {
-            String refs = waiting.stream().map(w -> "#" + w.getIssueIid() + "(" + w.getProjectPath().substring(w.getProjectPath().lastIndexOf('/') + 1) + ")")
-                    .collect(Collectors.joining(", "));
-            events.emit(first.getId(), IssueEvent.INFO, "대상 세션이 없는 답변 무시: " + abbreviate(String.join(" | ", unaddressed), 160));
-            if (guidedStates.add("multi:" + waiting.stream().map(w -> String.valueOf(w.getId())).collect(Collectors.joining(",")))) {
-                notifier.sendSelf(PFX + "확인 대기 중인 이슈가 " + waiting.size() + "건이라 답변 앞에 대상을 붙여 주세요. 예) 「shop#1 진행」「#7 피드백: …」 (대기: " + refs + ")"
-                        + "\n방금 메시지는 적용하지 않았습니다: 「" + abbreviate(unaddressed.get(unaddressed.size() - 1), 40) + "」");
-            }
-        }
-        for (Map.Entry<Long, StringBuilder> e : texts.entrySet()) {
-            final long id = e.getKey();
-            if (!advanced.contains(id)) {
-                continue;
-            }
-            IssueSession s = waiting.stream().filter(w -> w.getId() == id).findFirst().orElseThrow();
-            final String reply = e.getValue().toString();
-            final String expected = s.getState();
-            log.info("이슈 {} 답변 수신: {}", s.ref(), abbreviate(reply, 80));
-            events.emit(id, IssueEvent.REPLY, "자기방 답변: " + abbreviate(reply, 200), reply);
-            submit(id, () -> handleReply(id, reply, expected));
-        }
+        sessions.findWaiting().stream().filter(w -> !isBusy(w.getId())).forEach(this::remindIfStale);
     }
 
     /** 확인 대기가 길어지면(기본 4시간) 주기적으로 자기방에 상기시킨다. 큐가 뒤에서 막히는 것을 사용자가 알 수 있게. */
@@ -361,6 +363,7 @@ public class IssueAgentService {
         if (!props.enabled()) {
             return "이슈 에이전트가 비활성 상태입니다.";
         }
+        final Map<Long, Long> generations = Map.copyOf(waitGenerations);   // 상태 조회보다 먼저 읽는다
         List<IssueSession> waiting = sessions.findWaiting();
         IssueSession s;
         if (sessionId != null) {
@@ -388,13 +391,14 @@ public class IssueAgentService {
             return "답변 내용이 비어 있습니다.";
         }
         final String expected = s.getState();
+        final long generation = generations.getOrDefault(id, 0L);   // 상태 조회 전에 읽어 둔 세대
         // 코멘트는 승인(진행)일 때만 따로 다룬다 — 그 외 답변은 본문 자체가 피드백이다
-        final String extra = note == null || note.isBlank() || !APPROVE.contains(norm(stripCommand(reply))) ? null : note.strip();
+        final String extra = note == null || note.isBlank() || !APPROVE.contains(norm(reply)) ? null : note.strip();
         final String shown = extra == null ? reply : reply + " + 코멘트: " + extra;
         log.info("이슈 {} 답변 주입(관리 API): {}", s.ref(), abbreviate(shown, 80));
         notifier.sendSelf(PFX + "(관리 페이지 답변) " + abbreviate(shown, 200));
         events.emit(id, IssueEvent.REPLY, "모니터 답변: " + abbreviate(shown, 200), shown);
-        submit(id, () -> handleReply(id, reply, expected, extra));
+        submit(id, () -> handleReply(id, reply, expected, generation, extra));
         return s.ref() + " 에 답변을 전달했습니다: " + abbreviate(shown, 80);
     }
 
@@ -480,15 +484,10 @@ public class IssueAgentService {
         return out;
     }
 
-    /** 사용자 답변을 기다리는 세션이 있는지 (MentionService 가 자기방 @AI 를 양보할지 판단). */
-    public boolean isWaiting() {
-        return props.enabled() && !sessions.findWaiting().isEmpty();
-    }
-
-    // ---------------------------------------------------------------- 명령 (@AI 이슈 ...)
+    // ---------------------------------------------------------------- 명령 (이슈 ...)
 
     /**
-     * {@code @AI 이슈 <하위명령>} 처리. 반환 문자열은 호출측이 그대로 전송.
+     * {@code 이슈 <하위명령>} 처리. 반환 문자열은 호출측이 그대로 전송.
      * 하위명령: 상태 | 중단 | 스캔 | 목록 | &lt;group/repo#iid | repo#iid | 이슈 URL&gt;
      */
     public String command(String rest) {
@@ -513,7 +512,7 @@ public class IssueAgentService {
         }
         if (key.equals("프로젝트") || key.equals("projects")) {
             return "대상 프로젝트(" + projectReg.projects().size() + "개): " + String.join(", ", projectReg.projects())
-                    + "\n추가: @AI 이슈 프로젝트 추가 group/repo · 삭제: @AI 이슈 프로젝트 삭제 group/repo";
+                    + "\n추가: 이슈 프로젝트 추가 group/repo · 삭제: 이슈 프로젝트 삭제 group/repo";
         }
         if (r.startsWith("프로젝트 ")) {
             String[] parts = r.substring(5).strip().split("\\s+", 2);
@@ -547,12 +546,12 @@ public class IssueAgentService {
     private String help() {
         return """
                 이슈 에이전트 명령:
-                • @AI 이슈 상태 — 진행 중 세션/큐 현황
-                • @AI 이슈 목록 — 최근 세션 10건
-                • @AI 이슈 <group/repo#123 | repo#123 | 이슈 URL> — 해당 이슈 수동 시작
-                • @AI 이슈 스캔 — 라벨 이슈 즉시 스캔
-                • @AI 이슈 프로젝트 [추가|삭제 group/repo] — 대상 프로젝트 보기/추가/삭제
-                • @AI 이슈 중단 — 진행 중 세션 중단
+                • 이슈 상태 — 진행 중 세션/큐 현황
+                • 이슈 목록 — 최근 세션 10건
+                • 이슈 <group/repo#123 | repo#123 | 이슈 URL> — 해당 이슈 수동 시작
+                • 이슈 스캔 — 라벨 이슈 즉시 스캔
+                • 이슈 프로젝트 [추가|삭제 group/repo] — 대상 프로젝트 보기/추가/삭제
+                • 이슈 중단 — 진행 중 세션 중단
                 확인 대기 중 자기방 답변: 진행 / 중단 / diff / 상태 / 피드백: (문장) — 그 외 메시지는 무시(대시보드에선 접두어 없이 피드백)""";
     }
 
@@ -572,7 +571,7 @@ public class IssueAgentService {
         }
         String resolved = projectReg.resolveProject(path);
         if (resolved == null) {
-            return "대상 프로젝트에서 '" + path + "' 를 찾지 못했습니다: " + projectReg.projects() + "\n추가: @AI 이슈 프로젝트 추가 group/repo (또는 관리 페이지)";
+            return "대상 프로젝트에서 '" + path + "' 를 찾지 못했습니다: " + projectReg.projects() + "\n추가: 이슈 프로젝트 추가 group/repo (또는 관리 페이지)";
         }
         try {
             GitLabClient.Project p = projectReg.project(resolved);
@@ -595,12 +594,12 @@ public class IssueAgentService {
                 existing.setIssueTitle(is.title());
                 sessions.update(existing);
                 events.clear(existing.getId());
-                events.emit(existing.getId(), IssueEvent.INFO, "수동 재시작 (@AI 이슈 " + spec.strip() + ")");
+                events.emit(existing.getId(), IssueEvent.INFO, "수동 재시작 (이슈 " + spec.strip() + ")");
             } else {
                 IssueSession ns = newSession(p, is);
                 sessions.insertIgnore(ns);
                 if (ns.getId() > 0) {
-                    events.emit(ns.getId(), IssueEvent.INFO, "수동 시작 (@AI 이슈 " + spec.strip() + ")");
+                    events.emit(ns.getId(), IssueEvent.INFO, "수동 시작 (이슈 " + spec.strip() + ")");
                 }
             }
             submit(this::startNextIfIdle);
@@ -1006,12 +1005,8 @@ public class IssueAgentService {
         return s.ref() + " 중단 요청을 접수했습니다." + (killed ? " (실행 중이던 작업을 종료합니다)" : "");
     }
 
-    private void handleReply(long id, String reply, String expectedState) {
-        handleReply(id, reply, expectedState, null);
-    }
-
     /** note: 「진행」과 함께 온 코멘트(없으면 null) — {@link #injectReply(String, Long, String)} 참고. */
-    private void handleReply(long id, String reply, String expectedState, String note) {
+    private void handleReply(long id, String reply, String expectedState, long expectedGeneration, String note) {
         IssueSession s = sessions.find(id);
         if (s == null || !s.isWaiting()) {
             return;
@@ -1023,15 +1018,19 @@ public class IssueAgentService {
                     + " — 필요하면 다시 답해 주세요.");
             return;
         }
-        String raw = stripCommand(reply);
+        if (expectedGeneration != waitGeneration(id)) {
+            // 앞 답변(피드백 등) 처리가 끝나 같은 대기 상태로 돌아왔다: 이 답변은 새 결과를 보기 전에 접수된 것이라 적용하지 않는다
+            events.emit(id, IssueEvent.INFO, "답변 무시 — 앞 답변 처리 뒤 새 결과가 나옴: " + abbreviate(reply, 80));
+            notifier.sendSelf(PFX + "앞 답변을 처리하는 사이 새 결과가 나와 이 답변은 적용하지 않았습니다: 「" + abbreviate(reply, 60) + "」\n"
+                    + s.ref() + " 새 결과를 확인하고 다시 답해 주세요.");
+            return;
+        }
+        String raw = reply.strip();
         String key = norm(raw);
 
-        // 대기 중에도 "@AI 이슈 ..." 명령은 명령으로 처리. 단 @AI 키워드가 붙은 건 MentionService 가 이미 처리했으므로 중복 실행하지 않는다.
+        // 대시보드 입력이 「이슈 …」 로 시작하면 명령으로 처리(메신저의 이슈 명령은 라우터가 먼저 받아 여기로 오지 않는다)
         if (raw.startsWith("이슈 ") || raw.equals("이슈")) {
-            String kw = bot.mention().commandKeyword();
-            if (kw == null || kw.isBlank() || !reply.contains(kw)) {
-                notifier.sendSelf(PFX + command(raw.substring(2).strip()));
-            }
+            notifier.sendSelf(PFX + command(raw.substring(2).strip()));
             return;
         }
         if (STATUS.contains(key)) {
@@ -1476,7 +1475,7 @@ public class IssueAgentService {
         s.setLastError(reason);
         events.emit(s.getId(), IssueEvent.INFO, "중단 (" + reason + ") — 세션 작업트리 제거");
         transition(s, IssueSession.ABORTED);
-        notifier.sendSelf(PFX + "중단됨 " + s.ref() + " (" + reason + "). 작업트리를 정리했습니다. 다시 시작: @AI 이슈 " + s.ref());
+        notifier.sendSelf(PFX + "중단됨 " + s.ref() + " (" + reason + "). 작업트리를 정리했습니다. 다시 시작: 이슈 " + s.ref());
         startNextIfIdle();
     }
 
@@ -1493,21 +1492,23 @@ public class IssueAgentService {
         stopPreviewIfMine(s);
         git.cleanup(s.getProjectPath(), s.getIssueIid());
         notifier.sendSelf(PFX + "실패 " + s.ref() + " (" + stage + ")\n" + abbreviate(e.getMessage(), 600)
-                + "\n다시 시작: @AI 이슈 " + s.ref());
+                + "\n다시 시작: 이슈 " + s.ref());
         alert.alert("이슈 에이전트 " + s.ref() + " " + stage, e);
         startNextIfIdle();
     }
 
-    /** 대기 상태로 전환. 이 시점 이후의 자기방 메시지만 답변으로 본다. */
+    /** 대기 상태로 전환. 답변은 도착하는 순간 라우터가 {@link #deliverReply} 로 전달한다. */
     private void toWait(IssueSession s, String state) {
-        s.setWaitAfterSeq(messages.maxSelfSeq());
         transition(s, state);
         prefetchIfPossible();                         // 사용자 확인을 기다리는 동안 다음 이슈를 미리 분석
     }
 
     /** 상태 전이 + DB 저장 + STATE 이벤트(모니터 스테퍼/타임라인 원천). */
-    private void transition(IssueSession s, String state) {
+    void transition(IssueSession s, String state) {
         String from = s.getState();
+        if (IssueSession.DESIGN_WAIT.equals(state) || IssueSession.REVIEW_WAIT.equals(state)) {
+            waitGenerations.merge(s.getId(), 1L, Long::sum);   // 상태를 저장하기 전에 올린다 — 새 대기 상태를 본 답변은 새 세대를 본다
+        }
         s.setState(state);
         sessions.update(s);
         events.emit(s.getId(), IssueEvent.STATE, from + " → " + state, state);
@@ -1792,15 +1793,6 @@ public class IssueAgentService {
             log.debug("이슈 노트 조회 실패(무시): {}", e.toString());
             return new ArrayList<>();
         }
-    }
-
-    private String stripCommand(String text) {
-        String t = text == null ? "" : text.strip();
-        String cmd = bot.mention().commandKeyword();
-        if (cmd != null && !cmd.isBlank()) {
-            t = t.replace(cmd, " ").strip();
-        }
-        return t;
     }
 
     /** 세션에 속하지 않는 작업(스캔, 다음 건 시작). */

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,8 @@ public class MessengerService {
     private final SettingService settings;
     private final BotProperties bot;
     private final CallStats stats = new CallStats();
+    /** 수신 루프 상태 문자열(running / stopped / died: 예외 클래스). 수신 루프가 갱신하고 health 가 그대로 보여 준다(외부 호출 없음). */
+    private volatile String receiverState;
 
     public MessengerService(MessengerPort port, SettingService settings, BotProperties bot) {
         this.port = port;
@@ -53,6 +56,7 @@ public class MessengerService {
         PortHealth h = port.health();
         PortHealth mine = stats.health(h.provider(), h.status(), h.summary());
         h.details().forEach(mine::with);
+        mine.with("receiver", receiverState);   // 수신 루프 생존 여부(없으면 표시 안 함)
         return mine;
     }
 
@@ -89,6 +93,34 @@ public class MessengerService {
 
     public List<IncomingMessage> after(Room room, String sinceMessageId, int size) {
         return stats.track(() -> port.after(room, sinceMessageId, size));
+    }
+
+    // ---------------------------------------------------------------- 자기 대화 수신(라우터용)
+
+    /** 수신 커서를 저장하는 {@code bot_setting} 키의 접두(값 하나. 어댑터가 정한 문자열을 그대로 보관). 실제 키는 {@link #cursorKey()}. */
+    public static final String CURSOR_KEY = "messenger_cursor";
+
+    /** 구현체별 커서 키 {@code messenger_cursor.<provider>} — 어댑터를 바꿔도 다른 어댑터의 커서를 잘못 해석하지 않는다. */
+    public String cursorKey() {
+        return CURSOR_KEY + "." + port.provider();
+    }
+
+    public void setReceiverState(String state) {
+        this.receiverState = state;
+    }
+
+    /** 자기 대화의 새 메시지 수신(차단형, 최대 timeout). */
+    public SelfInbox receiveSelf(String cursor, Duration timeout) {
+        return stats.track(() -> port.receiveSelf(cursor, timeout));
+    }
+
+    /** 저장된 수신 커서(없으면 null). */
+    public String loadCursor() {
+        return settings.getRaw(cursorKey());
+    }
+
+    public void saveCursor(String cursor) {
+        settings.setRaw(cursorKey(), cursor);
     }
 
     // ---------------------------------------------------------------- 플랫폼 알림(유형별 켜고 끄기)

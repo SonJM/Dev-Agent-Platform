@@ -30,6 +30,7 @@ class MessengerServiceTest {
         public List<Room> rooms() { return List.of(); }
         public List<IncomingMessage> latest(Room room, int size) { return List.of(); }
         public List<IncomingMessage> after(Room room, String sinceMessageId, int size) { return List.of(); }
+        public SelfInbox receiveSelf(String cursor, java.time.Duration timeout) { return SelfInbox.empty(cursor); }
         public void send(RoomKind kind, String roomId, String text) { sent.add(kind + ":" + roomId + ":" + text); }
     }
 

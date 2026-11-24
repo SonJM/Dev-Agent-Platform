@@ -97,7 +97,6 @@ CREATE TABLE issue_session (
     commit_sha             TEXT,
     mr_url                 TEXT,
     last_error             TEXT,
-    wait_after_seq         BIGINT,                         -- 이 적재 순번(chat_message.seq) 이후의 자기방 메시지를 답변으로 소비
     feedback_rounds        INT          NOT NULL DEFAULT 0,
     verify_rounds          INT          NOT NULL DEFAULT 0,  -- 검증 실행 횟수(자동 재수정 포함)
     verify_result          TEXT,                             -- 마지막 검증 보고(봇 검사 + 리뷰어 판정)

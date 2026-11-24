@@ -2,6 +2,7 @@ package io.github.lib0823.devagent.messenger;
 
 import io.github.lib0823.devagent.platform.PortHealth;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -46,6 +47,25 @@ public interface MessengerPort {
      * since 자신이 포함돼도 된다(호출측이 제외). 더 없으면 빈 목록 또는 {@code size} 미만.
      */
     List<IncomingMessage> after(Room room, String sinceMessageId, int size);
+
+    /**
+     * 자기 대화의 새 메시지를 받는다(사용자가 보낸 것만, 시간순). 명령 라우터(수집 없이 직접 전달)가 전용 스레드에서 반복 호출한다.
+     * <ul>
+     *   <li><b>차단형 호출을 허용한다</b>: 새 메시지가 없으면 최대 {@code timeout} 동안 기다렸다 빈 결과로 돌려준다
+     *       (Telegram {@code getUpdates} 의 {@code offset}·{@code timeout} 에 맞춘 규약). 새 메시지가 오면 즉시 돌려준다.</li>
+     *   <li>{@code cursor} 는 직전 결과의 {@link SelfInbox#nextCursor()}(처음이면 null — 처음 시작 정책은 어댑터가 정한다).
+     *       코어는 커서를 해석하지 않고 {@code bot_setting.messenger_cursor} 에 저장·전달만 한다.</li>
+     *   <li>자기가 보낸 글, 허용하지 않은 대화의 글을 걸러 내는 것은 어댑터 책임이다(코어는 접두어로 거르지 않는다).</li>
+     *   <li>글마다 {@link SelfMessage#cursorAfter()} 로 "이 글 바로 뒤의 커서"를 함께 돌려준다(Telegram 은 update_id+1). <b>null 이면 안 된다</b> — null 이면 코어가 그 글의 커서를 저장하지 못해 묶음 중간 유실 방지(글 단위 최대 한 번)가 깨진다.
+     *       코어가 글을 처리하기 직전에 그 커서를 저장하므로 묶음 중간에 죽어도 처리하지 않은 글은 유실되지 않는다.
+     *       {@link SelfInbox#nextCursor()} 는 묶음 끝 커서다.</li>
+     *   <li>메시지가 없어도 {@code nextCursor} 를 앞으로 보낼 수 있다(건너뛴 업데이트 등).</li>
+     *   <li>커서는 구현체별로 저장된다(키 {@code messenger_cursor.<provider()>}).</li>
+     * </ul>
+     * 실패는 RuntimeException(수신 루프가 {@link #reset()} 후 잠시 쉬고 다시 시도한다).
+     * <b>예외 메시지에 자격증명·토큰이 든 URL 을 넣지 않는다</b> — 코어는 예외 클래스 이름만 로그에 남기지만, 어댑터 자신의 로그도 같아야 한다.
+     */
+    SelfInbox receiveSelf(String cursor, Duration timeout);
 
     /** 방에 텍스트 전송(정책 검사 없음). */
     void send(RoomKind kind, String roomId, String text);

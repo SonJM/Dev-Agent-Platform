@@ -42,7 +42,6 @@ public class IssueSession {
     private String commitSha;
     private String mrUrl;
     private String lastError;
-    private Long waitAfterSeq;   // 이 적재 순번(chat_message.seq)보다 큰 자기방 메시지를 답변으로 본다
     private int feedbackRounds;
     private String workType;           // 컨벤션 작업 유형 = 브랜치 접두어(feature/fix/refactor/doc/hotfix), 분석 결과·라벨로 결정
     private String workId;             // 일감번호(이슈 제목의 EasyRedmine 번호, 없으면 issue-<iid>)
@@ -99,8 +98,6 @@ public class IssueSession {
     public void setMrUrl(String mrUrl) { this.mrUrl = mrUrl; }
     public String getLastError() { return lastError; }
     public void setLastError(String lastError) { this.lastError = lastError; }
-    public Long getWaitAfterSeq() { return waitAfterSeq; }
-    public void setWaitAfterSeq(Long waitAfterSeq) { this.waitAfterSeq = waitAfterSeq; }
     public int getFeedbackRounds() { return feedbackRounds; }
     public void setFeedbackRounds(int feedbackRounds) { this.feedbackRounds = feedbackRounds; }
     public String getWorkType() { return workType; }

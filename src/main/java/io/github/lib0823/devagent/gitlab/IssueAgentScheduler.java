@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 이슈 에이전트 폴링: (1) 라벨 이슈 스캔, (2) 자기방 답변 수신.
+ * 이슈 에이전트 폴링: (1) 라벨 이슈 스캔, (2) 확인 대기 리마인더(답변 수신은 메신저 명령 라우터가 한다).
  * 실제 작업(분석/수정/푸시)은 {@link IssueAgentService} 의 워커 스레드에서 수행되어 폴링을 막지 않는다.
  */
 @Component
@@ -41,7 +41,7 @@ public class IssueAgentScheduler {
             return;
         }
         try {
-            service.pollReplies();
+            service.remindWaiting();
         } catch (Exception e) {
             log.error("이슈 답변 폴링 오류: {}", e.toString());
         }

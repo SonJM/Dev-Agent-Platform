@@ -30,7 +30,6 @@ public interface IssueSessionMapper {
                 commit_sha             TEXT,
                 mr_url                 TEXT,
                 last_error             TEXT,
-                wait_after_seq  BIGINT,
                 feedback_rounds        INT          NOT NULL DEFAULT 0,
                 verify_rounds          INT          NOT NULL DEFAULT 0,
                 verify_result          TEXT,
@@ -67,7 +66,7 @@ public interface IssueSessionMapper {
             UPDATE issue_session SET
                 state = #{state}, claude_session_id = #{claudeSessionId}, branch_name = #{branchName},
                 design_text = #{designText}, change_summary = #{changeSummary}, commit_sha = #{commitSha},
-                mr_url = #{mrUrl}, last_error = #{lastError}, wait_after_seq = #{waitAfterSeq},
+                mr_url = #{mrUrl}, last_error = #{lastError},
                 feedback_rounds = #{feedbackRounds}, verify_rounds = #{verifyRounds}, verify_result = #{verifyResult}, work_type = #{workType}, work_id = #{workId}, base_branch = #{baseBranch}, issue_title = #{issueTitle}, updated_at = now()
             WHERE id = #{id}
             """)
@@ -76,7 +75,7 @@ public interface IssueSessionMapper {
     String COLS = """
             id, project_path, project_id, issue_iid, issue_title, issue_url, default_branch, state,
             claude_session_id, branch_name, design_text, change_summary, commit_sha, mr_url, last_error,
-            wait_after_seq, feedback_rounds, verify_rounds, verify_result, work_type, work_id, base_branch, created_at, updated_at
+            feedback_rounds, verify_rounds, verify_result, work_type, work_id, base_branch, created_at, updated_at
             """;
 
     @Select("SELECT " + COLS + " FROM issue_session WHERE id = #{id}")
@@ -108,16 +107,12 @@ public interface IssueSessionMapper {
     @Select("SELECT " + COLS + " FROM issue_session WHERE state = 'PREPARING' ORDER BY created_at ASC LIMIT 1")
     IssueSession findPreparing();
 
-    /** 답변 커서 갱신(조건부): 폴러가 읽은 뒤 워커가 상태를 바꿨으면(중단 등) 덮어쓰지 않는다. */
-    @Update("UPDATE issue_session SET wait_after_seq = #{mid} WHERE id = #{id} AND state = #{state}")
-    int setWaitAfter(@Param("id") long id, @Param("mid") long mid, @Param("state") String state);
-
     /** 전체 갱신(조건부): 현재 DB 상태가 expected 일 때만. 선분석 워커가 뒤늦게 결과를 쓸 때 ABORTED 를 덮지 않도록. */
     @Update("""
             UPDATE issue_session SET
                 state = #{s.state}, claude_session_id = #{s.claudeSessionId}, branch_name = #{s.branchName},
                 design_text = #{s.designText}, change_summary = #{s.changeSummary}, commit_sha = #{s.commitSha},
-                mr_url = #{s.mrUrl}, last_error = #{s.lastError}, wait_after_seq = #{s.waitAfterSeq},
+                mr_url = #{s.mrUrl}, last_error = #{s.lastError},
                 feedback_rounds = #{s.feedbackRounds}, verify_rounds = #{s.verifyRounds}, verify_result = #{s.verifyResult}, work_type = #{s.workType}, work_id = #{s.workId}, base_branch = #{s.baseBranch}, issue_title = #{s.issueTitle}, updated_at = now()
             WHERE id = #{s.id} AND state = #{expected}
             """)
@@ -134,7 +129,7 @@ public interface IssueSessionMapper {
     @Select("""
             SELECT id, project_path, project_id, issue_iid, issue_title, issue_url, default_branch, state,
                    claude_session_id, branch_name, NULL AS design_text, NULL AS change_summary, commit_sha, mr_url, last_error,
-                   wait_after_seq, feedback_rounds, verify_rounds, NULL AS verify_result, work_type, work_id, base_branch, created_at, updated_at
+                   feedback_rounds, verify_rounds, NULL AS verify_result, work_type, work_id, base_branch, created_at, updated_at
             FROM issue_session ORDER BY updated_at DESC LIMIT #{limit}
             """)
     List<IssueSession> recentLight(@Param("limit") int limit);

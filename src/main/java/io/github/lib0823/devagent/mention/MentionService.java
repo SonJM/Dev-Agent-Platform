@@ -9,8 +9,6 @@ import io.github.lib0823.devagent.config.BotProperties;
 import io.github.lib0823.devagent.config.DocsProperties;
 import io.github.lib0823.devagent.docs.KnowledgeSource;
 import io.github.lib0823.devagent.mcp.OpsQueryService;
-import io.github.lib0823.devagent.research.ResearchService;
-import io.github.lib0823.devagent.gitlab.IssueAgentService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.llm.ChatModel;
 import org.slf4j.Logger;
@@ -51,16 +49,13 @@ public class MentionService {
     private final SettingService settings;
     private final KnowledgeSource docs;
     private final DocsProperties docsProps;
-    private final IssueAgentService issueAgent;
     private final OpsQueryService ops;
-    private final ResearchService research;
 
     public MentionService(MessengerService client, ChatModel claude, ChatMessageMapper messageMapper,
                           MentionReplyMapper replyMapper, RoomCursorMapper cursorMapper,
                           BotProperties bot, SettingService settings,
-                          KnowledgeSource docs, DocsProperties docsProps, IssueAgentService issueAgent,
-                          OpsQueryService ops, ResearchService research) {
-        this.research = research;
+                          KnowledgeSource docs, DocsProperties docsProps,
+                          OpsQueryService ops) {
         this.client = client;
         this.claude = claude;
         this.messageMapper = messageMapper;
@@ -70,7 +65,6 @@ public class MentionService {
         this.settings = settings;
         this.docs = docs;
         this.docsProps = docsProps;
-        this.issueAgent = issueAgent;
         this.ops = ops;
     }
 
@@ -179,41 +173,7 @@ public class MentionService {
         boolean self = "self".equalsIgnoreCase(c.getRoomType());
         String rest = stripCommand(c.getBody());
 
-        // "@AI 이슈 ..." → GitLab 이슈 에이전트 명령 (자기방에서만 — 그룹방에서 코드 작업을 시키지 않는다)
-        if (rest.startsWith("이슈 ") || rest.equals("이슈")) {
-            if (!self) {
-                record(c, "SKIPPED", null, "issue-cmd-not-self");
-                return;
-            }
-            String reply = issueAgent.command(rest.substring(2).strip());
-            client.sendToSelf("[이슈] " + reply);
-            record(c, "ISSUE", reply, null);
-            log.info("이슈 에이전트 명령 처리 messageId={}", c.getMessageId());
-            return;
-        }
-        // "@AI 질문 batch: …" → 질의 워크플로우(소스를 훑어 문서로 정리, 자기방에서만). 결과는 완료 뒤 자기방 알림 + 대시보드 질의 탭
-        if (rest.startsWith("질문 ") || rest.equals("질문") || rest.startsWith("질의 ") || rest.equals("질의")) {
-            if (!self) {
-                record(c, "SKIPPED", null, "research-cmd-not-self");
-                return;
-            }
-            String reply;
-            try {
-                reply = research.submitFromMessenger(rest.substring(2).strip());
-            } catch (IllegalArgumentException e) {
-                reply = e.getMessage();
-            }
-            client.sendToSelf("[질의] " + reply);
-            record(c, "RESEARCH", reply, null);
-            log.info("질의 명령 처리 messageId={}", c.getMessageId());
-            return;
-        }
-        // 이슈 에이전트가 자기방에서 확인 답변을 기다리는 중이면, 자기방 @AI 메시지는 그 답변이므로 일반 응답을 양보
-        if (self && issueAgent.isWaiting()) {
-            record(c, "SKIPPED", null, "issue-agent-reply");
-            log.info("자기방 @AI → 이슈 에이전트 답변으로 양보 messageId={}", c.getMessageId());
-            return;
-        }
+        // 「이슈 …」·「질문 …」 명령과 확인 답변은 메신저 명령 라우터(messenger/MessengerCommandRouter)가 받는다 — 여기서 중복 처리하지 않는다(T-006)
         // "@AI 운영 …" / 운영 키워드 → 운영 MCP 질의. 자기방 + '방에 직접 답' 화이트리스트 방에서만(그 외 방엔 클러스터/DB 정보를 노출하지 않는다)
         String opsRoomKey = c.getRoomType() + ":" + c.getRoomId();
         boolean opsRoom = self || (ops.allowAutoRooms() && settings.getAutoRoomKeys().contains(opsRoomKey));
