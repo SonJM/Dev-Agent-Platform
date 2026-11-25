@@ -4,7 +4,7 @@
 id: T-012
 담당: frontend-dev (frontend-dev)
 상태: 대기
-depends: [T-011, T-020]
+depends: [T-011, T-020, T-025]
 병렬: 불가
 충돌: [T-011]
 관련 제안: -
@@ -65,3 +65,4 @@ grep -rnE "GitLab|gitlab|issueIid|mrUrl|projectId" src/main/resources/static ; t
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성(단계 수준) |
 | 2026-11-25 | 대기 | PM 수정: `depends`에 T-020(같은 `ui.js` — 좁은 폭 상단바 보정을 먼저, OI-26) |
+| 2026-11-25 | 대기 | PM 수정: `depends`에 T-025(같은 `platform.html`·`admin.js` — 묶음 가져오기 확인을 먼저, OI-32) |

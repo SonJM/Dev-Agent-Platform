@@ -3,7 +3,7 @@
 #
 #   <SERVICE_USER>   Claude CLI 로그인이 돼 있는 기존 일반 계정(root 아님, docker 그룹 불필요)
 #   <APP_HOME>       앱 홈 절대 경로. .env·dev-agent.jar·logs 가 여기에 놓인다(WorkingDirectory 와 같은 값)
-#   <JAVA_HOME>      JDK 17+ 설치 경로(로그인 셸에서 `readlink -f $(command -v java)` 로 확인)
+#   <JAVA_HOME>      JDK 21 설치 경로(로그인 셸에서 `readlink -f $(command -v java)` 로 확인, `<JAVA_HOME>/bin/java -version` 이 21 이어야 한다)
 #   <TOOLS_PATH>     claude·git·node·gradle 이 있는 디렉터리를 ':' 로 이은 값(로그인 셸의 `command -v` 결과의 디렉터리)
 #   <DB_CONTAINER>   공유 PostgreSQL 컨테이너 이름
 #   <DB_NAME>        전용 DB 이름

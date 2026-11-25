@@ -10,7 +10,8 @@
 |---|---|
 | `<SERVICE_USER>` | Claude CLI 로그인이 돼 있는 기존 일반 계정(root 아님) |
 | `<APP_HOME>` | 앱 홈 절대 경로(`.env`·jar·`logs/`) |
-| `<JAVA_HOME>`, `<TOOLS_PATH>` | JDK 경로, claude·git·node·gradle 디렉터리를 `:` 로 이은 값 |
+| `<JAVA_HOME>` | JDK **21** 설치 경로. 이유: 검증 빌드·수정 세션이 봇 JVM 의 JDK 와 PATH 도구를 쓰므로 대상 프로젝트가 요구하는 가장 높은 JDK(21)에 맞춘다 |
+| `<TOOLS_PATH>` | claude·git·node·gradle 디렉터리를 `:` 로 이은 값 |
 | `<DB_CONTAINER>` | 공유 PostgreSQL 컨테이너 이름 |
 | `<DB_NETWORK>` | DB 컨테이너가 네트워크 여러 개에 붙어 있을 때 고를 네트워크 이름. 하나뿐이면 `-` |
 | `<ADMIN_ROLE>` | 공유 인스턴스의 관리 role(role·DB 를 만들 수 있는 것) |
@@ -24,11 +25,12 @@
 ```bash
 # <SERVICE_USER> 로 로그인한 셸에서
 command -v java claude git node gradle        # 각 실행 파일의 경로
-java -version                                  # 17 이상
+java -version                                  # 21 이어야 한다(JDK 21 고정)
 claude --version
 git --version
 claude                                         # 로그인 상태 확인(대화창이 뜨면 로그인된 것. 종료는 /exit)
 readlink -f "$(command -v java)"               # → <JAVA_HOME>/bin/java 의 <JAVA_HOME> 을 알아낸다
+<JAVA_HOME>/bin/java -version                  # 알아낸 경로의 java 가 21 인지 확인(21 이 아니면 JDK 21 을 설치한 경로로 바꾼다)
 ```
 
 - `<TOOLS_PATH>` = 위 `command -v` 결과에서 파일 이름을 뺀 디렉터리들(중복 제거)을 `:` 로 이은 값. 예: `claude` 가 `<홈>/.local/bin/claude` 면 `<홈>/.local/bin`.
