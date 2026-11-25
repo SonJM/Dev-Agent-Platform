@@ -4,7 +4,7 @@
 id: T-010
 담당: backend-dev (backend-dev)
 상태: 대기
-depends: [T-009]
+depends: [T-009, T-021]
 병렬: 불가
 충돌: [T-011]
 관련 제안: -
@@ -75,3 +75,4 @@ grep -rnE "api/v4|merge_requests|GitLabClient" src/main/java ; test $? -eq 1
 |---|---|---|
 | 2026-11-24 | 대기 | PM 작성(단계 수준) |
 | 2026-11-24 | 대기 | PM 수정(T-006 검수): M-5 후속(HTTP 제한 시간, `이슈 스캔` 비동기 접수 검토)을 범위에 추가 |
+| 2026-11-25 | 대기 | PM 수정: `depends`에 T-021(OI-27 결정 — 외부 저장소 빌드 전에 자식 프로세스 환경 정리) |

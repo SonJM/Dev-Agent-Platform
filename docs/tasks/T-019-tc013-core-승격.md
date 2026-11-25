@@ -3,7 +3,7 @@
 ```
 id: T-019
 담당: qa (qa)
-상태: 대기
+상태: 완료
 depends: [T-018]
 병렬: 불가
 충돌: [T-009]   # e2e/tasks/T-008.spec.ts·e2e/core/ — T-009 qa 확인이 이 파일에 로컬 프리뷰 단언을 더한다
@@ -59,12 +59,13 @@ test -z "$(ls e2e/tasks/T-007.spec.ts e2e/tasks/T-008.spec.ts e2e/tasks/T-018.sp
 ```
 
 ## 검증 증거
-- 일시:
-- 명령:
-- 결과:
-- 변경 설명서:
+- 일시: 2026-11-25 11:39
+- 명령: qa-run.sh --grep @core (QA_BASE_URL=http://127.0.0.1:8778); test -z "$(ls e2e/tasks/T-007.spec.ts e2e/tasks/T-008.spec.ts e2e/tasks/T-018.spec.ts)"
+- 결과: QA PASS, 7 passed, skipped 0, 23.9초, 8778·54329 리슨 0
+- 변경 설명서: [results/T-019-tc013-core-승격-qa.md](./results/T-019-tc013-core-승격-qa.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-25 | 대기 | PM 작성(T-018 QA PASS 뒤 — T-008·T-007·T-018 묶음 제안 채택, 07 §8) |
+| 2026-11-25 | 완료 | PM 검수 통과: 지시서 메타·범위·완료 조건·검증 명령은 HEAD와 같음(검증 증거·상태만 변경). 검증 명령(`e2e/tasks/` 세 파일 없음) 재실행 통과. `e2e/` 파일 지도 = 세 파일 삭제 + `e2e/core/removed-features.spec.ts` 추가(`@core`)뿐. `report.json` stats expected 7·skipped 0·unexpected 0·flaky 0, 7개 모두 `core` 태그·passed — 보고서 표·`## 검증` 마지막 줄 `QA PASS`와 일치. 대조표 17행, `qa-baseline.md` 한 행, `report.json`에 로컬 홈 경로 없음, `app.log`는 gitignore. 07 TC-013 자동화 열·§8 갱신 |
