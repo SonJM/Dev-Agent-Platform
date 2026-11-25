@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.4 · 2026-11-24 · 상태: Draft
+> 버전 0.7 · 2026-11-25 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -142,7 +142,8 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 항목 | 값 |
 |---|---|
 | 배포 대상 환경 | 개인 서버 1대(Ubuntu 24.04 x86_64). 환경 구분 없음 |
-| 배포 구성 경로 | `deploy/` — `systemd/dev-agent.service`(틀), `sql/create-db.sql`(전용 DB·role 생성), `env.server.example`, `README.md`(절차서) — T-003. `smoke/server-smoke.sh`(서버 기동 확인) — T-001 |
+| 배포 구성 경로 | `deploy/` — `systemd/dev-agent.service`(틀), `sql/create-db.sql`(전용 DB·role 생성), `env.server.example`, `README.md`(절차서) — T-003. `smoke/server-smoke.sh`(서버 기동 확인) — T-001. `bin/resolve-db.sh`(기동 때 DB 주소 조회, 서버에는 root 소유로 `/usr/local/libexec/dev-agent/resolve-db.sh`에 설치 — 앱 홈에 두지 않는다), `smoke/start-server-check.sh`(가짜 docker로 `resolve-db.sh`를 시험, 서버 불필요, 마지막 줄 `CHECK PASS`) — T-017 |
+| 실행 중 생기는 파일 | `/run/dev-agent/db.env` — unit의 `RuntimeDirectory=dev-agent`(0750)가 시작 때 만들고 멈추면 지운다. `resolve-db.sh`가 root 소유 0600으로 `DB_URL` 한 줄만 쓰고 `EnvironmentFile`로 java에 준다. 조회 실패 때는 파일이 없다 — T-017 |
 | 실행 계정 | CLI 로그인이 돼 있는 기존 일반 계정(자리표시자 `<SERVICE_USER>`). 2026-11-24 확정 |
 | 서버 접속 | SSH. 주소·계정은 문서·저장소에 적지 않는다(환경변수 `DEV_AGENT_SSH`). **서버의 java·claude·gradle·node는 로그인 셸 PATH에서만 보인다** — 원격 명령은 로그인 셸(`bash -lc`)로 실행한다 |
 | unit 환경 | `WorkingDirectory=<앱 홈>`, `Environment=PATH=<JDK bin>:<~/.local/bin>:<node bin>:/usr/bin:/bin`, `JAVA_HOME=<JDK 경로>`, `DEV_AGENT_RUN_MODE=systemd`. `ExecStart`의 java는 절대 경로. systemd는 로그인 셸 PATH를 쓰지 않는다. `java -jar` 직접 실행에서는 `DEV_AGENT_HOME`이 적용되지 않고 **작업 디렉터리가 홈**이다(T-001 확인) — `WorkingDirectory`가 필수다. Claude CLI 탐색(`ClaudeCliLocator`)은 PATH·`~/.local/bin`·`~/.claude/local`·`/usr/local/bin`만 보고 npm 전역·nvm 경로는 찾지 않는다 — 서버의 claude가 그런 위치면 그 경로를 PATH에 넣는다 |
@@ -150,7 +151,7 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 실행 런타임 | 서버에 있는 Temurin JDK 21(앱 대상은 17+) |
 | 산출물 전달 | 개발 PC에서 만든 `dev-agent.jar`를 서버로 복사(기본). 서버 빌드는 Java 17 toolchain이 필요하다 |
 | 접근 경로 | `tailscale serve`(HTTPS **8443** 확정) → `127.0.0.1:8777` |
-| DB | 서버의 기존 공유 PostgreSQL 16(다른 서비스의 compose 소유 컨테이너). 전용 DB + 전용 role(소유자 권한만), 빈 DB로 시작. **호스트 포트를 공개하지 않는다**(OI-18, 2026-11-25). unit의 시작 스크립트(`deploy/bin/start-server.sh` — T-017)가 기동 때 `docker inspect`로 컨테이너(설정값 `DB_CONTAINER`, 자리표시자 `<DB_CONTAINER>`)의 bridge 주소를 얻어 `DB_URL`(`jdbc:postgresql://<조회한 주소>:5432/<전용 DB>`)을 환경변수로 넘긴다. 서버 `.env`에는 `DB_URL`을 두지 않는다(`DB_USERNAME`·`DB_PASSWORD`만). 조회 실패 = 기동 실패(내장 DB로 뜨지 않는다). DB 컨테이너가 다시 만들어져 주소가 바뀌면 앱을 재시작한다. 서비스 계정이 docker 명령을 쓸 수 있어야 한다(확인됨). 커넥션 풀 5 유지 |
+| DB | 서버의 기존 공유 PostgreSQL 16(다른 서비스의 compose 소유 컨테이너). 전용 DB + 전용 role(소유자 권한만), 빈 DB로 시작. **호스트 포트를 공개하지 않는다**(OI-18, 2026-11-25). unit의 `ExecStartPre=+`(root)가 `resolve-db.sh`(T-017)로 기동 때 `docker inspect`해 컨테이너(인자 `<DB_CONTAINER>`, 네트워크가 여럿이면 `<DB_NETWORK>`)의 주소를 얻고 `DB_URL`(`jdbc:postgresql://<조회한 주소>:5432/<전용 DB>`)을 `/run/dev-agent/db.env`에 쓴다. 입력은 인자로만 줘서 java와 그 자식(에이전트·빌드) 환경에 `DB_CONTAINER`·`DB_NAME`이 남지 않는다. 서비스 계정은 docker 그룹이 필요 없다. 서버 `.env`에는 `DB_URL`을 두지 않는다(`DB_USERNAME`·`DB_PASSWORD`만, 있으면 거부). 조회 실패 = 기동 실패(java를 띄우지 않으므로 내장 DB로 뜨지 않는다): 컨테이너가 안 떴으면 60초 기다린 뒤 종료 코드 3으로 끝나 계속 재시도, 설정 오류(이름 오타·권한·형식·`.env`의 `DB_URL`)는 종료 코드 2로 즉시 끝나 약 25초 뒤 `start-limit-hit`으로 멈춘다(`RestartPreventExitStatus`는 `ExecStartPre`에 적용되지 않아 쓰지 않는다 — 서버 systemd 255 확인). DB 컨테이너가 다시 만들어져 주소가 바뀌면 앱을 재시작한다. 커넥션 풀 5 유지 |
 | 재시작 정책 | `Restart=on-failure`(종료 코드 10 = 재기동 요청, 0 = 종료), 부팅 시 자동 시작, docker 뒤에 기동(DB가 아직 안 떴으면 재시도로 다시 뜬다) |
 | 차트 / 값 파일 / 클러스터 / 이미지 저장소 / 파이프라인 템플릿 / 러너 / air-gap 묶음 / 인프라 코드 / 감시 구성 | 해당 없음 |
 | 필요한 비밀값(이름만) | `DB_USERNAME`·`DB_PASSWORD`, `GITHUB_TOKEN`(3), `TELEGRAM_BOT_TOKEN`(4) — 서버의 `.env`(권한 600) |
@@ -168,3 +169,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-24 | 0.4 | T-003 완료: §1 `deploy/` 설명을 실제 구성(서버용 compose 없음, 전용 DB 준비 SQL)으로 정정 |
 | 2026-11-24 | 0.5 | T-016 완료: §8에 중복 기동 거부, 지시서 검증 명령의 앱 기동 형태(백그라운드 + 상한 대기 + 무조건 정지) 추가 |
 | 2026-11-25 | 0.6 | OI-18 결정 변경: §9 DB 항목을 "포트 공개 없이 기동 때 주소 조회(시작 스크립트, T-017)"로, 서버 적용 항목에서 포트 공개 제거. `deploy/` 구성 경로 표의 새 파일은 T-017 검수 때 더한다 |
+| 2026-11-25 | 0.7 | T-017 완료: §9 배포 구성 경로에 `bin/resolve-db.sh`(설치 경로 `/usr/local/libexec/dev-agent/`)·`smoke/start-server-check.sh`, "실행 중 생기는 파일"(`/run/dev-agent/db.env`) 추가. DB 항목을 실제 구성(`ExecStartPre=+` root 조회, docker 그룹 불필요, 종료 코드 2·3의 재시도 동작)으로 정정 |

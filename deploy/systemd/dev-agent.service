@@ -1,10 +1,25 @@
 # Dev Agent systemd unit (틀). <...> 자리표시자를 서버 값으로 바꿔 /etc/systemd/system/dev-agent.service 로 둔다.
 # 실제 계정 이름·경로는 저장소에 적지 않는다. 절차: deploy/README.md §6.
 #
-#   <SERVICE_USER>   Claude CLI 로그인이 돼 있는 기존 일반 계정(root 아님)
+#   <SERVICE_USER>   Claude CLI 로그인이 돼 있는 기존 일반 계정(root 아님, docker 그룹 불필요)
 #   <APP_HOME>       앱 홈 절대 경로. .env·dev-agent.jar·logs 가 여기에 놓인다(WorkingDirectory 와 같은 값)
 #   <JAVA_HOME>      JDK 17+ 설치 경로(로그인 셸에서 `readlink -f $(command -v java)` 로 확인)
 #   <TOOLS_PATH>     claude·git·node·gradle 이 있는 디렉터리를 ':' 로 이은 값(로그인 셸의 `command -v` 결과의 디렉터리)
+#   <DB_CONTAINER>   공유 PostgreSQL 컨테이너 이름
+#   <DB_NAME>        전용 DB 이름
+#   <DB_NETWORK>     DB 컨테이너가 네트워크 여러 개에 붙어 있으면 고를 네트워크 이름, 하나뿐이면 - 한 글자
+#
+# DB 접속: 호스트 포트를 공개하지 않는다. ExecStartPre=+ 의 resolve-db.sh 가 root 로 docker inspect 를 해 컨테이너 주소를
+#   조회하고 /run/dev-agent/db.env 에 DB_URL 한 줄을 쓴다. EnvironmentFile 이 그것을 java 에 준다.
+#   - 조회·권한이 root 쪽에만 있어 서비스 계정(에이전트가 이 계정으로 돈다)이 docker 소켓 권한을 가질 필요가 없다.
+#   - 입력(컨테이너·DB 이름)을 Environment 가 아니라 인자로 줘서 java 와 그 자식(에이전트·빌드)의 환경에 DB_* 가 남지 않는다.
+#   - ExecStartPre 가 실패하면 ExecStart(java)는 실행되지 않는다(systemd.service: ExecStartPre 가 실패하면 서비스는 실패로 끝나고 메인 프로세스는 시작되지 않는다).
+#     DB_URL 없이 java 가 뜨면 내장 DB 로 떠 버리므로 이 성질이 필요하다. 서버 .env 에는 DB_URL 을 두지 않는다.
+#   - 서버 systemd 255 에서 확인함(사용자 매니저 시험 unit, 2026-11-25): ExecStartPre 가 실패하면 ExecStart 는 돌지 않고
+#     Restart=on-failure 가 다시 시도한다. RuntimeDirectory 는 ExecStartPre 전에 만들어지고, EnvironmentFile 은 ExecStartPre 가
+#     쓴 파일을 ExecStart 직전에 읽는다. ExecStartPre 의 인자는 ExecStart 환경에 남지 않는다.
+#     RestartPreventExitStatus 는 ExecStartPre 의 종료 코드에는 적용되지 않는다(종료 코드 2 여도 재시도함) → 쓰지 않는다.
+#     설정 오류(resolve-db.sh 종료 코드 2)는 즉시 끝나므로 5초 간격 5회(약 25초) 뒤 StartLimitBurst 로 멈춘다.
 #
 # 앱 규약: 화면의 「재시작」= 종료 코드 10, 「종료」= 종료 코드 0.
 #   Restart=on-failure 라서 10 은 다시 뜨고 0 은 다시 뜨지 않는다. Restart=always 로 바꾸면 「종료」가 듣지 않고,
@@ -13,7 +28,11 @@
 [Unit]
 Description=Dev Agent
 # 공유 DB 컨테이너(docker)보다 뒤에 시작. docker 를 Requires 로 묶지 않는다(docker 재시작이 앱을 끄지 않게).
-# DB 가 아직 안 떴으면 앱이 종료 코드 non-zero 로 끝나고 아래 Restart 로 다시 시도한다.
+# DB 컨테이너가 아직 안 떴으면 resolve-db.sh 가 DB_WAIT_SEC(60초) 동안 2초 간격으로 주소를 다시 조회하고,
+# 끝내 못 얻으면 non-zero 로 끝나 아래 Restart 로 다시 시도한다. 실패 한 번이 약 60초 + RestartSec 5초라
+# 3분 안에 5회(StartLimitBurst)에 닿지 않는다: 5회에 약 5분이라 DB 가 늦게 떠도 계속 재시도한다.
+# (대기 없이 즉시 실패하면 5초 간격 5회로 30초 만에 포기한다.)
+# 조회 대기(최대 약 65초)가 TimeoutStartSec 기본값(90초) 안에 든다.
 After=network-online.target docker.service
 Wants=network-online.target
 # 재기동 폭주 방지: 3분 안에 5회를 넘기면 멈춘다(systemctl reset-failed dev-agent 후 다시 시작)
@@ -24,12 +43,19 @@ StartLimitBurst=5
 Type=simple
 User=<SERVICE_USER>
 WorkingDirectory=<APP_HOME>
-# systemd 는 로그인 셸 PATH 를 쓰지 않는다. 필요한 도구 경로를 모두 적는다.
+# systemd 는 로그인 셸 PATH 를 쓰지 않는다. 필요한 도구 경로를 모두 적는다(docker 는 /usr/bin 에 있어야 한다).
 Environment=PATH=<TOOLS_PATH>:<JAVA_HOME>/bin:/usr/local/bin:/usr/bin:/bin
 Environment=JAVA_HOME=<JAVA_HOME>
 Environment=DEV_AGENT_RUN_MODE=systemd
+# /run/dev-agent 를 서비스 시작 때 만들고 멈추면 지운다(서비스 계정 소유). db.env 는 root 가 0600 으로 쓰고 systemd 가 읽는다.
+RuntimeDirectory=dev-agent
+RuntimeDirectoryMode=0750
+# '+' = root 권한으로 실행(User= 무시). 스크립트는 서비스 계정이 고칠 수 없는 root 소유 경로에 둔다(README §6).
+# 인자: 컨테이너 · DB 이름 · 포트 · 네트워크(없으면 -) · .env 절대 경로(WorkingDirectory 에 기대지 않는다)
+ExecStartPre=+/usr/local/libexec/dev-agent/resolve-db.sh <DB_CONTAINER> <DB_NAME> 5432 <DB_NETWORK> <APP_HOME>/.env
+EnvironmentFile=/run/dev-agent/db.env
 # java -jar 직접 실행은 DEV_AGENT_HOME 을 보지 않고 작업 디렉터리를 홈으로 쓴다 → WorkingDirectory 가 필수.
-# 설정(.env)은 앱이 <APP_HOME>/.env 를 직접 읽는다(EnvironmentFile 을 쓰지 않는다).
+# 설정(.env)은 앱이 <APP_HOME>/.env 를 직접 읽는다. 위 EnvironmentFile 은 DB_URL 하나만 준다.
 ExecStart=<JAVA_HOME>/bin/java -Djava.awt.headless=true -XX:+UseSerialGC -Xmx512m -jar <APP_HOME>/dev-agent.jar
 Restart=on-failure
 RestartForceExitStatus=10

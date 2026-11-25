@@ -4,7 +4,7 @@
 
 - 이 문서의 `<…>` 는 자리표시자다. 실제 계정 이름·주소·경로·컨테이너 이름·비밀번호는 저장소에 적지 말고 서버에서만 쓴다.
 - 표기: **확인 필요** = 이 저장소에서 확인하지 못한 것. 옆의 방법으로 서버에서 확인한다. 추측을 사실로 쓰지 않았다.
-- 구성: 앱은 `127.0.0.1:8777` 에만 바인딩, 공유 PostgreSQL 은 `127.0.0.1:5432`, tailnet 에는 `tailscale serve` 의 HTTPS **8443** 하나만 연다.
+- 구성: 앱은 `127.0.0.1:8777` 에만 바인딩, 공유 PostgreSQL 은 호스트 포트를 공개하지 않고(앱이 기동 때 컨테이너 주소를 조회해 붙는다), tailnet 에는 `tailscale serve` 의 HTTPS **8443** 하나만 연다.
 
 | 자리표시자 | 뜻 |
 |---|---|
@@ -12,6 +12,7 @@
 | `<APP_HOME>` | 앱 홈 절대 경로(`.env`·jar·`logs/`) |
 | `<JAVA_HOME>`, `<TOOLS_PATH>` | JDK 경로, claude·git·node·gradle 디렉터리를 `:` 로 이은 값 |
 | `<DB_CONTAINER>` | 공유 PostgreSQL 컨테이너 이름 |
+| `<DB_NETWORK>` | DB 컨테이너가 네트워크 여러 개에 붙어 있을 때 고를 네트워크 이름. 하나뿐이면 `-` |
 | `<ADMIN_ROLE>` | 공유 인스턴스의 관리 role(role·DB 를 만들 수 있는 것) |
 | `<DB_NAME>`, `<DB_USER>`, `<DB_PASS>` | 전용 DB·role 이름과 비밀번호 |
 | `<MagicDNS 이름>` | 이 서버의 tailnet MagicDNS 이름 |
@@ -36,22 +37,23 @@ readlink -f "$(command -v java)"               # → <JAVA_HOME>/bin/java 의 <J
 
 ## 2. 사용자가 할 일 — 공유 PostgreSQL 접속 경로 (OI-18)
 
-공유 PostgreSQL 컨테이너는 호스트 포트를 공개하지 않는다. 앱(호스트의 JVM)이 붙으려면 그 DB 의 compose 에 `127.0.0.1` 한정 공개를 더해야 한다. **이 절차서와 저장소는 그 compose 파일을 고치지 않는다 — 사용자가 직접 한다.**
+**포트를 공개하지 않는다. 기동 때 주소를 조회한다.** 공유 PostgreSQL 컨테이너의 compose·컨테이너·다른 서비스는 건드리지 않는다. unit 의 `ExecStartPre=+`(앞의 `+` = **root 로 실행**)가 `resolve-db.sh` 를 돌려 `docker inspect` 로 컨테이너의 네트워크 주소를 조회하고, `/run/dev-agent/db.env` 에 `DB_URL=jdbc:postgresql://<조회한 주소>:5432/<DB_NAME>` 한 줄을 쓴다. unit 의 `EnvironmentFile` 이 그것을 java 에 준다. 조회가 실패하면 `ExecStart`(java)가 실행되지 않는다.
 
-```yaml
-# 그 DB 서비스의 compose 항목에 추가
-    ports:
-      - "127.0.0.1:5432:5432"
-```
+**위험과 선택 — docker 그룹.** docker 소켓을 쓸 수 있는 계정(docker 그룹)은 사실상 root 와 같다. 이 앱은 `<SERVICE_USER>` 로 돌고 그 계정으로 Claude CLI 에이전트가 코드를 실행하므로, 그 계정이 docker 그룹에 있으면 에이전트가 root 권한을 얻을 수 있다. 이 구성에서는 조회를 root 가 하므로 **`<SERVICE_USER>` 가 docker 그룹에 있을 필요가 없다.** 계정을 그룹에서 뺄지는 사용자가 정한다(그 계정이 다른 용도로 docker 를 쓸 수 있다). `id <SERVICE_USER>` 로 그룹을 확인한다.
 
-- **컨테이너를 다시 만들어야 적용된다**(`docker compose up -d <서비스>`). 이때 **그 DB 를 쓰는 다른 서비스들의 연결이 순간 끊긴다.** 서비스 정리 때 함께 하고, 재연결 시도가 없는 서비스는 다시 띄워야 할 수 있다.
-- 컨테이너의 브리지 IP(`172.x.x.x`)로 붙는 방법은 권하지 않는다: 컨테이너를 다시 만들면 IP 가 바뀔 수 있고, 같은 브리지의 다른 컨테이너에도 열려 있는 길이 된다.
-- `0.0.0.0` 이나 `5432:5432`(주소 생략)로 공개하지 않는다. 반드시 `127.0.0.1:` 을 붙인다.
-- 적용 뒤 확인:
+설치 전에 **root(sudo)로** 두 가지를 확인한다.
 
 ```bash
-ss -ltn | grep ':5432'     # 127.0.0.1:5432 만 보여야 한다. 0.0.0.0:5432 / [::]:5432 가 보이면 잘못 공개된 것
+# 1) docker inspect 가 되고, 주소가 IPv4 하나로 나온다
+sudo docker inspect --type container -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <DB_CONTAINER>
+#    값이 둘 이상(네트워크 여러 개)이면 쓸 네트워크 이름을 <DB_NETWORK> 로 정해 unit 의 ExecStartPre 인자에 적는다(하나뿐이면 -)
+# 2) 호스트에서 그 주소의 5432 로 TCP 연결이 된다
+timeout 3 bash -c 'exec 3<>/dev/tcp/<위에서 나온 주소>/5432' && echo OK
 ```
+
+- 컨테이너를 **다시 만들어 주소가 바뀌어도** 앱을 다시 시작하면(`sudo systemctl restart dev-agent`) 새 주소를 조회해 붙는다. **앱이 도는 중에 주소가 바뀌면 기존 연결이 끊긴다** — 앱은 새 주소를 스스로 찾지 않으므로 재시작이 필요하다.
+- 호스트 포트를 공개하지 않으므로 `ss -ltn` 에 5432 리슨이 없어야 한다(§8).
+- 접속 인증은 DB 의 `pg_hba` 가 정한다(루프백 밖은 비밀번호 필요). `.env` 의 `DB_USERNAME`·`DB_PASSWORD` 가 그대로 쓰인다.
 
 ## 3. 전용 DB·role 만들기
 
@@ -80,8 +82,8 @@ $EDITOR <APP_HOME>/.env                            # 자리표시자를 모두 �
 ```
 
 - **줄바꿈은 LF 로 저장한다.** Windows 편집기에서 CRLF 로 저장해 올리면 값 끝에 CR 이 붙는 키가 생긴다(`DEV_AGENT_RUN_MODE` 는 견디지만 다른 값은 아닐 수 있다). 확인: `file <APP_HOME>/.env` 에 `CRLF` 가 나오면 `sed -i 's/\r$//' <APP_HOME>/.env`.
-- 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_URL`(`jdbc:postgresql://127.0.0.1:5432/<DB_NAME>`)·`DB_USERNAME`·`DB_PASSWORD`, `GITLAB_WORK_DIR`(앱 홈 **밖**), GitLab 항목.
-- `DB_URL` 을 비우면 앱이 내장 PostgreSQL 로 떠 버려 공유 DB 에 붙지 않는다. 반드시 채운다.
+- 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_USERNAME`·`DB_PASSWORD`, `GITLAB_WORK_DIR`(앱 홈 **밖**), GitLab 항목.
+- **`.env` 에 `DB_URL` 을 적지 않는다.** `resolve-db.sh` 가 조회한 주소로 `DB_URL` 을 만든다. `.env` 에 `DB_URL=` 줄이 있으면 `resolve-db.sh` 가 거부한다(주석 처리한 줄은 무방).
 - `PREVIEW_ENABLED=false`, `MAINTAIN_ENABLED=false` 를 유지한다(플랫폼 관리 사용 여부는 OI-14 미정).
 - `.env` 는 비밀값이 들어 있으니 git·메신저·로그에 올리지 않는다.
 
@@ -99,9 +101,12 @@ scp build/libs/dev-agent.jar <SERVICE_USER>@<서버>:<APP_HOME>/dev-agent.jar
 
 ```bash
 # 서버에서 (sudo 가능한 계정)
+# 조회 스크립트: root 가 실행하므로 root 소유 경로에 root 소유로 둔다(서비스 계정이 쓸 수 없게)
+sudo install -d -o root -g root -m 755 /usr/local/libexec/dev-agent
+sudo install -o root -g root -m 755 deploy/bin/resolve-db.sh /usr/local/libexec/dev-agent/resolve-db.sh
 sudo cp deploy/systemd/dev-agent.service /etc/systemd/system/dev-agent.service
-sudo sed -i -e 's|<SERVICE_USER>|…|g' -e 's|<APP_HOME>|…|g' -e 's|<JAVA_HOME>|…|g' -e 's|<TOOLS_PATH>|…|g' /etc/systemd/system/dev-agent.service
-#   (또는 편집기로 네 자리표시자를 직접 바꾼다. …은 실제 값)
+sudo sed -i -e 's|<SERVICE_USER>|…|g' -e 's|<APP_HOME>|…|g' -e 's|<JAVA_HOME>|…|g' -e 's|<TOOLS_PATH>|…|g' -e 's|<DB_CONTAINER>|…|g' -e 's|<DB_NAME>|…|g' -e 's|<DB_NETWORK>|-|g' /etc/systemd/system/dev-agent.service
+#   (또는 편집기로 일곱 자리표시자를 직접 바꾼다. …은 실제 값. <DB_NETWORK> 는 네트워크가 하나면 - , 여러 개면 고를 네트워크 이름)
 grep -n '<' /etc/systemd/system/dev-agent.service     # 주석 줄 외에 남은 자리표시자가 없어야 한다
 
 systemd-analyze verify /etc/systemd/system/dev-agent.service    # 문법 확인. 경고가 없어야 한다
@@ -112,8 +117,10 @@ journalctl -u dev-agent -f                            # 실시간 로그(Ctrl+C 
 tail -f <APP_HOME>/logs/dev-agent.log                 # 앱 로그
 ```
 
-- unit 의 핵심: `User`(비루트)·`WorkingDirectory`·`PATH`·`JAVA_HOME`·`DEV_AGENT_RUN_MODE=systemd`·`ExecStart`(java 절대 경로)·`Restart=on-failure`(종료 코드 0 은 다시 안 띄우고 10 은 다시 띄움)·`After=docker.service`.
+- unit 의 핵심: `User`(비루트)·`WorkingDirectory`·`PATH`·`JAVA_HOME`·`DEV_AGENT_RUN_MODE=systemd`·`ExecStartPre=+`(root 로 DB 주소 조회)·`EnvironmentFile`(조회 결과 `DB_URL`)·`ExecStart`(java 직접 실행)·`Restart=on-failure`(종료 코드 0 은 다시 안 띄우고 10 은 다시 띄움)·`StartLimitBurst=5`(3분 안에 5회 실패하면 멈춤)·`After=docker.service`. `RestartPreventExitStatus` 는 쓰지 않는다 — `ExecStartPre` 의 종료 코드에는 적용되지 않는다(서버 systemd 255 에서 확인).
+- **보안: `resolve-db.sh` 는 root 로 실행된다.** 서비스 계정이 이 파일(또는 그 디렉터리)을 고칠 수 있으면 서비스 계정이 root 권한을 얻는 통로가 된다. 그래서 위처럼 root 소유로 설치하고, 앱 홈(서비스 계정 소유)에 두지 않는다. 갱신할 때도 `sudo install` 로 덮는다. 같은 이유로 DB 컨테이너·DB 이름은 `Environment=` 가 아니라 `ExecStartPre` 인자로 주어 java 와 그 자식 프로세스(에이전트·대상 프로젝트 빌드)의 환경에 남기지 않는다. 단 `DB_URL` 은 `EnvironmentFile` 로 java 환경에 들어간다.
 - `java -jar` 직접 실행은 `DEV_AGENT_HOME` 을 보지 않고 작업 디렉터리를 홈으로 쓴다. 그래서 `WorkingDirectory` 가 `<APP_HOME>` 이어야 `.env` 를 읽는다.
+- `resolve-db.sh` 는 `docker` 를 PATH 에서 찾는다(unit 의 PATH 에 `/usr/bin` 이 있다. docker 가 다른 위치면 `<TOOLS_PATH>` 에 더한다). 컨테이너가 있는데 실행 중이 아니거나 주소가 비어 있으면 `DB_WAIT_SEC`(기본 60초) 동안 다시 시도하고, 못 얻으면 java 를 띄우지 않고 종료 코드 3 으로 실패해 `Restart=on-failure` 가 다시 시도한다. 컨테이너가 없거나(`No such object`) docker 권한이 없으면 종료 코드 2 로 바로 실패한다. 이 경우도 `Restart=on-failure` 가 5초 간격으로 다시 시도하지만 매번 즉시 실패하므로 약 25초(5회) 뒤 `StartLimitBurst` 로 멈춘다(`systemctl status` 가 `start-limit-hit`). 사유(docker 의 마지막 오류 포함)는 `journalctl -u dev-agent` 에 `resolve-db:` 한 줄로 남는다.
 - 첫 기동 때 앱이 전용 DB 에 테이블을 만든다(수십 초). `curl -s http://127.0.0.1:8777/api/system/status` 에 JSON 이 나오면 떴다.
 - 재기동이 반복돼 멈췄다면(3분에 5회): 원인을 로그에서 고친 뒤 `sudo systemctl reset-failed dev-agent && sudo systemctl start dev-agent`.
 
@@ -138,7 +145,15 @@ sudo tailscale serve --https=8443 off                 # 또는: sudo tailscale s
 
 **네트워크 노출**
 - [ ] 8777 이 `127.0.0.1` 에만 열려 있다: `ss -ltn | grep ':8777'` → `127.0.0.1:8777` 만(`0.0.0.0` 이면 실패).
-- [ ] DB 포트가 `127.0.0.1` 에만 열려 있다: `ss -ltn | grep ':5432'`.
+- [ ] 호스트에 DB 포트 리슨이 **없다**: `ss -ltn | grep ':5432'` → 출력 없음.
+- [ ] 앱이 외부(공유) DB 로 떴다: 플랫폼 탭 「시스템」의 DB 가 "외부"(내장 DB 가 아님). `journalctl -u dev-agent` 에 `resolve-db: DB 주소 …` 한 줄이 있다.
+- [ ] 조회 구성 확인(systemd 동작은 이 저장소에서 확인하지 못했다 — 서버에서 본다):
+  - `systemd-analyze verify /etc/systemd/system/dev-agent.service` 경고 없음.
+  - `ls -l /run/dev-agent/db.env` 가 `-rw-------` root 소유이고 내용이 `DB_URL=` 한 줄이다. `<SERVICE_USER>` 는 읽을 수 없다(읽을 필요 없다 — systemd 가 읽는다).
+  - java 가 `DB_URL` 을 받았다(앱이 외부 DB 로 뜬 것으로 확인). `sudo cat /proc/<java PID>/environ | tr '\0' '\n' | grep -c '^DB_CONTAINER\|^DB_NAME'` → `0`(컨테이너·DB 이름이 java 환경에 없다).
+  - **네트워크 지정 경로 실측**(가짜로는 템플릿 평가를 못 본다): 네트워크가 여럿인 컨테이너면 `sudo docker inspect --type container -f '{{if .State.Running}}{{with index .NetworkSettings.Networks "<DB_NETWORK>"}}{{.IPAddress}}{{end}}{{end}}' <DB_CONTAINER>` 가 IPv4 하나를 낸다. 하나뿐이어도 한 번 실행해 본다.
+  - `<SERVICE_USER>` 가 docker 그룹에 없어도 앱이 뜬다(`id <SERVICE_USER>`, 그룹에서 빼기로 했다면).
+  - 실패 경로: DB 컨테이너를 멈추고 `sudo systemctl restart dev-agent` → `resolve-db:` 메시지와 함께 java 가 뜨지 않고(`systemctl status`), 컨테이너를 다시 띄운 뒤 `Restart=on-failure` 로 다시 시도해 붙는다. 컨테이너 이름을 틀리게 하면 종료 코드 2 로 즉시 실패를 5회 반복한 뒤 `start-limit-hit` 으로 멈추는지 확인(약 25초).
 - [ ] tailnet 밖(예: 이동통신망의 휴대폰, Tailscale 끔)에서 `https://<MagicDNS 이름>:8443` 이 열리지 않는다.
 
 **공유 인스턴스 보호**
@@ -183,7 +198,7 @@ sudo tailscale serve --https=8444 off ; kill %1
 **운영 동작**
 - [ ] 화면의 **「재시작」**: 눌렀을 때 앱이 종료 코드 10 으로 끝나고 systemd 가 다시 띄운다(`journalctl -u dev-agent` 에 재기동 기록, `curl http://127.0.0.1:8777/api/system/status` 가 다시 응답). 이슈 세션이 작업 중이면 거부되는 것이 정상이다.
 - [ ] 화면의 **「종료」**: 종료 코드 0 으로 끝나고 **다시 뜨지 않는다**(`systemctl status dev-agent` 가 `inactive`). 다시 시작은 `sudo systemctl start dev-agent`.
-- [ ] 서버 **재부팅** 뒤 자동 기동: `sudo reboot` 후 `systemctl status dev-agent` 가 active. DB 컨테이너보다 먼저 떠서 접속에 실패하면 앱이 non-zero 로 종료하고 `Restart=on-failure`(5초 간격, 3분에 5회까지)로 다시 붙는지 `journalctl -u dev-agent -b` 로 본다(확인 필요: DB 컨테이너가 5회 안에 안 뜨면 unit 이 멈추므로 `reset-failed` 가 필요할 수 있다).
+- [ ] 서버 **재부팅** 뒤 자동 기동: `sudo reboot` 후 `systemctl status dev-agent` 가 active. DB 컨테이너보다 먼저 떠도 `resolve-db.sh` 가 60초 동안 주소 조회를 다시 시도하고, 그래도 못 얻으면 java 없이 non-zero 로 끝나 `Restart=on-failure` 로 다시 시도하는지 `journalctl -u dev-agent -b` 로 본다(확인 필요: 실패 한 번이 약 65초라 5회에 약 5분이 걸려 3분 안 5회 제한에 닿지 않는 계산이다. 컨테이너가 그보다 늦게 뜨면 `reset-failed` 가 필요할 수 있다).
 - [ ] **systemd 아래에서 에이전트 1회 실행**: 대상 프로젝트에서 이슈 하나(또는 리서치 질의 하나)를 돌려, Claude CLI 가 git·빌드 도구(gradle/mvn/node)를 찾는지, 로그인 자격증명이 갱신되는지(`~/.claude/.credentials.json` 수정 시각, 세션 중 인증 오류 없음) 본다. 도구를 못 찾으면 unit 의 `PATH` 에 그 디렉터리를 더한다.
 
 ## 9. 갱신(새 jar)과 되돌리기
@@ -227,9 +242,14 @@ sudo systemctl start dev-agent
 | 증상 | 확인 | 조치 |
 |---|---|---|
 | 기동 직후 반복 재시작 후 멈춤 | `journalctl -u dev-agent -n 100 --no-pager`, `<APP_HOME>/logs/dev-agent.log` 끝의 `Caused by` | 원인 수정 → `sudo systemctl reset-failed dev-agent && sudo systemctl start dev-agent` |
-| `Connection refused` (DB) | `ss -ltn \| grep 5432`, `docker ps` | §2 의 포트 공개 적용 여부, DB 컨테이너 기동 여부 |
+| `Connection refused` / 연결 시간 초과 (DB) | `docker ps`, `journalctl -u dev-agent` 의 `resolve-db: DB 주소` | DB 컨테이너 기동 여부. 컨테이너를 다시 만들어 주소가 바뀌었으면 `sudo systemctl restart dev-agent` |
+| `resolve-db: DB 컨테이너 주소를 …초 안에 얻지 못했다`(종료 코드 3) | 메시지 끝의 "마지막 상태", `sudo docker inspect <DB_CONTAINER>`, 컨테이너 실행 여부, unit 의 컨테이너 이름·네트워크 인자 | 컨테이너 기동·인자 수정 후 `reset-failed` + `start` |
+| `resolve-db: docker 조회 실패: …No such object` / `permission denied`(종료 코드 2, 약 25초 뒤 `start-limit-hit`) | 컨테이너 이름 오타, root 로 docker 실행 가능 여부 | 인자 수정 → `daemon-reload` + `reset-failed` + `start` |
+| `resolve-db: 조회한 값이 IPv4 주소 하나가 아니다`(종료 코드 2) | 컨테이너가 붙은 네트워크 수 | unit 의 네트워크 인자(`<DB_NETWORK>` 자리)를 이름으로 바꿈 → `daemon-reload` + `restart` |
+| `resolve-db: 서버에서는 .env 에 DB_URL 을 두지 않는다`(종료 코드 2) | `<APP_HOME>/.env` 의 `DB_URL` 줄 | 줄을 지우거나 `#` 로 주석 처리 |
+| `resolve-db: 인자 5개 필요` / `…형식 오류` / `docker 실행 파일을 PATH 에서 찾지 못했다`(종료 코드 2) | unit 의 `ExecStartPre` 줄과 `PATH` | §6 의 자리표시자 치환 확인 |
 | `password authentication failed` | `.env` 의 `DB_USERNAME`·`DB_PASSWORD`, 값 끝 공백·CR | §4 LF 저장 확인 |
-| 앱이 내장 DB(54329)로 뜸 | `.env` 의 `DB_URL` 이 비었거나 키 이름 오타 | `DB_URL` 채우고 재시작 |
+| 앱이 내장 DB(54329)로 뜸 | unit 에 `ExecStartPre=+…resolve-db.sh` 와 `EnvironmentFile=/run/dev-agent/db.env` 가 있는지 | 둘 중 하나가 빠지면 `DB_URL` 이 없어 내장 DB 로 뜬다. unit 을 §6 대로 고친다 |
 | 화면은 열리는데 저장·등록이 403 | `.env` 의 `ACCESS_ALLOWED_ORIGINS` 값, 재기동 여부 | §8 의 Host·Origin 확인으로 실제 Origin 에 맞춘다 |
 | `claude: command not found` / 에이전트가 도구를 못 찾음 | unit 의 `PATH`, `CLAUDE_EXE_COMMAND` | §1 의 경로를 `PATH` 에 더하고 `daemon-reload` + `restart` |
 | 「재시작」을 눌렀더니 거부/안 뜸 | `curl -s http://127.0.0.1:8777/api/system/status` 의 `runMode` 가 `systemd` 인가 | `direct` 면 unit 의 `DEV_AGENT_RUN_MODE=systemd` 누락 |
