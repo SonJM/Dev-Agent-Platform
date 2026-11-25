@@ -65,16 +65,42 @@ class ClaudeCliAgentTest {
         return ClaudeCliAgent.disallowedTools(stage, maintain, true, true);
     }
 
+    private static final java.util.List<String> EDIT_TOOL_NAMES =
+            java.util.List.of("Edit", "Write", "MultiEdit", "NotebookEdit");
+
     @Test
-    void tc023VerifyStageDeniesEditTools() {
+    void t023VerifyStageDeniesEditTools() {
         java.util.List<String> d = deny(Stage.VERIFY, false);
-        assertTrue(d.containsAll(java.util.List.of("Edit", "Write", "MultiEdit", "NotebookEdit")), d.toString());
-        assertTrue(!deny(Stage.FIX, false).contains("Edit"));
-        assertTrue(!deny(Stage.ANALYZE, false).contains("Write"));
+        assertTrue(d.containsAll(EDIT_TOOL_NAMES), d.toString());
+    }
+
+    // ── T-024: 읽기 전용 세션 편집 금지, 관리 세션 금지 경로 ─────────
+
+    @Test
+    void t024AnalyzeStageDeniesEditTools() {
+        assertTrue(deny(Stage.ANALYZE, false).containsAll(EDIT_TOOL_NAMES));
     }
 
     @Test
-    void tc023NonMaintainSessionsDenyCurlAndWget() {
+    void t024FixAndMaintainSessionsKeepEditTools() {
+        for (String tool : EDIT_TOOL_NAMES) {
+            assertTrue(!deny(Stage.FIX, false).contains(tool), tool);
+            assertTrue(!deny(Stage.FIX, true).contains(tool), tool);
+        }
+    }
+
+    @Test
+    void t024MaintainDeniesCredentialWideningApisOnly() {
+        java.util.List<String> d = deny(Stage.FIX, true);
+        for (String api : java.util.List.of("api/mcp-servers", "api/agent-subagents", "api/agent-teams",
+                "api/agent-models", "api/issues-projects")) {
+            assertTrue(d.contains("Bash(curl *" + api + "*)"), api + " " + d);
+        }
+        assertTrue(d.stream().noneMatch(p -> p.contains("api/skills") || p.contains("api/system/status")), d.toString());
+    }
+
+    @Test
+    void t023NonMaintainSessionsDenyCurlAndWget() {
         for (Stage s : Stage.values()) {
             java.util.List<String> d = deny(s, false);
             assertTrue(d.contains("Bash(curl:*)"), s + " " + d);
@@ -83,7 +109,7 @@ class ClaudeCliAgentTest {
     }
 
     @Test
-    void tc023MaintainDoesNotDenyAllCurlButDeniesStateChangingApis() {
+    void t023MaintainDoesNotDenyAllCurlButDeniesStateChangingApis() {
         java.util.List<String> d = deny(Stage.FIX, true);
         assertTrue(!d.contains("Bash(curl:*)"));
         assertTrue(!d.contains("Bash(wget:*)"));
@@ -96,7 +122,7 @@ class ClaudeCliAgentTest {
     }
 
     @Test
-    void tc023AllSessionsDenyEnvFileReadsButNotExamples() {
+    void t023AllSessionsDenyEnvFileReadsButNotExamples() {
         for (Stage s : Stage.values()) {
             for (boolean maintain : new boolean[]{false, true}) {
                 java.util.List<String> d = deny(s, maintain);
@@ -111,7 +137,7 @@ class ClaudeCliAgentTest {
     }
 
     @Test
-    void tc023ExistingDenialsArePreserved() {
+    void t023ExistingDenialsArePreserved() {
         java.util.List<String> d = deny(Stage.FIX, true);
         assertTrue(d.contains("PowerShell"));
         assertTrue(d.contains("Bash(git push:*)"));

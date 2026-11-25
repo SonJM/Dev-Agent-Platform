@@ -1,7 +1,7 @@
 # 07. 테스트 계획서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.14 · 2026-11-25 · 상태: Draft
+> 버전 0.15 · 2026-11-25 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md), [05. API 명세서](./05-api-specification.md), [06. 기능 정의서](./06-functional-specification.md)
 
 ---
@@ -52,7 +52,7 @@ QA seed(`e2e/seed/seed.ts`)는 스킬 60건(가정의 2배), 루틴 30건(상한
 
 | ID | 대상 | 유형 | 사전 조건 | 절차 | 기대 결과 | 자동화 |
 |---|---|---|---|---|---|---|
-| TC-001 | FR-101, FR-106 | Integration | `DEV_AGENT_SSH` 설정, 빌드된 jar, 서버의 18777·내장 DB 포트가 비어 있음 | 서버의 격리 디렉터리에 jar를 올리고 로그인 셸에서 그래픽 없음·프리뷰 꺼짐·플랫폼 관리 꺼짐·`DB_URL` 없음으로 `java -jar` 실행 → 확인 → 종료 API로 내림 → 디렉터리 삭제 | 제한 시간 안에 `/api/system/status` 200, `/api/system/doctor`가 200이고 Claude CLI·git 항목이 정상·Windows 전용 항목이 실패로 나오지 않음, 로그에 기동 실패 예외 없음, 끝난 뒤 앱·내장 DB 프로세스와 격리 디렉터리가 남지 않음 | 예 (`deploy/smoke/server-smoke.sh`) |
+| TC-001 | FR-101, FR-106 | Integration | `DEV_AGENT_SSH` 설정, 빌드된 jar, 서버의 18777·내장 DB 포트가 비어 있음 | 서버의 격리 디렉터리에 jar를 올리고 로그인 셸에서 그래픽 없음·플랫폼 관리 꺼짐·`DB_URL` 없음으로 `java -jar` 실행 → 확인 → 종료 API로 내림 → 디렉터리 삭제 | 제한 시간 안에 `/api/system/status` 200, `/api/system/doctor`가 200이고 Claude CLI·git 항목이 정상·Windows 전용 항목이 실패로 나오지 않음, 로그에 기동 실패 예외 없음, 끝난 뒤 앱·내장 DB 프로세스와 격리 디렉터리가 남지 않음 | 예 (`deploy/smoke/server-smoke.sh`) |
 | TC-002 | FR-104 | Unit | — | 신뢰 목록에 없는 `Origin`으로 `POST /api/...`. 경로 표기 변형(`/api;x/…`, `/%61pi/…`, `/api/…;x`, `/API/…`, `//api/…`, `/home.html`)과 `Host` 헤더의 포트를 바꾼 루프백 Origin도 | 403, 다음 단계로 넘어가지 않음 | 예 (`AccessControlFilterTest`) |
 | TC-003 | FR-104 | Unit | `ACCESS_ALLOWED_ORIGINS`에 한 주소 설정 | ① 그 Origin으로 POST ② 루프백 Origin으로 POST ③ Origin 없이 POST ④ 다른 Origin으로 GET | 넷 다 통과 | 예 (`AccessControlFilterTest`) |
 | TC-023 | FR-104 | E2E (요청 수준) | 앱 기동(8778), `ACCESS_ALLOWED_ORIGINS` 비어 있음 | 실제 Tomcat에 `Origin: https://evil.example`로 부작용 없는 상태 변경 `POST`(예: 잘못된 파라미터)를 `/api/…`, `/api;x/…`, `/%61pi/…`, `/api/…;x`, `/home.html`로 보내고, `Origin: null`, 같은 출처, Origin 없음으로도 보낸다 | 다른 출처·`null`은 모두 403 + 고정 본문. 같은 출처·Origin 없음은 필터를 통과(403이 아님). 단위 테스트(MockHttpServletRequest)가 재현하지 못하는 컨테이너·Spring의 실제 경로 처리 회귀를 잡는다 | 예 (`@core`, [T-015 qa 보고서](./tasks/results/T-015-tc023-core-승격-qa.md); 최초 [T-002 qa 보고서](./tasks/results/T-002-접근-제어-qa.md); `GET /api/llm-test` 기대 405→404 갱신: [T-018 qa 보고서](./tasks/results/T-018-운영-mcp-채팅-모델-제거-qa.md)) |
@@ -82,12 +82,12 @@ QA seed(`e2e/seed/seed.ts`)는 스킬 60건(가정의 2배), 루틴 30건(상한
 
 | 요구사항 | 우선순위 | TC | 상태 |
 |---|---|---|---|
-| FR-101 | Must | TC-001 | 통과 (2026-11-24, T-001 서버 smoke) |
+| FR-101 | Must | TC-001 | 통과 (2026-11-24, T-001 서버 smoke). 재확인 통과 (2026-11-25, T-022 서버 smoke — 2.0.3, 프리뷰·심 제거 뒤) |
 | FR-102 | Must | TC-005 (+ 서버 수동) | TC-005 통과 (T-001). 서버 수동 확인은 T-003 |
 | FR-103 | Must | 미커버(자동) — 서버 수동 확인 | — |
 | FR-104 | Must | TC-002, TC-003, TC-007, TC-023 | 통과 (2026-11-24, T-002 완료 — TC-002·TC-003 단위, TC-007·TC-023 qa, TC-023은 T-015로 `@core` 승격). 서버(serve 뒤) 확인 항목은 T-003 절차서 §8 — 사용자가 서버 설치 때 확인 |
 | ~~FR-105~~ | — | (폐기) | — |
-| FR-106 | Should | TC-001 | 통과 (2026-11-24, T-001 서버 smoke) |
+| FR-106 | Should | TC-001 | 통과 (2026-11-24, T-001 서버 smoke). 재확인 통과 (2026-11-25, T-022 서버 smoke — doctor agent·git 정상) |
 | FR-201, FR-202, FR-206, FR-208 | Must | TC-014 (+ 사용자 정의 MCP 등록 회귀는 수동) | T-007·T-018분 통과 (2026-11-25 — T-007 QA PASS: FR-201·FR-202 API 8개 404, 검색 0 / T-018 QA PASS: FR-208 API 3개 404, 연동 카드 2행, 검색 0, 사용자 정의 MCP 회귀는 단위 테스트 `McpCustomOnlyTest`로 자동화). FR-206(T-009)분 통과 (2026-11-25 — 검색 0·삭제 대상 파일 없음(PM 재실행), `PreviewController`·스크린샷 API 삭제, 설치 점검에 프리뷰 행 없음·홈 아래 `bin/` 미생성(T-009 QA PASS). 프리뷰 API 404는 e2e로 따로 단언하지 않았다 — 컨트롤러째 삭제·검색 0으로 대신) |
 | FR-203 | Must | TC-011 | 미작성 |
 | FR-204 | Must | TC-012 | 통과 (2026-11-24, T-006 — `ReplyDeliveryTest` 단위 10건) |
@@ -193,3 +193,4 @@ Phase 2 변경이 이 묶음에 주는 영향(2026-11-25 확인 — `e2e/core/` 
 | 2026-11-25 | 0.12 | T-019 완료(QA PASS 7/7): TC-013 자동화 열을 `@core`(`e2e/core/removed-features.spec.ts`)·T-019 qa 보고서로, §8 TC-013 행·설명 갱신. OI-26 결정 ①: TC-024(390px 상단바 보정, T-020) 추가, FR-502 추적에 TC-024 |
 | 2026-11-25 | 0.13 | T-009 완료(QA PASS 7/7): TC-013 T-009 시점 통과(자동화 열에 T-009 qa 보고서), FR-206·FR-207 통과. OI-28 결정 ①: §9 증거의 경로 표기 규칙(`~`/`<repo>`/`<tmp>`) 추가 |
 | 2026-11-25 | 0.14 | OI-32 결정 ①: TC-025(구성 묶음 가져오기의 stdio MCP 확인, T-025) 추가, FR-604 추적에 TC-025 |
+| 2026-11-25 | 0.15 | T-022 완료: TC-001 절차에서 프리뷰 꺼짐 삭제(스크립트에서 제거됨), FR-101·FR-106 서버 smoke 재확인 통과(2.0.3) |

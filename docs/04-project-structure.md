@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.12 · 2026-11-25 · 상태: Draft
+> 버전 0.13 · 2026-11-25 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -153,6 +153,7 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | unit 환경 | `WorkingDirectory=<앱 홈>`, `Environment=PATH=<JDK bin>:<~/.local/bin>:<node bin>:/usr/bin:/bin`, `JAVA_HOME=<JDK 경로>`, `DEV_AGENT_RUN_MODE=systemd`. `ExecStart`의 java는 절대 경로. systemd는 로그인 셸 PATH를 쓰지 않는다. `java -jar` 직접 실행에서는 `DEV_AGENT_HOME`이 적용되지 않고 **작업 디렉터리가 홈**이다(T-001 확인) — `WorkingDirectory`가 필수다. Claude CLI 탐색(`ClaudeCliLocator`)은 PATH·`~/.local/bin`·`~/.claude/local`·`/usr/local/bin`만 보고 npm 전역·nvm 경로는 찾지 않는다 — 서버의 claude가 그런 위치면 그 경로를 PATH에 넣는다 |
 | Linux 기동 동작 | `~/bin`에 심을 쓰지 않는다(T-009에서 심 전부 제거 — OS 무관). 실행 방식은 `systemd`·`direct` 둘뿐이다. `DEV_AGENT_RUN_MODE=systemd`면 재시작 = 종료 코드 10, 종료 = 0(stop 플래그 파일 없음) — T-001 |
 | 실행 런타임 | 서버에 있는 Temurin JDK 21(앱 대상은 17+). **unit의 `JAVA_HOME`·`PATH`의 JDK·`ExecStart`의 java를 모두 JDK 21로 고정**한다(`OI-29` 결정 ①, 2026-11-25 — 코드 변경 없음). 검증 빌드(`mvn -o -q compile`)와 수정 세션이 봇 JVM의 JDK·PATH의 도구를 쓰므로, Java 21을 요구하는 대상 프로젝트가 JDK 17에서 검사 FAIL → 불필요한 자동 재수정으로 빠지지 않게 한다. 대상 프로젝트가 서로 다른 JDK를 요구하게 되면 프로젝트별 JDK 선택을 따로 기획한다(OI-29 ③). unit 틀·절차서 반영은 T-022 |
+| 대상 저장소 빌드 도구 | `OI-15` 결정 ①(2026-11-25, 사용자): 서버에는 **대상 저장소가 쓰는 도구만** 설치하고(JDK는 위 21, Maven·Gradle·Node 등은 대상 저장소에 따라), 대상 저장소마다 서비스 계정으로 **한 번 빌드해 의존성 캐시를 채운다**(검증 빌드가 `mvn -o` 오프라인이라 캐시가 없으면 FAIL). 절차는 `deploy/README.md`(T-010에서 틀만 — 저장소별 도구 목록은 첫 대상 저장소를 사용자가 정할 때 채운다, **미정**) |
 | 산출물 전달 | 개발 PC에서 만든 `dev-agent.jar`를 서버로 복사(기본). 서버 빌드는 Java 17 toolchain이 필요하다 |
 | 접근 경로 | `tailscale serve`(HTTPS **8443** 확정) → `127.0.0.1:8777` |
 | DB | 서버의 기존 공유 PostgreSQL 16(다른 서비스의 compose 소유 컨테이너). 전용 DB + 전용 role(소유자 권한만), 빈 DB로 시작. **호스트 포트를 공개하지 않는다**(OI-18, 2026-11-25). unit의 `ExecStartPre=+`(root)가 `resolve-db.sh`(T-017)로 기동 때 `docker inspect`해 컨테이너(인자 `<DB_CONTAINER>`, 네트워크가 여럿이면 `<DB_NETWORK>`)의 주소를 얻고 `DB_URL`(`jdbc:postgresql://<조회한 주소>:5432/<전용 DB>`)을 `/run/dev-agent/db.env`에 쓴다. 입력은 인자로만 줘서 java와 그 자식(에이전트·빌드) 환경에 `DB_CONTAINER`·`DB_NAME`이 남지 않는다. 서비스 계정은 docker 그룹이 필요 없다. 서버 `.env`에는 `DB_URL`을 두지 않는다(`DB_USERNAME`·`DB_PASSWORD`만, 있으면 거부). 조회 실패 = 기동 실패(java를 띄우지 않으므로 내장 DB로 뜨지 않는다): 컨테이너가 안 떴으면 60초 기다린 뒤 종료 코드 3으로 끝나 계속 재시도, 설정 오류(이름 오타·권한·형식·`.env`의 `DB_URL`)는 종료 코드 2로 즉시 끝나 약 25초 뒤 `start-limit-hit`으로 멈춘다(`RestartPreventExitStatus`는 `ExecStartPre`에 적용되지 않아 쓰지 않는다 — 서버 systemd 255 확인). DB 컨테이너가 다시 만들어져 주소가 바뀌면 앱을 재시작한다. 커넥션 풀 5 유지 |
@@ -179,3 +180,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-25 | 0.10 | OI-29 결정 ①: §9 실행 런타임에 unit JDK 21 고정(검증 빌드 JDK 근거), 틀·절차서 반영은 T-022 |
 | 2026-11-25 | 0.11 | T-021 완료: §4 새 비밀 설정 → `ChildEnv.SECRET_KEYS`, 자식 프로세스 규약. §9 자식 프로세스 환경 |
 | 2026-11-25 | 0.12 | T-023 완료: §4 에이전트 도구 금지 조립 위치와 새 상태 변경 API의 금지 목록 확인 |
+| 2026-11-25 | 0.13 | OI-15 결정 ①: §9에 대상 저장소 빌드 도구(쓰는 도구만 설치, 저장소마다 한 번 빌드해 캐시 채움, 도구 목록 미정) |

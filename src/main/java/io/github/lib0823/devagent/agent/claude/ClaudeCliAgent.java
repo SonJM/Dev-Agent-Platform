@@ -199,10 +199,12 @@ public class ClaudeCliAgent implements CodingAgent {
      * 플랫폼 관리 세션이 curl 로 부르면 안 되는 상태 변경 로컬 API 경로(스킬 등록·삭제·시스템 상태 조회는 제외).
      * `api/maintain` 은 조회 GET 까지 막지만 관리 세션이 자기 상태를 볼 일은 없다.
      * 부분 문자열 비교라 `//`·`/./`·문자열 조합으로 우회할 수 있다 — 실질적 차단은 요청 토큰(OI-22 ②) 몫.
+     * mcp-servers·agent-*·issues-projects 는 다음 세션의 도구·모델·대상 범위를 넓히는 설정 API 라 막는다(T-024, OI-33).
      */
     private static final List<String> MAINTAIN_DENIED_APIS = List.of(
             "api/maintain", "api/system/restart", "api/system/shutdown", "api/system/import",
-            "api/issues-reply", "api/issues-create", "api/issues-command");
+            "api/issues-reply", "api/issues-create", "api/issues-command",
+            "api/mcp-servers", "api/agent-subagents", "api/agent-teams", "api/agent-models", "api/issues-projects");
     /**
      * 내용을 화면에 찍는 명령 — .env 를 인자로 받으면 막는다. Read(…/.env) 금지도 Claude Code 가 인식하는 파일 명령에 적용되지만
      * 명시적으로 한 번 더 둔다. 파일명을 적지 않는 `grep -r`, 따옴표(`".env"`), glob(`.env*`)은 걸리지 않는다.
@@ -224,8 +226,8 @@ public class ClaudeCliAgent implements CodingAgent {
             d.add("Bash(" + c + " *.env)");           // .env.example·env.template 은 걸리지 않는다
             d.add("Bash(" + c + " *.env *)");
         }
-        if (stage == Stage.VERIFY) {
-            d.addAll(EDIT_TOOLS);                     // 독립 리뷰어는 파일을 고치지 못한다(Bash 쓰기는 프롬프트로만)
+        if (stage != Stage.FIX && !maintain) {
+            d.addAll(EDIT_TOOLS);                     // 결과가 문서뿐인 세션(분석·리서치·리뷰어)은 파일을 고치지 못한다(Bash 쓰기는 프롬프트로만)
         }
         if (maintain) {
             d.add("Bash(git push:*)");                // 푸시는 화면 버튼의 몫
