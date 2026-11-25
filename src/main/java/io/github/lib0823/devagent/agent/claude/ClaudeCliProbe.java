@@ -1,4 +1,4 @@
-package io.github.lib0823.devagent.llm.claude;
+package io.github.lib0823.devagent.agent.claude;
 
 import io.github.lib0823.devagent.platform.PortHealth;
 

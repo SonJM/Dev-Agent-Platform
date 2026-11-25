@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS maintain_turn (
 CREATE INDEX IF NOT EXISTS idx_maintain_turn_thread ON maintain_turn (thread_id, id);
 -- 플랫폼 관리 이벤트도 issue_event 를 공유하며 session_id = 2000000000 + maintain_turn.id
 
--- 관리 페이지에서 등록한 사용자 정의 MCP 서버(내장 opensearch/postgres/k3s-ops 와 함께 work/mcp-servers.json 에 합쳐진다). 비밀값은 ${ENV} 자리표시자만.
+-- 관리 페이지에서 등록한 사용자 정의 MCP 서버(사용 중인 서버가 work/mcp-servers.json 에 쓰인다). 비밀값은 ${ENV} 자리표시자만.
 CREATE TABLE IF NOT EXISTS mcp_server (
     name         VARCHAR(32)  PRIMARY KEY,                -- 도구 접두어 mcp__<name>__
     type         VARCHAR(8)   NOT NULL,                   -- http | sse | stdio

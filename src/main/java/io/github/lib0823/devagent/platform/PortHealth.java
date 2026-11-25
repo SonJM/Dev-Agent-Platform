@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 포트 구현체(어댑터)의 연결 상태. 모든 포트({@code MessengerPort}, {@code ChatModel}, {@code ToolChatModel}, {@code CodingAgent})가
+ * 포트 구현체(어댑터)의 연결 상태. 모든 포트({@code MessengerPort}, {@code CodingAgent})가
  * {@code health()} 로 보고하고 관리 페이지 "연동" 카드가 보여 준다. 네트워크·LLM 호출 없이 즉시 답해야 한다(실제 호출 검증은 {@code selfTest()}).
  *
  * @param status  ok(정상) / warn(동작하지만 주의) / down(최근 호출 실패·연결 없음)

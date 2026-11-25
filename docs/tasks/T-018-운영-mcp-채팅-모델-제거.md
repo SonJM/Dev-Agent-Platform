@@ -3,7 +3,7 @@
 ```
 id: T-018
 담당: backend-dev (backend-dev)
-상태: 대기
+상태: 완료
 depends: [T-007]
 병렬: 불가
 충돌: [T-007, T-009]   # admin/AdminController·PlatformController·McpController, agent/claude/ClaudeCliAgent, mcp/McpConfigService, application.yml, README.md, CLAUDE.md
@@ -86,10 +86,15 @@ grep -rnE '/api/(mcp-status|mcp-ask|llm-test)' src/main/resources/static --inclu
 기대: 1행 성공, 2~5행 출력 없음(4행은 T-007 리뷰 LOW 문구 — 2026-11-25 추가). 2행에서 제외하는 두 패턴은 프리뷰 설정(`preview.overlay-dirs`의 `opensearch` 폴더 이름)으로 T-009가 지운다. `e2e/core/access-control.spec.ts`의 `llm-test`는 검색 대상이 아니다(범위 밖 — qa).
 
 ## 검증 증거
-개발 에이전트가 작성.
+- 일시: 2026-11-25 11:30
+- 명령: `./gradlew test bootJar`, 검증 명령 2~5행 grep, `bash e2e/scripts/start-app.sh`(8778) 기동 후 API 확인 → `stop-app.sh`
+- 결과: 테스트 139개 실패 0(스킵 1 기존), bootJar 성공. grep 4개 모두 출력 없음. 8778: `/api/system/status` 200, `/api/platform` ports=[messenger, agent], `/api/mcp-servers` 200, `/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status` 404. 종료 뒤 8778·54329 리슨 0.
+- 변경 설명서: [results/T-018-운영-mcp-채팅-모델-제거.md](./results/T-018-운영-mcp-채팅-모델-제거.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-25 | 대기 | PM 작성 — T-007 착수 전 재확인에서 나눔(운영 MCP·`운영` 질의·채팅 모델 포트, 연동 카드 2행, `/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status`). 코드 확인: 화면이 `/api/platform`의 `ports`만 그림, `McpConfigService.available()`이 내장 설정 파일 기준이라 사용자 정의 서버만 남을 때의 회귀 테스트를 범위에 넣음, `RESERVED`의 `playwright`는 T-009까지 유지 |
 | 2026-11-25 | 대기 | PM 수정(T-007 검수): T-007 java-reviewer가 범위 밖으로 남긴 LOW를 대조 — `PlatformController` 행 문구·`OpsQueryService`·`ChatModel` javadoc·`platform.chat-model` 주석은 기존 삭제 범위에 포함, `McpProperties.allowAutoRooms`를 명시, 빠져 있던 `ClaudeProperties` 클래스 주석·`ClaudeCliAgent` 시스템 프롬프트 주석을 수정 목록에 추가. 검증 명령 4행(문구 grep) 추가, 완료 조건을 "2~5행"으로 |
+| 2026-11-25 | 검수 요청 | PM 검수(개발분 통과, qa 확인 대기): 지시서의 완료 조건·검증 명령·범위·근거가 HEAD와 같음(검증 증거·상태만 변경). 검증 명령 재실행 — `gradlew test bootJar` BUILD SUCCESSFUL, 2~5행 grep 출력 없음, 8778 기동 `/api/system/status` 200·`/api/platform` ports=`messenger`·`agent`·`/api/mcp-servers` 200·`/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status` GET·POST 404, 종료 뒤 8778·54329 리슨 0. 설명서: 그림 2개·설명, 삭제 목록, 남긴 `claude.*` 키 표, `ClaudeCliProbe` → `agent/claude/` 결정, TC-023 보고 있음. `git status`와 `파일 지도` 일치 — 예외 `config/GitLabProperties.java`는 java-reviewer LOW3에 따른 메인 세션의 주석 삭제(LOW1·LOW2도 메인 세션 수정, 동작 동일)로 인정. 제안 처리: 05 §2.2 제거 3행은 이미 반영돼 있어 완료 때 §1.2 문장만 고침, `start-app.sh` `CLAUDE_WARM`·`admin.js` `PLAT_KEYS` warm 키는 T-009 범위에 배정, TC-023 `llm-test` 기대값(405→404)은 이번 qa 확인에서 qa가 고침 |
+| 2026-11-25 | 완료 | PM 판정(qa 확인): [qa 보고서](./results/T-018-운영-mcp-채팅-모델-제거-qa.md) **QA PASS** — 실패 0(변경 오류·회귀·기존 결함 0). `## 검증` 마지막 줄 QA PASS = 판정, `report.json` expected 9·unexpected 0·skipped 0·flaky 0 = 표 9/9. qa 변경은 `e2e/core/access-control.spec.ts`(기대 405→404·주석 한 줄, diff 확인), `e2e/tasks/T-018.spec.ts` 신규, `qa-baseline.md` 한 행 — 범위 안. 반영: 05 §1.2·§2.2 완료 표시, 07 TC-013(T-018 시점)·TC-014(T-018분)·TC-023·FR-208 추적, 07 §8 TC-013 추가. 묶음 제안 채택 → [T-019](./T-019-tc013-core-승격.md) |

@@ -2,7 +2,6 @@ package io.github.lib0823.devagent.admin;
 
 import io.github.lib0823.devagent.gitlab.IssueAgentService;
 import io.github.lib0823.devagent.messenger.MessengerService;
-import io.github.lib0823.devagent.llm.ChatModel;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,14 +20,11 @@ public class AdminController {
 
     private final MessengerService client;
     private final SettingService settings;
-    private final ChatModel claude;
     private final IssueAgentService issueAgent;
 
-    public AdminController(MessengerService client, SettingService settings,
-                           ChatModel claude, IssueAgentService issueAgent) {
+    public AdminController(MessengerService client, SettingService settings, IssueAgentService issueAgent) {
         this.client = client;
         this.settings = settings;
-        this.claude = claude;
         this.issueAgent = issueAgent;
     }
 
@@ -194,22 +190,5 @@ public class AdminController {
         }
         settings.setMessengerNotify(key, on, MessengerService.NOTICES.keySet());
         return Map.of("ok", true, "result", "메신저 알림 「" + label + "」 " + (on ? "켬" : "끔 — 화면(알림함·각 탭)에서만 확인합니다"));
-    }
-
-    /** LLM 헬스체크 + 레이턴시 측정 (localhost 전용, 방 전송 없음). warm 경로 검증용. */
-    @PostMapping("/api/llm-test")
-    public Map<String, Object> llmTest(@RequestParam(defaultValue = "1 더하기 1은? 숫자만 답해.") String prompt) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        long t0 = System.currentTimeMillis();
-        try {
-            String answer = claude.complete(prompt);
-            m.put("ok", true);
-            m.put("answer", answer);
-        } catch (RuntimeException e) {
-            m.put("ok", false);
-            m.put("error", e.toString());
-        }
-        m.put("elapsedMs", System.currentTimeMillis() - t0);
-        return m;
     }
 }

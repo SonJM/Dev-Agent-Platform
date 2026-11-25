@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 관리 페이지에서 등록한 사용자 정의 MCP 서버. 내장 서버(opensearch/postgres/k3s-ops)와 함께 {@code work/mcp-servers.json} 에 합쳐진다.
+ * 관리 페이지에서 등록한 사용자 정의 MCP 서버. 사용 중인 서버가 {@code work/mcp-servers.json} 에 쓰인다.
  * 비밀값은 저장하지 않는다 — 헤더·URL·인자에는 {@code ${ENV_NAME}} 자리표시자만 쓰고 실제 값은 {@code .env} 에 둔다.
  */
 public class McpServer {

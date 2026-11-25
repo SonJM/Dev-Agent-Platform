@@ -38,11 +38,9 @@ server:
 
 # 플랫폼 어댑터 선택(포트-어댑터). 값에 해당하는 구현체 빈만 뜬다 — 새 메신저/LLM 은 포트를 구현한 빈을 추가하고 여기 값만 바꾼다.
 #   messenger    : MessengerPort  구현체 (none | 직접 추가한 어댑터: slack 등)
-#   chat-model   : ChatModel/ToolChatModel 구현체 (claude-cli | 추후 claude-api, openai …) — 요약·멘션·@AI·운영 질의
 #   coding-agent : CodingAgent 구현체 (claude-cli | 추후 claude-api …) — 이슈 분석/수정/검증, 질의
 platform:
   messenger: ${PLATFORM_MESSENGER:none}   # none(메신저 없이 화면만) | 추가한 MessengerPort 어댑터 이름
-  chat-model: ${PLATFORM_CHAT_MODEL:claude-cli}
   coding-agent: ${PLATFORM_CODING_AGENT:claude-cli}
 
 mybatis:
@@ -50,47 +48,18 @@ mybatis:
     map-underscore-to-camel-case: true
     default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
 
-# LLM — Claude Code CLI(headless) 경유 (Enterprise 구독, API 키 불필요)
+# Claude Code CLI(headless) 실행 파일 — 코딩 에이전트가 쓴다 (구독 로그인, API 키 불필요)
 claude:
   cli-command: ${CLAUDE_CLI_COMMAND:claude}
-  timeout-ms: ${CLAUDE_TIMEOUT_MS:120000}
-  # 응답속도 최적화 1단계: 콜드스타트(MCP/스킬 로딩) 제거 + Sonnet + 낮은 추론강도 (~20s -> ~10s)
-  model: ${CLAUDE_MODEL:sonnet}
-  effort: ${CLAUDE_EFFORT:low}
-  strict-mcp-config: ${CLAUDE_STRICT_MCP:true}
-  disable-slash-commands: ${CLAUDE_DISABLE_SLASH:true}
-  system-prompt: ${CLAUDE_SYSTEM_PROMPT:너는 사내 메신저 업무를 돕는 한국어 보조자다. 요청에 맞춰 간결하고 정확하게 답하라.}
-  # 응답속도 최적화 2단계: 상주(warm) stream-json 프로세스 재사용 (2번째 요청부터 ~1s). 실패 시 one-shot 폴백.
-  warm: ${CLAUDE_WARM:true}
-  warm-reset-turns: ${CLAUDE_WARM_RESET_TURNS:20}   # N턴마다 프로세스 재시작(맥락 누적 리셋)
-  # warm은 claude.exe를 직접 실행(cmd.exe 코드페이지 우회 → 한글 시스템프롬프트 안전). 비면 cli-command 사용.
+  # claude.exe 를 직접 실행(cmd.exe 코드페이지 우회 → 한글 인자 안전). 비면 cli-command 기준 자동 탐색.
   exe-command: ${CLAUDE_EXE_COMMAND:}        # 비우면 자동 탐색(config/ClaudeCliLocator: PATH · npm 전역 · ~/.local/bin)
-  # 안정성/속도 보강: 기동·리셋 시 백그라운드 프리웜(콜드 7.8s 체감 제거) + warm 연속실패 서킷브레이커(일시 one-shot)
-  warm-prewarm: ${CLAUDE_WARM_PREWARM:true}
-  warm-failure-threshold: ${CLAUDE_WARM_FAIL_THRESHOLD:3}
-  warm-breaker-cooldown-ms: ${CLAUDE_WARM_BREAKER_COOLDOWN_MS:60000}
 
 # GitLab 이슈 수정 에이전트 — 라벨 이슈를 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인) → ai/ 브랜치 푸시 → 코멘트·MR.
-# 사용자 확인은 자기방 메시지로만 받는다. 코딩용 Claude 는 저장소 디렉터리에서 별도 claude -p 세션(채팅 warm 세션과 분리).
-# 운영 MCP 연동 (mcp-integration-guide.md A안) — Claude Code CLI 에 --mcp-config 로 붙인다. 모두 읽기 전용 도구만 허용.
-# ① 자기방 "@AI 운영 …"/키워드 질의 → one-shot claude(MCP) ② 이슈 에이전트 분석/수정 단계에서 운영 데이터 조회
+# 사용자 확인은 자기방 메시지로만 받는다. 코딩용 Claude 는 저장소 디렉터리에서 별도 claude -p 세션.
+# 사용자 정의 MCP 연동 — 관리 화면에서 등록한 서버를 Claude Code CLI 에 --mcp-config 로 붙인다(내장 서버 없음).
 mcp:
-  enabled: ${MCP_ENABLED:true}
-  opensearch-url: ${MCP_OPENSEARCH_URL:}   # Streamable HTTP (인증 없음, 백엔드 계정 읽기 전용)
-  postgres-url: ${MCP_POSTGRES_URL:}       # SSE (restricted 읽기 전용)
-  k3s-url: ${MCP_K3S_URL:}                 # Bearer 토큰 필요 — 비어 있으면 k3s 제외
-  k3s-token: ${K3S_MCP_TOKEN:}
-  k3s-read-tools: get_nodes,get_namespaces,get_pods,get_deployments,get_services,get_events,get_logs,describe_pod,get_command_history
-  agent-enabled: ${MCP_AGENT_ENABLED:true}
-  chat:
-    enabled: ${MCP_CHAT_ENABLED:true}
-    model: ${MCP_CHAT_MODEL:sonnet}
-    effort: ${MCP_CHAT_EFFORT:medium}
-    timeout-ms: ${MCP_CHAT_TIMEOUT_MS:180000}
-    max-turns: 12
-    allow-auto-rooms: ${MCP_CHAT_AUTO_ROOMS:true}   # 자기방 + '방에 직접 답' 방에서 허용(그 외 방은 일반 @AI 응답)
-    prefixes: 운영,ops,조회
-    keywords: k3s,k8s,쿠버,pod,파드,노드,네임스페이스,namespace,deployment,디플로이,컨테이너 로그,pod 로그,opensearch,오픈서치,인덱스,index,샤드,클러스터,postgres,포스트그레,db ,디비,테이블,스키마,쿼리,sql,slow query,느린 쿼리,vacuum,커넥션
+  enabled: ${MCP_ENABLED:true}               # 사용자 정의 MCP 기능 전체(테이블 준비·설정 파일 생성)
+  agent-enabled: ${MCP_AGENT_ENABLED:true}   # 이슈 에이전트(분석/수정) 실행에 붙일지
 
 # 로컬 프리뷰(화면 검증): 이슈 에이전트가 수정한 소스를 Maven 으로 WAR 빌드 → 봇 호스트 Tomcat 인스턴스에 배포 → Playwright MCP(Edge headless)로
 # 실제 화면을 열어 스크린샷·검증. 도구는 scripts/setup-preview.ps1 로 tools/ 아래에 설치(git 제외). 대상: shop(Spring MVC+JSP, Java 21).

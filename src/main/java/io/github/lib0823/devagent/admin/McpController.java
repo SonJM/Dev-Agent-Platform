@@ -2,7 +2,6 @@ package io.github.lib0823.devagent.admin;
 
 import io.github.lib0823.devagent.mcp.McpConfigService;
 import io.github.lib0823.devagent.mcp.McpServer;
-import io.github.lib0823.devagent.mcp.OpsQueryService;
 import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,50 +13,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 운영 MCP 상태/점검 + 사용자 정의 MCP 서버 등록·수정·삭제 API (localhost 전용). */
+/** 사용자 정의 MCP 서버 등록·수정·삭제 API (localhost 전용). */
 @RestController
 public class McpController {
 
     private final McpConfigService mcp;
-    private final OpsQueryService ops;
     private final Environment env;
 
-    public McpController(McpConfigService mcp, OpsQueryService ops, Environment env) {
+    public McpController(McpConfigService mcp, Environment env) {
         this.mcp = mcp;
-        this.ops = ops;
         this.env = env;
-    }
-
-    /** 서버별 연결 상태(initialize 호출) + 허용 도구 수. */
-    @GetMapping("/api/mcp-status")
-    public Map<String, Object> status() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("available", mcp.available());
-        m.put("chatEnabled", ops.enabled());
-        m.put("agentEnabled", mcp.agentEnabled());
-        m.put("servers", mcp.available() ? mcp.health() : java.util.List.of());
-        m.put("tools", mcp.tools());
-        return m;
-    }
-
-    /** 운영 질의 테스트(방 전송 없음). 예: q=opensearch 클러스터 상태 */
-    @PostMapping("/api/mcp-ask")
-    public Map<String, Object> ask(@RequestParam String q) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        if (!ops.enabled()) {
-            m.put("ok", false);
-            m.put("answer", "운영 MCP 질의가 비활성 상태입니다.");
-            return m;
-        }
-        OpsQueryService.Answer a = ops.ask(ops.stripPrefix(q), null);
-        m.put("ok", !a.error());
-        m.put("answer", a.text());
-        m.put("turns", a.turns());
-        m.put("costUsd", a.costUsd());
-        m.put("inputTokens", a.inputTokens());
-        m.put("outputTokens", a.outputTokens());
-        m.put("elapsedMs", a.elapsedMs());
-        return m;
     }
 
     // ---------------------------------------------------------------- 사용자 정의 MCP 서버

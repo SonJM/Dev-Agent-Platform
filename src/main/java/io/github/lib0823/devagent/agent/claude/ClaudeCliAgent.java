@@ -1,7 +1,6 @@
 package io.github.lib0823.devagent.agent.claude;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.llm.claude.ClaudeCliProbe;
 import io.github.lib0823.devagent.platform.CallStats;
 import io.github.lib0823.devagent.platform.Os;
 import io.github.lib0823.devagent.platform.PortHealth;
@@ -39,8 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * 코딩 작업용 Claude Code CLI 실행기(에이전틱 모드).
  * <p>
- * 채팅용 {@code ChatModel}(warm, 도구 없음)와 달리 저장소 디렉터리를 cwd 로 하여 {@code claude -p} 를
- * 실행하고 파일 읽기/수정·제한된 Bash 를 허용한다. 이슈 1건 = CLI 세션 1개:
+ * 저장소 디렉터리를 cwd 로 하여 {@code claude -p} 를 실행하고 파일 읽기/수정·제한된 Bash 를 허용한다. 이슈 1건 = CLI 세션 1개:
  * 첫 호출은 {@code --session-id <uuid>}, 이후 단계(피드백/수정)는 {@code --resume <uuid>} 로 맥락을 이어간다.
  * <p>
  * 출력은 {@code --output-format stream-json --verbose} 로 받아 진행 중 도구 호출(Read/Edit/Bash…)과
@@ -62,13 +60,13 @@ public class ClaudeCliAgent implements CodingAgent {
         int n = running.size();
         return stats.health(provider(), PortHealth.OK,
                         n > 0 ? "세션 " + n + "개 실행 중" : stats.everCalled() ? "대기(최근 실행 정상)" : "대기(아직 실행 없음)")
-                .with("cli", claude.warmCommand())
+                .with("cli", claude.command())
                 .with("running", n);
     }
 
     @Override
     public PortHealth.TestResult selfTest() {
-        return ClaudeCliProbe.version(claude.warmCommand());
+        return ClaudeCliProbe.version(claude.command());
     }
 
     private static final Logger log = LoggerFactory.getLogger(ClaudeCliAgent.class);
@@ -267,10 +265,10 @@ public class ClaudeCliAgent implements CodingAgent {
                            String systemAppend, String prompt, Listener listener, Path shotsDir, Stage stage, boolean previewUp,
                            String model, String effort, Overrides ov) {
         boolean fixStage = stage == Stage.FIX;
-        // 플랫폼 관리 세션(자기 저장소 유지보수): 대상 프로젝트용 프리뷰·운영 MCP 안내를 싣지 않고, 푸시는 화면 버튼의 몫이라 막는다
+        // 플랫폼 관리 세션(자기 저장소 유지보수): 대상 프로젝트용 프리뷰·사용자 정의 MCP 안내를 싣지 않고, 푸시는 화면 버튼의 몫이라 막는다
         boolean maintain = ov != null && MAINTAIN_SOURCE.equals(ov.source());
         List<String> cmd = new ArrayList<>();
-        cmd.add(claude.warmCommand());                // claude.exe 직접 실행 (한글 인자 안전)
+        cmd.add(claude.command());              // claude.exe 직접 실행 (한글 인자 안전)
         cmd.add("-p");
         cmd.add("--output-format");
         cmd.add("stream-json");
@@ -337,7 +335,7 @@ public class ClaudeCliAgent implements CodingAgent {
         }
         Path mcpConfig = withPw ? mcp.configFor(shotsDir) : (withMcp ? mcp.configPath() : null);
         if (mcpConfig != null) {
-            cmd.add("--mcp-config");                  // 운영 데이터(opensearch/postgres/k3s) 읽기 전용 도구 + (수정 단계) playwright
+            cmd.add("--mcp-config");                  // 사용자 정의 MCP 서버 + (수정 단계) playwright
             cmd.add(mcpConfig.toString());
             if (withMcp) {
                 tools.addAll(mcp.tools());
@@ -370,10 +368,10 @@ public class ClaudeCliAgent implements CodingAgent {
         }
         if (withMcp) {
             sys = (sys.isEmpty() ? "" : sys + "\n\n") + mcp.usageHint()
-                    + "\n운영 데이터는 원인 확인·재현·검증에만 쓰고, 조회 실패가 작업을 막지 않게 하세요.";
+                    + "\nMCP 도구는 원인 확인·재현·검증에만 쓰고, 조회 실패가 작업을 막지 않게 하세요.";
         }
         // 시스템 프롬프트는 인자가 아니라 파일로 넘긴다: 인자로 넘기면 본문의 큰따옴표가 Windows 인자 파싱을 깨서
-        // 문서 검색 안내의 curl 예시 뒤쪽(스킬·MCP·프리뷰 안내)이 시스템 프롬프트에서 떨어져 나간다(11-16 실측). 길이 제한(32K)도 없어진다.
+        // 뒤쪽(스킬·MCP·프리뷰 안내)이 시스템 프롬프트에서 떨어져 나간다(11-16 실측). 길이 제한(32K)도 없어진다.
         final Path sysFile = sys.isBlank() ? null : ClaudeCliProbe.writePromptFile(sys);
         if (sysFile != null) {
             cmd.add("--append-system-prompt-file");
@@ -385,7 +383,7 @@ public class ClaudeCliAgent implements CodingAgent {
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd).directory(cwd.toFile());
             if (withMcp) {
-                pb.environment().putAll(mcp.env());   // k3s 토큰은 env 로만(설정 파일엔 ${K3S_MCP_TOKEN})
+                pb.environment().putAll(mcp.env());   // 사용자 정의 서버의 비밀값은 env 로만(설정 파일엔 ${ENV} 자리표시자)
             }
             Map<String, String> env = pb.environment();
             Path scripts = Path.of("scripts", "bin").toAbsolutePath();   // preview / jscheck / jspcheck

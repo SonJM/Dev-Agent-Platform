@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * Claude 호출 1건당 토큰 사용량 기록(claude_usage). 구독제라 비용 대신 토큰으로 사용량을 본다.
- * source: agent(이슈 에이전트) / ops(자기방 운영 질의) / chat(채팅 warm 세션). limit_hit: 이 호출에서 사용량 한도 메시지를 봤는지.
+ * source: agent(이슈 에이전트). 예전 행의 ops·chat 출처는 그대로 남지만 새로 생기지 않는다. limit_hit: 이 호출에서 사용량 한도 메시지를 봤는지.
  */
 @Mapper
 public interface ClaudeUsageMapper {

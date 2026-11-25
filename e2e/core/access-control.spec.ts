@@ -34,11 +34,11 @@ test('TC-023 다른 출처의 상태 변경 요청은 경로 표기와 무관하
   const none = await request.post(PATHS[0]);
   expect(none.status()).not.toBe(403);
 
-  // Cross-origin GET stays allowed; llm-test must not accept GET any more (405, no LLM call).
+  // Cross-origin GET stays allowed; /api/llm-test was removed in T-018, so it answers 404 (no LLM call possible).
   const get = await request.get('/api/system/status', { headers: { Origin: EVIL } });
   expect(get.status()).toBe(200);
   const llmGet = await request.get('/api/llm-test');
-  expect(llmGet.status()).toBe(405);
+  expect(llmGet.status()).toBe(404);
 
   // Final screen: the platform tab still works for the same-origin screen.
   await page.reload();

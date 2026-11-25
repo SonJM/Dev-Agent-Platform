@@ -78,7 +78,7 @@ public record GitLabProperties(
         }
     }
 
-    /** 코딩용 Claude Code CLI 실행 옵션 (채팅용 warm 세션과 완전히 분리). */
+    /** 코딩용 Claude Code CLI 실행 옵션. */
     public record Agent(
             String model,                  // 예: opus
             String effort,                 // 예: high
