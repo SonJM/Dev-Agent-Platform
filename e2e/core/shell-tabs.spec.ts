@@ -6,7 +6,7 @@ import { collectConsoleErrors } from '../support/console.ts';
 const TABS = [
   { name: '에이전트', path: '/agent.html', marker: '세션을 선택하세요' },
   { name: '리서치', path: '/research.html', marker: '아직 스레드가 없습니다' },
-  { name: '메신저', path: '/messenger.html', marker: '방 설정' },
+  { name: '메신저', path: '/messenger.html', marker: '메신저 알림' },
   { name: '플랫폼', path: '/platform.html', marker: '스킬' },
 ] as const;
 

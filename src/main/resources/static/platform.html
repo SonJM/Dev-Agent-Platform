@@ -71,32 +71,11 @@
           </div>
           <div class="hint" style="margin-top:8px">스킬은 이슈 에이전트와 리서치의 시스템 프롬프트에 실리는 재사용 지침입니다. 저장하면 다음 실행부터 반영됩니다(재시작 불필요). 처음에 들어 있는 기본 스킬(<code>regression-test</code>, <code>new-dependency</code>)도 팀 기준에 맞게 고치거나 꺼도 됩니다.</div>
         </section>
-        <section class="card">
-          <h2><span class="ic" id="icBook"></span>사내 문서 (RAG)<span class="sp"></span><button class="btn sm" id="docRefreshBtn" onclick="refreshDocs()"><span id="icRefresh"></span>지금 재적재</button></h2>
-          <div class="stats" id="docsStat" style="margin-bottom:12px">
-            <div class="stat"><div class="l">적재 섹션</div><div class="v"><div class="skel" style="width:50%"></div></div></div>
-            <div class="stat"><div class="l">마지막 적재</div><div class="v"><div class="skel" style="width:70%"></div></div></div>
-          </div>
-          <div class="callout warn" id="docsWarn" style="display:none;margin-bottom:12px"></div>
-          <div class="toolbar">
-            <div class="field has-ico"><span class="ico" id="icSearch2"></span><input id="docQ" placeholder="검색 테스트: 예) 배포 브랜치 전략" autocomplete="off"></div>
-            <button class="btn" onclick="searchDocs()">검색</button>
-          </div>
-          <div class="hint">@AI 질문 시 관련 섹션을 찾아 근거로 답하고 출처 URL을 붙입니다. 이 검색은 점검용이며 방으로 전송되지 않습니다.</div>
-          <div class="hits" id="docHits"></div>
-        </section>
       </div>
       <div class="col">
         <section class="card">
-          <h2><span class="ic" id="icMcp"></span>운영 MCP<span class="sp"></span><span class="hint" id="mcpSummary"></span></h2>
-          <div id="mcpServers"><div class="skel" style="margin:6px 0"></div></div>
-          <div class="toolbar" style="margin-top:12px">
-            <div class="field has-ico"><span class="ico" id="icSearch3"></span><input id="mcpQ" placeholder="질의 테스트: 예) k3s 노드 상태 / opensearch 클러스터 상태" autocomplete="off"></div>
-            <button class="btn" id="mcpAskBtn" onclick="mcpAsk()">조회</button>
-          </div>
-          <div class="hint">자기방에서 <b>@AI 운영 &lt;질문&gt;</b> 또는 운영 키워드(k3s, 파드, 인덱스, 쿼리 …)가 들어간 @AI 질문은 MCP 로 실제 데이터를 조회해 답합니다. 읽기 전용 도구만 허용되며 다른 방에서는 동작하지 않습니다.</div>
-          <div class="md" id="mcpAnswer" style="margin-top:10px;font-size:13.5px"></div>
-          <div class="sec" style="margin:14px 0 6px"><span>사용자 정의 MCP 서버</span><button class="btn sm" onclick="mcpEdit(null)">+ 서버 추가</button></div>
+          <h2><span class="ic" id="icMcp"></span>MCP 서버</h2>
+          <div class="sec" style="margin:2px 0 6px"><span>사용자 정의 MCP 서버</span><button class="btn sm" onclick="mcpEdit(null)">+ 서버 추가</button></div>
           <div class="crud" id="mcpCustom"><div class="hint">불러오는 중…</div></div>
           <div class="frm" id="mcpForm">
             <div class="two">
@@ -118,8 +97,6 @@
             <div class="acts"><label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="mfEnabled" checked> 사용</label><span style="flex:1"></span>
               <button class="btn sm" onclick="mcpFormClose()">취소</button><button class="btn sm primary" onclick="mcpSave()">저장</button></div>
           </div>
-          <div class="sec" style="margin:14px 0 6px"><span>로컬 프리뷰</span></div>
-          <div id="previewStat" class="hint">확인 중…</div>
         </section>
         <section class="card">
           <h2><span class="ic" id="icPlat"></span>연동<span class="sp"></span><span class="hint" id="platSummary"></span></h2>
@@ -139,7 +116,7 @@ UI.topbar('platform', '플랫폼');
 UI.pollAgentChip();
 loadSystem(); loadDoctor(false);
 loadPlatform(); UI.every(loadPlatform, 20000);
-loadModels(); loadProjects(); loadSkills(); loadMcp(); loadMcpCustom(); loadPreview(); UI.every(loadPreview, 30000); loadDocs();
+loadModels(); loadProjects(); loadSkills(); loadMcpCustom();
 </script>
 </body>
 </html>

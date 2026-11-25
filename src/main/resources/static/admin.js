@@ -3,74 +3,21 @@ const { $, esc, fmt, ago, num, KOR, cls, isActive, I, toast } = UI;
 /** 요소가 이 화면에 있을 때만 이벤트를 건다(홈·메신저·플랫폼이 이 파일을 함께 쓴다). */
 function on(id, ev, fn) { const e = $(id); if (e) e.addEventListener(ev, fn); }
 
-for (const [id, ic] of [['icRooms','rooms'],['icBell','bell'],['icSearch','search'],['icSearch2','search'],['icSearch3','search'],['icMcp','pulse'],['icPlat','branch'],['icSys','pulse'],['icSkill','book'],['icWarn','warn'],['icClock','clock'],['icAgent','agent'],['icArrow','arrow'],['icTerm','terminal'],['icPlus','plus'],['icBook','book'],['icRefresh','refresh']]) { const e=$(id); if (e) e.innerHTML = I[ic]; }
+for (const [id, ic] of [['icBell','bell'],['icSearch','search'],['icMcp','pulse'],['icPlat','branch'],['icSys','pulse'],['icSkill','book'],['icAgent','agent'],['icArrow','arrow'],['icTerm','terminal'],['icPlus','plus']]) { const e=$(id); if (e) e.innerHTML = I[ic]; }
 
-let ROOMS = [];
-
-// ---------------------------------------------------------------- status
-async function loadStatus() {
-  let s; try { s = await (await fetch('/api/status')).json(); } catch(e) { return; }
-  const mode = s.collectMode;
-  $('stats').innerHTML =
-    stat('수집 메시지', num(s.messages), '건') + stat('요약', num(s.summaries), '건') + stat('멘션 처리', num(s.mentions), '건')
-    + `<div class="stat"><div class="l">수집 모드</div><div class="v"><span class="badge ${mode==='ALL'?'info':'gray'}">${esc(mode)}</span></div></div>`
-    + `<div class="stat"><div class="l">멘션 모드</div><div class="v"><span class="badge ${(s.autoRooms||[]).length?'warn':'ok'}">${esc(s.mentionMode)}</span></div></div>`
-    + `<div class="stat action"><div><div class="l">LLM</div><div class="v" id="llmV" style="font-size:14px">${I.pulse} <span style="font-weight:500;color:var(--muted)">헬스체크</span></div></div><button class="btn sm" id="llmBtn" onclick="llmTest()">실행</button></div>`;
-}
-function stat(l, v, unit){ return `<div class="stat"><div class="l">${l}</div><div class="v">${v}${unit?`<small>${unit}</small>`:''}</div></div>`; }
-async function llmTest() {
-  const b = $('llmBtn'), v = $('llmV'); b.disabled = true; v.innerHTML = '<span style="font-weight:500;color:var(--muted)">응답 대기…</span>';
-  try { const r = await (await fetch('/api/llm-test', { method: 'POST' })).json(); v.innerHTML = r.ok ? `<span style="color:var(--ok)">정상</span><small>${r.elapsedMs} ms</small>` : `<span style="color:var(--err)">실패</span>`; if (!r.ok) toast(r.error, 'err'); }
-  catch(e) { v.innerHTML = '<span style="color:var(--err)">실패</span>'; }
-  b.disabled = false;
+// ---------- 메신저 연결 상태(GET /api/platform 의 messenger 포트) ----------
+async function loadMessenger() {
+  const el = $('msgrState'); if (!el) return;
+  let d; try { d = await (await fetch('/api/platform')).json(); } catch (e) { UI.set(el, '<div class="md-empty">상태 조회 실패</div>'); return; }
+  const x = (d.ports || []).find(p => p.port === 'messenger');
+  if (!x) { UI.set(el, '<div class="md-empty">메신저 포트 정보가 없습니다.</div>'); return; }
+  const b = PLAT_BADGE[x.status] || ['gray', x.status];
+  $('msgrSummary').textContent = b[1];
+  UI.set(el, `<div class="msgr"><div class="r1"><span class="badge ${b[0]}">${esc(b[1])}</span><b>${esc(x.label)}</b><span class="prov" title="${esc(x.envKey)}=${esc(x.provider)}">${esc(x.provider)}</span></div>
+    <div class="sum">${esc(x.summary)}</div></div>`
+    + (x.provider === 'none' ? `<div class="callout info" style="margin-top:10px"><span><b>메신저 없이 사용 중</b> — 알림은 알림함에 남습니다. 메신저를 붙이려면 <code>.env</code> 의 <code>PLATFORM_MESSENGER</code> 를 바꾸고 재시작하세요.</span></div>` : ''));
 }
 
-// ---------------------------------------------------------------- rooms
-async function loadRooms() {
-  const b = $('roomsRefresh'); b.disabled = true;
-  try { ROOMS = await (await fetch('/api/rooms')).json(); } catch(e) { toast('방 목록 조회 실패', 'err'); }
-  b.disabled = false; renderRooms();
-}
-function syncRoomsFromDom() {
-  document.querySelectorAll('#rooms input.col').forEach(c => { const r = ROOMS.find(x => x.key === c.dataset.key); if (r) r.collect = c.checked; });
-  document.querySelectorAll('#rooms input.auto').forEach(c => { const r = ROOMS.find(x => x.key === c.dataset.key); if (r) r.auto = c.checked; });
-}
-function renderRooms() {
-  syncRoomsFromDom();
-  const q = $('filter').value.trim();
-  const list = ROOMS.filter(r => !q || (r.name||'').includes(q));
-  $('roomsCount').textContent = `${ROOMS.filter(r=>r.collect).length} 수집 · ${ROOMS.filter(r=>r.auto).length} 직접 답 / ${ROOMS.length}개 방`;
-  $('rooms').innerHTML = list.map(r => `
-    <div class="rrow">
-      <div class="nm"><span class="tbadge ${r.type}">${esc(r.type)}</span><span class="txt" title="${esc(r.name)}">${esc(r.name)||'(이름없음)'}</span>${r.members!=null?`<span class="mem">${r.members}명</span>`:''}</div>
-      <div class="c"><label class="sw"><input type="checkbox" class="col" data-key="${r.key}" ${r.collect?'checked':''}><i></i></label></div>
-      <div class="c"><label class="sw ${r.type==='group'?'warn':''}"><input type="checkbox" class="auto" data-key="${r.key}" ${r.auto?'checked':''} ${r.self?'disabled':''}><i></i></label></div>
-    </div>`).join('') || '<div class="md-empty">검색 결과가 없습니다.</div>';
-  $('rooms').querySelectorAll('input.auto').forEach(a => a.addEventListener('change', () => {
-    if (a.checked) { const c = a.closest('.rrow').querySelector('input.col'); if (c) c.checked = true; }
-  }));
-}
-async function save() {
-  const colBoxes = [...document.querySelectorAll('#rooms input.col')], autoBoxes = [...document.querySelectorAll('#rooms input.auto')];
-  const visible = new Set(colBoxes.map(c => c.dataset.key));
-  let collect = colBoxes.filter(c => c.checked).map(c => c.dataset.key), auto = autoBoxes.filter(c => c.checked).map(c => c.dataset.key);
-  ROOMS.forEach(r => { if (!visible.has(r.key)) { if (r.collect) collect.push(r.key); if (r.auto) auto.push(r.key); } });
-  auto.forEach(k => { if (!collect.includes(k)) collect.push(k); });
-  const groups = auto.filter(k => k.startsWith('group:'));
-  if (groups.length && !confirm(`그룹방 ${groups.length}개에 '방에 직접 답'을 켭니다.\n그 방 멤버들에게 봇이 글을 올립니다. 진행할까요?`)) return;
-  collect = [...new Set(collect)]; auto = [...new Set(auto)];
-  const btn = $('saveBtn'); btn.disabled = true;
-  try {
-    const res = await (await fetch('/api/rooms-config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({collect, auto})})).json();
-    toast(`저장됨 · 수집 ${res.collect.length} / 방에 직접 답 ${res.auto.length}`, 'ok');
-    ROOMS.forEach(r => { r.auto = res.auto.includes(r.key); r.collect = res.collect.includes(r.key) || r.auto; });
-    renderRooms(); loadStatus();
-  } catch(e) { toast('저장 실패', 'err'); }
-  btn.disabled = false;
-}
-on('filter', 'input', renderRooms);
-
-// ---------------------------------------------------------------- recent
 // ---------- 메신저 알림(유형별 켜고 끄기) ----------
 async function loadNotify() {
   const el = $('notifyKinds'); if (!el) return;
@@ -90,52 +37,6 @@ on('notifyKinds', 'change', async e => {
   loadNotify();
 });
 
-async function loadRecent() {
-  let r; try { r = await (await fetch('/api/recent')).json(); } catch(e) { return; }
-  $('r-sum').innerHTML = (r.summaries||[]).map(s =>
-    `<div class="item"><div class="meta"><span class="badge gray">${esc(s.room_type)}:${s.room_id}</span><span>${fmt(s.created_at)}</span><span>${s.message_count}건</span></div><div class="body">${esc((s.summary||'').slice(0,240))}</div></div>`).join('') || '<div class="md-empty">요약 이력이 없습니다.</div>';
-  $('r-men').innerHTML = (r.mentions||[]).map(m =>
-    `<div class="item"><div class="meta"><span class="badge ${m.mode==='AUTO'?'ok':m.mode==='SKIPPED'?'gray':'info'}">${esc(m.mode)}${m.skip_reason?' · '+esc(m.skip_reason):''}</span><span>${fmt(m.created_at)}</span></div><div class="body">${esc((m.reply_text||'').slice(0,200))}</div></div>`).join('') || '<div class="md-empty">멘션 처리 이력이 없습니다.</div>';
-}
-document.querySelectorAll('[data-r]').forEach(t => t.addEventListener('click', () => {
-  document.querySelectorAll('[data-r]').forEach(x=>x.classList.remove('sel')); t.classList.add('sel');
-  ['sum','men'].forEach(k => $('r-'+k).classList.toggle('sel', k===t.dataset.r));
-}));
-
-// ---------------------------------------------------------------- docs
-async function loadDocs() {
-  let d; try { d = await (await fetch('/api/docs-status')).json(); } catch(e) { return; }
-  const stale = isStale(d.lastRefreshAt);
-  $('docsStat').innerHTML = stat('적재 섹션', num(d.chunkCount), '개') + stat('마지막 적재', d.lastRefreshAt ? ago(d.lastRefreshAt) : '없음')
-    + `<div class="stat"><div class="l">마지막 결과</div><div class="v" style="font-size:13px;font-weight:500" title="${esc(d.lastResult||'')}">${esc(d.lastResult||'—')}</div></div>`;
-  const warn = $('docsWarn');
-  if (d.chunkCount <= 0 || (d.lastResult||'').startsWith('실패') || stale) {
-    warn.style.display = 'flex';
-    warn.innerHTML = `<span class="ic">${I.warn}</span><span>` + (d.chunkCount<=0 ? '적재된 문서가 없습니다. "지금 재적재"를 눌러보세요.'
-      : (d.lastResult||'').startsWith('실패') ? '마지막 적재가 실패했습니다: ' + esc(d.lastResult)
-      : '문서가 48시간 넘게 갱신되지 않았습니다. 최신 내용이 아닐 수 있습니다.') + '</span>';
-  } else warn.style.display = 'none';
-}
-function isStale(ts){ if(!ts) return true; const t=Date.parse(ts); return isNaN(t) ? false : (Date.now()-t) > 48*3600*1000; }
-async function refreshDocs() {
-  const btn = $('docRefreshBtn'); btn.disabled = true; toast('문서 재적재 중…');
-  try { const r = await (await fetch('/api/docs-refresh', {method:'POST'})).json(); toast(r.ok ? `재적재 완료 · ${r.count}개 (${r.elapsedMs} ms)` : '재적재 실패: '+r.error, r.ok?'ok':'err'); }
-  catch(e){ toast('재적재 실패', 'err'); }
-  btn.disabled = false; loadDocs();
-}
-async function searchDocs() {
-  const q = $('docQ').value.trim(), box = $('docHits');
-  if (!q) { box.innerHTML=''; return; }
-  box.innerHTML = '<div class="md-empty">검색 중…</div>';
-  try {
-    const o = await (await fetch('/api/docs-search?k=5&q='+encodeURIComponent(q))).json();
-    const gate = o.gatePassed ? '<span class="badge ok">게이트 통과 · 문서 참고</span>' : '<span class="badge gray">게이트 차단 · 주입 안 함</span>';
-    const hits = (o.hits||[]).map(h => `<div class="item"><div class="meta"><span class="score">${h.score}</span><a href="${esc(h.url)}" target="_blank">${esc(h.url)}</a></div><div class="body">${esc(h.title)}</div></div>`).join('');
-    box.innerHTML = `<div class="hint" style="margin:10px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${gate}<span>토큰: ${esc((o.terms||[]).join(', '))}</span></div>` + (hits || '<div class="md-empty">히트 없음</div>');
-  } catch(e){ box.innerHTML = '<div class="md-empty">검색 실패</div>'; }
-}
-on('docQ', 'keydown', e => { if(e.key==='Enter') searchDocs(); });
-
 // ---------------------------------------------------------------- 사용자 정의 MCP 서버 (등록·수정·삭제)
 let mcpCustomList = [];
 async function loadMcpCustom() {
@@ -147,7 +48,7 @@ async function loadMcpCustom() {
         <span style="flex:1"></span><button class="btn sm" onclick="mcpEdit('${esc(x.name)}')">수정</button><button class="btn sm danger" onclick="mcpDelete('${esc(x.name)}')">삭제</button></div>
       ${x.description ? `<div class="d">${esc(x.description)}</div>` : ''}
       <div class="m">${esc(x.type === 'stdio' ? (x.command || '') + ' ' + (x.args || '').split(/\n/).join(' ') : (x.url || ''))} · 허용 ${esc((x.allowedTools || []).join(', '))}</div>
-    </div>`).join('') || '<div class="hint">등록된 서버가 없습니다. 위 세 서버(opensearch · postgres · k3s-ops)는 .env 설정으로 관리되는 내장 서버입니다.</div>';
+    </div>`).join('') || '<div class="hint">등록된 MCP 서버가 없습니다. + 서버 추가로 올리면 이슈 에이전트와 리서치가 조회 도구로 씁니다.</div>';
 }
 function mcpTypeChanged() { const st = $('mfType').value === 'stdio'; $('mfRemote').style.display = st ? 'none' : ''; $('mfLocal').style.display = st ? '' : 'none'; }
 function mcpEdit(name) {
@@ -163,12 +64,12 @@ async function mcpSave() {
     command: $('mfCommand').value, args: $('mfArgs').value, tools: $('mfTools').value, description: $('mfDesc').value, enabled: $('mfEnabled').checked });
   try {
     const r = await (await fetch('/api/mcp-servers', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })).json();
-    toast(r.result, r.ok ? 'ok' : 'err'); if (r.ok) { mcpFormClose(); loadMcpCustom(); loadMcp(); loadPlatform(); }
+    toast(r.result, r.ok ? 'ok' : 'err'); if (r.ok) { mcpFormClose(); loadMcpCustom(); loadPlatform(); }
   } catch (e) { toast('저장 실패', 'err'); }
 }
 async function mcpDelete(name) {
   if (!confirm(`MCP 서버 '${name}' 를 삭제할까요?`)) return;
-  try { const r = await (await fetch('/api/mcp-servers/delete?name=' + encodeURIComponent(name), { method: 'POST' })).json(); toast(r.result, r.ok ? 'ok' : 'err'); loadMcpCustom(); loadMcp(); loadPlatform(); }
+  try { const r = await (await fetch('/api/mcp-servers/delete?name=' + encodeURIComponent(name), { method: 'POST' })).json(); toast(r.result, r.ok ? 'ok' : 'err'); loadMcpCustom(); loadPlatform(); }
   catch (e) { toast('삭제 실패', 'err'); }
 }
 
@@ -235,7 +136,7 @@ async function loadPlatform() {
     const det = Object.entries(x.details || {}).filter(([k]) => PLAT_KEYS[k]).map(([k, v]) => `<span><b>${PLAT_KEYS[k]}</b> ${esc(platVal(k, v))}</span>`).join('');
     const r = platResults[x.port];
     return `<div class="plat">
-      <div class="r1"><span class="badge ${b[0]}">${b[1]}</span><b>${esc(x.label)}</b><span class="prov" title="${esc(x.envKey)}=${esc(x.provider)}">${esc(x.provider)}</span><span class="sp" style="flex:1"></span>
+      <div class="r1"><span class="badge ${b[0]}">${esc(b[1])}</span><b>${esc(x.label)}</b><span class="prov" title="${esc(x.envKey)}=${esc(x.provider)}">${esc(x.provider)}</span><span class="sp" style="flex:1"></span>
         <button class="btn sm" id="platBtn-${x.port}" onclick="platTest('${x.port}')" title="${esc(x.testHint)}">테스트</button></div>
       <div class="sum" title="${esc(x.role)}">${esc(x.summary)} <span style="color:var(--muted)">· ${esc(x.role)}</span></div>
       ${det ? `<div class="det">${det}</div>` : ''}
@@ -281,8 +182,8 @@ async function loadDoctor(refresh) {
   $('doctorList').innerHTML = (d.checks || []).map(c => {
     const b = DOC_BADGE[c.status] || ['gray', c.status];
     // 정상·끔 항목은 한 줄로 접고, 손봐야 할 항목만 설명과 고치는 방법을 펼친다
-    if (!c.hint) return `<div class="doc"><div class="r1"><span class="badge ${b[0]}">${b[1]}</span><b>${esc(c.name)}</b><span class="dd" title="${esc(c.detail || '')}">${esc(c.detail || '')}</span></div></div>`;
-    return `<div class="doc"><div class="r1"><span class="badge ${b[0]}">${b[1]}</span><b>${esc(c.name)}</b></div>
+    if (!c.hint) return `<div class="doc"><div class="r1"><span class="badge ${b[0]}">${esc(b[1])}</span><b>${esc(c.name)}</b><span class="dd" title="${esc(c.detail || '')}">${esc(c.detail || '')}</span></div></div>`;
+    return `<div class="doc"><div class="r1"><span class="badge ${b[0]}">${esc(b[1])}</span><b>${esc(c.name)}</b></div>
       <div class="d">${esc(c.detail || '')}</div><div class="h">→ ${esc(c.hint)}</div></div>`;
   }).join('');
   $('envHint').innerHTML = '설정 파일: <code>' + esc(d.envFile) + '</code> — 고친 뒤 재시작하면 반영됩니다. 계정·토큰은 화면에서 다루지 않습니다.';
@@ -313,36 +214,8 @@ async function bundleImport(input) {
   let r; try { r = await (await fetch('/api/bundle/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(json) })).json(); }
   catch (e) { toast('가져오기 실패', 'err'); return; }
   toast(r.result + ((r.errors || []).length ? ' — ' + r.errors[0] : ''), r.ok ? 'ok' : 'err');
-  if (typeof loadSkills === 'function' && $('skillList')) { loadSkills(); loadMcpCustom(); loadMcp(); loadModels(); loadProjects(); }
+  if (typeof loadSkills === 'function' && $('skillList')) { loadSkills(); loadMcpCustom(); loadModels(); loadProjects(); }
 }
-
-// ---------------------------------------------------------------- ops MCP
-async function loadMcp() {
-  let d; try { d = await (await fetch('/api/mcp-status')).json(); } catch(e) { $('mcpServers').innerHTML = '<div class="md-empty">상태 조회 실패</div>'; return; }
-  if (!d.available) { $('mcpServers').innerHTML = `<div class="callout warn"><span class="ic">${I.warn}</span><span>운영 MCP 비활성(MCP_ENABLED=false 또는 서버 URL 없음)</span></div>`; $('mcpSummary').textContent=''; return; }
-  $('mcpSummary').textContent = `${d.servers.filter(s=>s.ok).length}/${d.servers.length} 연결 · 도구 ${d.tools.length} · 채팅 ${d.chatEnabled?'켜짐':'꺼짐'} · 에이전트 ${d.agentEnabled?'켜짐':'꺼짐'}`;
-  $('mcpServers').innerHTML = d.servers.map(s => `<div class="item" style="display:flex;gap:10px;align-items:center">
-      <span class="badge ${s.ok?'ok':'err'}">${s.ok?'연결':'실패'}</span><b style="min-width:90px">${esc(s.name)}</b>
-      <span class="hint" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.url)}">${esc(s.detail||'')}</span>
-      <span class="hint">${s.elapsedMs!=null?s.elapsedMs+' ms':''}</span></div>`).join('');
-}
-async function loadPreview() {
-  let d; try { d = await (await fetch('/api/preview/status.json')).json(); } catch(e) { $('previewStat').textContent = '상태 조회 실패'; return; }
-  const t = k => d[k] && d[k].ok ? `<span class="badge ok">${k}</span>` : `<span class="badge err" title="${esc(d[k]&&d[k].path||'')}">${k}</span>`;
-  $('previewStat').innerHTML = (d.enabled ? '' : '<span class="badge gray">비활성</span> ')
-    + (d.running ? `<span class="badge run">실행 중</span> <a href="${esc(d.url)}" target="_blank">${esc(d.url)}</a>` : `<span class="badge gray">중지</span> ${esc(d.url)}`)
-    + ` · 도구 ${t('javaHome')} ${t('maven')} ${t('catalinaHome')} ${t('catalinaBase')}` + (d.hasLogin ? ' · 로그인 계정 설정됨' : ' · <span style="color:var(--warn)">로그인 계정 미설정</span>');
-}
-async function mcpAsk() {
-  const q = $('mcpQ').value.trim(); if (!q) return;
-  const b = $('mcpAskBtn'); b.disabled = true; $('mcpAnswer').innerHTML = '<div class="md-empty">조회 중… (MCP 연결 + 모델 응답, 10~60초)</div>';
-  try {
-    const r = await (await fetch('/api/mcp-ask', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({q})})).json();
-    $('mcpAnswer').innerHTML = `<div class="callout ${r.ok?'info':'err'}" style="display:block;white-space:pre-wrap">${esc(r.answer)}</div>` + (r.ok?`<div class="hint" style="margin-top:6px">${r.turns}턴 · 토큰 ↑${Math.round((r.inputTokens||0)/1000)}k ↓${r.outputTokens||0} · ${Math.round((r.elapsedMs||0)/1000)}s</div>`:'');
-  } catch(e) { $('mcpAnswer').innerHTML = '<div class="md-empty">조회 실패</div>'; }
-  b.disabled = false;
-}
-on('mcpQ', 'keydown', e => { if(e.key==='Enter') mcpAsk(); });
 
 // ---------------------------------------------------------------- issue agent
 const ORDER = {NEW:0, PREPARING:1, ANALYZING:1, READY:2, DESIGN_WAIT:2, FIXING:3, VERIFYING:4, REVIEW_WAIT:5, PUSHING:6, DONE:7};
