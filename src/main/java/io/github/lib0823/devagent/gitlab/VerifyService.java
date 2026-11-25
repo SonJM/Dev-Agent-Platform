@@ -1,6 +1,7 @@
 package io.github.lib0823.devagent.gitlab;
 
 import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.platform.ChildEnv;
 import io.github.lib0823.devagent.platform.Os;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,7 +160,7 @@ public class VerifyService {
     private Check exec(String name, Path cwd, List<String> cmd, Map<String, String> env, long timeoutMs) {
         long t0 = System.currentTimeMillis();
         try {
-            ProcessBuilder pb = new ProcessBuilder(cmd).directory(cwd.toFile()).redirectErrorStream(true);
+            ProcessBuilder pb = ChildEnv.clean(new ProcessBuilder(cmd).directory(cwd.toFile())).redirectErrorStream(true);
             pb.environment().put("GRADLE_OPTS", (pb.environment().getOrDefault("GRADLE_OPTS", "") + " -Dorg.gradle.daemon=false").strip());   // 데몬 금지(bot.lock 상속 방지)
             if (env != null) {
                 pb.environment().putAll(env);

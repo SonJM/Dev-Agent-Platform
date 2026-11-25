@@ -91,6 +91,7 @@ LLM 호출은 전부 **Claude Code CLI(headless)** 다. 코딩은 저장소 work
 ## 코드 작업 규칙
 
 - 주석·메시지·문서는 한국어. 코드 식별자는 영어. 기존 파일의 스타일(2단 구분선 주석, record 기반 Properties, MyBatis 어노테이션 매퍼)을 따른다.
+- 자식 프로세스는 공통 함수(`platform/ChildEnv.clean`)로 환경을 정리한 뒤 띄운다(앱 비밀 변수 제거 — 목록은 `ChildEnv.SECRET_KEYS`, 새 비밀 설정 키가 생기면 거기에 추가). 앱이 일부러 넣는 값(`GIT_CONFIG_*`, MCP env)은 정리 뒤에 넣는다.
 - 새 설정은 `config/*Properties`(record) + `application.yml` + `.env.example` + README 표를 함께 갱신한다. 상태 전이는 반드시 `IssueAgentService.transition()`(이벤트 기록) 을 통한다.
 - DB 스키마 변경은 매퍼의 `ensureTable()`(멱등) 과 `db/schema.sql` 둘 다.
 - 단위 테스트: `src/test/java` (JUnit 5, Spring 컨텍스트 없이 순수 단위). `gradlew test` 로 전부 통과시킨 뒤 jar 빌드.

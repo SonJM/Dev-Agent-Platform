@@ -3,6 +3,7 @@ package io.github.lib0823.devagent.ops;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.boot.Bootstrap;
 import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.platform.ChildEnv;
 import io.github.lib0823.devagent.gitlab.GitLabClient;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.messenger.MessengerService;
@@ -185,7 +186,7 @@ public class Doctor {
     /** 명령을 돌려 출력 첫 줄을 돌려준다. 실행 실패·시간 초과·오류 종료면 null. */
     static String run(List<String> cmd) {
         try {
-            Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+            Process p = ChildEnv.clean(new ProcessBuilder(cmd)).redirectErrorStream(true).start();
             p.getOutputStream().close();
             if (!p.waitFor(10, TimeUnit.SECONDS)) {
                 p.destroyForcibly();

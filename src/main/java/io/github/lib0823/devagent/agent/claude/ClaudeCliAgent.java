@@ -2,6 +2,7 @@ package io.github.lib0823.devagent.agent.claude;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.platform.CallStats;
+import io.github.lib0823.devagent.platform.ChildEnv;
 import io.github.lib0823.devagent.platform.PortHealth;
 import io.github.lib0823.devagent.gitlab.IssueEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -298,7 +299,7 @@ public class ClaudeCliAgent implements CodingAgent {
         long started = System.currentTimeMillis();
         Process process;
         try {
-            ProcessBuilder pb = new ProcessBuilder(cmd).directory(cwd.toFile());
+            ProcessBuilder pb = ChildEnv.clean(new ProcessBuilder(cmd).directory(cwd.toFile()));
             if (withMcp) {
                 pb.environment().putAll(mcp.env());   // 사용자 정의 서버의 비밀값은 env 로만(설정 파일엔 ${ENV} 자리표시자)
             }

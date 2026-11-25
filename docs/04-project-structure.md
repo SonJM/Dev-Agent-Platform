@@ -76,7 +76,8 @@ flowchart LR
 - 언어·버전: Java 17(Gradle toolchain), Spring Boot 3.3.5. 5단계 화면은 TypeScript strict.
 - 계층: Controller(`admin/`) → Service → MyBatis 어노테이션 매퍼. Properties는 record.
 - 주석·메시지·문서는 한국어, 식별자는 영어. 기존 파일의 스타일을 따른다.
-- 새 설정: `config/*Properties` + `application.yml` + `.env.example` + `resources/dist/env.template` + README 표를 함께 고친다. **기본값 없는 필수 자리표시자(`${X}`)를 만들지 않는다.**
+- 새 설정: `config/*Properties` + `application.yml` + `.env.example` + `resources/dist/env.template` + README 표를 함께 고친다. **기본값 없는 필수 자리표시자(`${X}`)를 만들지 않는다.** 새 설정이 비밀값(비밀번호·토큰·키)이면 그 환경변수 이름을 `platform/ChildEnv.SECRET_KEYS`에도 더한다(`ChildEnvTest`가 `application.yml`의 password·secret·token 속성만 대조하므로 그 밖의 이름은 사람이 챙긴다).
+- 자식 프로세스: `new ProcessBuilder(…)`는 `ChildEnv.clean(…)`을 거친 뒤 띄우고, 앱이 일부러 넣는 환경값은 정리 뒤에 넣는다(T-021, `ChildEnvTest`가 소스 검색으로 지킨다).
 - DB 스키마 변경: 매퍼 `ensureTable()`과 `db/schema.sql` 둘 다.
 - 테스트: JUnit 5, `src/test/java`, Spring 컨텍스트 없는 단위 테스트. 새 기능은 테스트를 먼저 쓴다. 빈을 추가·변경했으면 기동 후 `/api/system/status` 응답을 확인한다(배선 오류는 단위 테스트로 잡히지 않는다).
 - 프런트(4단계까지): `static/ui.css`·`ui.js` 사용, 수정 뒤 `node --check`. Java/JS 소스의 문자열 리터럴은 스크립트가 아닌 편집 도구로 넣는다.
@@ -144,6 +145,7 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 |---|---|
 | 배포 대상 환경 | 개인 서버 1대(Ubuntu 24.04 x86_64). 환경 구분 없음 |
 | 배포 구성 경로 | `deploy/` — `systemd/dev-agent.service`(틀), `sql/create-db.sql`(전용 DB·role 생성), `env.server.example`, `README.md`(절차서) — T-003. `smoke/server-smoke.sh`(서버 기동 확인) — T-001. `bin/resolve-db.sh`(기동 때 DB 주소 조회, 서버에는 root 소유로 `/usr/local/libexec/dev-agent/resolve-db.sh`에 설치 — 앱 홈에 두지 않는다), `smoke/start-server-check.sh`(가짜 docker로 `resolve-db.sh`를 시험, 서버 불필요, 마지막 줄 `CHECK PASS`) — T-017 |
+| 자식 프로세스 환경 | java가 `EnvironmentFile`로 받은 `DB_URL` 등 앱 비밀 환경변수는 에이전트 세션·대상 저장소 검증 빌드·git에 넘어가지 않는다(`ChildEnv.SECRET_KEYS`, T-021). 대상 프로젝트 빌드에 DB 등이 필요하면 그 저장소의 설정으로 준다 |
 | 실행 중 생기는 파일 | `/run/dev-agent/db.env` — unit의 `RuntimeDirectory=dev-agent`(0750)가 시작 때 만들고 멈추면 지운다. `resolve-db.sh`가 root 소유 0600으로 `DB_URL` 한 줄만 쓰고 `EnvironmentFile`로 java에 준다. 조회 실패 때는 파일이 없다 — T-017 |
 | 실행 계정 | CLI 로그인이 돼 있는 기존 일반 계정(자리표시자 `<SERVICE_USER>`). 2026-11-24 확정 |
 | 서버 접속 | SSH. 주소·계정은 문서·저장소에 적지 않는다(환경변수 `DEV_AGENT_SSH`). **서버의 java·claude·gradle·node는 로그인 셸 PATH에서만 보인다** — 원격 명령은 로그인 셸(`bash -lc`)로 실행한다 |
@@ -174,3 +176,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-25 | 0.8 | T-007 검수 반영: §2에 `command/` 패키지(라우터·수신 루프 이동), §3 그림의 코어에 `command` |
 | 2026-11-25 | 0.9 | T-009 검수 반영: §8 띄우기 값에서 `PREVIEW_ENABLED`·`CLAUDE_WARM*` 삭제, `-Duser.home` 목적을 홈 분리로(심 없음), §9 Linux 기동 동작 정정 |
 | 2026-11-25 | 0.10 | OI-29 결정 ①: §9 실행 런타임에 unit JDK 21 고정(검증 빌드 JDK 근거), 틀·절차서 반영은 T-022 |
+| 2026-11-25 | 0.11 | T-021 완료: §4 새 비밀 설정 → `ChildEnv.SECRET_KEYS`, 자식 프로세스 규약. §9 자식 프로세스 환경 |

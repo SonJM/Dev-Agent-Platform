@@ -1,6 +1,7 @@
 package io.github.lib0823.devagent.gitlab;
 
 import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.platform.ChildEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -293,7 +294,7 @@ public class GitRunner {
         cmd.add("-c");
         cmd.add("core.longpaths=true");               // Windows 260자 제한: scheduler 같은 깊은 경로 저장소는 이것 없이는 checkout 이 "Filename too long" 으로 실패
         cmd.addAll(Arrays.asList(args));
-        ProcessBuilder pb = new ProcessBuilder(cmd).directory(cwd.toFile());
+        ProcessBuilder pb = ChildEnv.clean(new ProcessBuilder(cmd).directory(cwd.toFile()));
         pb.environment().put("GIT_TERMINAL_PROMPT", "0");
         pb.environment().put("LC_ALL", "C.UTF-8");
         if (props.token() != null && !props.token().isBlank()) {

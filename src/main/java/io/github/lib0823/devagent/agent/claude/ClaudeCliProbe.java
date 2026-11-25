@@ -1,5 +1,6 @@
 package io.github.lib0823.devagent.agent.claude;
 
+import io.github.lib0823.devagent.platform.ChildEnv;
 import io.github.lib0823.devagent.platform.PortHealth;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +41,7 @@ public final class ClaudeCliProbe {
     public static PortHealth.TestResult version(String command) {
         long t0 = System.currentTimeMillis();
         try {
-            Process p = new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
+            Process p = ChildEnv.clean(new ProcessBuilder(command, "--version")).redirectErrorStream(true).start();
             p.getOutputStream().close();
             if (!p.waitFor(20, TimeUnit.SECONDS)) {
                 p.destroyForcibly();

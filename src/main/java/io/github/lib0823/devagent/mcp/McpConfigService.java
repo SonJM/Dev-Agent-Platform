@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.config.McpProperties;
+import io.github.lib0823.devagent.platform.ChildEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -156,6 +157,10 @@ public class McpConfigService {
      * 비밀값 규칙: 인증·토큰·키류 헤더 값은 반드시 ${ENV_NAME} 자리표시자를 써야 한다(실제 값은 .env 에만).
      */
     static String validate(McpServer s) {
+        String placeholderErr = validatePlaceholders(s);
+        if (placeholderErr != null) {
+            return placeholderErr;
+        }
         String name = s.getName() == null ? "" : s.getName().strip();
         if (!name.matches("[a-z0-9][a-z0-9-]{1,30}")) {
             return "이름은 영소문자·숫자·하이픈 2~31자여야 합니다(도구 접두어 mcp__<이름>__ 로 쓰입니다).";
@@ -192,6 +197,25 @@ public class McpConfigService {
         return null;
     }
 
+    /** 자리표시자 이름 형식: 대문자·숫자·밑줄의 환경변수 이름만(점이 든 Spring 속성명 거부). */
+    private static final java.util.regex.Pattern ENV_NAME = java.util.regex.Pattern.compile("[A-Z][A-Z0-9_]*");
+
+    /** 이 이름의 ${…} 를 자식 프로세스 env 로 풀어도 되는지: 환경변수 형식이고 앱 비밀 키가 아니어야 한다. */
+    static boolean isAllowedPlaceholder(String name) {
+        return ENV_NAME.matcher(name).matches() && !ChildEnv.isSecretKey(name);
+    }
+
+    /** url·headers·args·command 의 모든 ${…} 이름 검사. 문제가 없으면 null. */
+    private static String validatePlaceholders(McpServer s) {
+        String all = s.getUrl() + "\n" + s.getHeaders() + "\n" + s.getArgs() + "\n" + s.getCommand();
+        for (String p : placeholderNames(all)) {
+            if (!isAllowedPlaceholder(p)) {
+                return "자리표시자 '${" + p + "}' 는 쓸 수 없습니다. 대문자·숫자·밑줄 이름의 환경변수만 쓸 수 있고, 앱 자신의 비밀(DB·GitLab 토큰 등)은 참조할 수 없습니다.";
+            }
+        }
+        return null;
+    }
+
     /** 사용자 정의 서버 목록(관리 화면용, 사용 안 함 포함). */
     public List<McpServer> customServers() {
         if (serverMapper == null) {
@@ -220,6 +244,11 @@ public class McpConfigService {
         // 사용자 정의 서버가 참조하는 ${NAME} 은 봇 설정(.env)에서 찾아 자식 env 로만 넘긴다
         for (McpServer s : custom) {
             for (String name : placeholderNames(s.getUrl() + "\n" + s.getHeaders() + "\n" + s.getArgs())) {
+                if (!isAllowedPlaceholder(name)) {
+                    // 이미 저장된 서버도 앱 비밀은 받지 못한다. 값은 로그에 쓰지 않는다.
+                    log.warn("MCP 서버 '{}' 의 자리표시자 '{}' 는 허용되지 않아 빈 값으로 둔다", s.getName(), name);
+                    continue;
+                }
                 String v = environment == null ? null : environment.getProperty(name);
                 if (v != null && !v.isBlank()) {
                     m.put(name, v);

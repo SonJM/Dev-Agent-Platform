@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.config.MaintainProperties;
+import io.github.lib0823.devagent.platform.ChildEnv;
 import io.github.lib0823.devagent.gitlab.IssueEvent;
 import io.github.lib0823.devagent.gitlab.IssueEventBus;
 import io.github.lib0823.devagent.llm.UsageService;
@@ -517,7 +518,7 @@ public class MaintainService {
     private GitOut git(long timeoutMs, String... args) {
         List<String> cmd = new ArrayList<>(List.of("git", "-c", "core.quotepath=false", "-c", "core.longpaths=true"));
         cmd.addAll(Arrays.asList(args));
-        ProcessBuilder pb = new ProcessBuilder(cmd).directory(repo.toFile());
+        ProcessBuilder pb = ChildEnv.clean(new ProcessBuilder(cmd).directory(repo.toFile()));
         pb.environment().put("GIT_TERMINAL_PROMPT", "0");   // 자격증명이 없으면 묻지 말고 실패
         pb.environment().put("GCM_INTERACTIVE", "never");
         pb.environment().put("LC_ALL", "C.UTF-8");
