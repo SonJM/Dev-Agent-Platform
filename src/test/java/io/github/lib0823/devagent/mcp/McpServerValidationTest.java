@@ -22,9 +22,8 @@ class McpServerValidationTest {
     }
 
     @Test
-    void rejectsBadNamesAndReservedNames() {
+    void rejectsBadNames() {
         assertNotNull(McpConfigService.validate(http("Bad_Name", "http://x/mcp", null, null)));
-        assertNotNull(McpConfigService.validate(http("playwright", "http://x/mcp", null, null)));
         assertNotNull(McpConfigService.validate(http("jira", "ftp://x", null, null)));
         assertNull(McpConfigService.validate(http("jira", "http://x/mcp", null, null)));
     }

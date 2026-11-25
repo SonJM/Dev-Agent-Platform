@@ -116,7 +116,7 @@ async function skillDelete(name) {
 
 // ---------------------------------------------------------------- 연동(포트 구현체 상태 · 연결 테스트)
 const PLAT_BADGE = { ok: ['ok', '정상'], warn: ['wait', '주의'], down: ['err', '실패'] };
-const PLAT_KEYS = { host: '호스트', account: '계정', userSeq: '사용자', model: '모델', effort: '노력', warm: 'warm', warmAlive: 'warm 프로세스', warmFailures: '연속 실패',
+const PLAT_KEYS = { host: '호스트', account: '계정', userSeq: '사용자', model: '모델', effort: '노력',
   cli: 'CLI', running: '실행 중', sections: '섹션', lastIngest: '마지막 적재', source: '소스', models: '단계별 모델', mcpServers: 'MCP 서버', lastOkAt: '마지막 성공', lastElapsedMs: '소요', lastErrorAt: '마지막 실패' };
 const platResults = {};
 function platVal(k, v) {
@@ -154,7 +154,7 @@ async function platTest(port) {
 }
 
 // ---------------------------------------------------------------- 시스템 · 설치 점검 · 구성 묶음
-const RUN_MODE = { launcher: '실행 파일(트레이)', 'run.cmd': '작업 스케줄러(run.cmd)', direct: '직접 실행' };
+const RUN_MODE = { systemd: '서비스(systemd)', direct: '직접 실행' };
 const DOC_BADGE = { ok: ['ok', '정상'], warn: ['wait', '주의'], fail: ['err', '필요'], off: ['gray', '끔'] };
 function upFmt(sec) { return sec < 3600 ? Math.floor(sec / 60) + '분' : sec < 86400 ? Math.floor(sec / 3600) + '시간' : Math.floor(sec / 86400) + '일'; }
 async function loadSystem() {

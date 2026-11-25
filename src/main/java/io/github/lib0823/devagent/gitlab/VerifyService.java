@@ -1,7 +1,6 @@
 package io.github.lib0823.devagent.gitlab;
 
 import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.config.PreviewProperties;
 import io.github.lib0823.devagent.platform.Os;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +23,7 @@ import java.util.function.BooleanSupplier;
  * 검증 단계의 결정적 검사: 코드를 쓴 모델의 보고와 무관하게 봇이 직접 돌린다.
  * <ul>
  *   <li>바뀐 .js → {@code node --check}</li>
- *   <li>바뀐 .jsp → {@code jspcheck}(Jasper 컴파일; 빌드 산출물 target/&lt;war&gt;/WEB-INF/lib 가 있을 때만)</li>
+ *   <li>바뀐 .jsp → 검사 도구가 없어 건너뜀(SKIP)으로 보고하고 리뷰어가 코드로 확인</li>
  *   <li>프로젝트 빌드 명령 — gitlab.verify.commands 의 프로젝트별 명령, 없으면 pom.xml → {@code mvn -o -q compile}, gradle → {@code gradlew compileJava}</li>
  * </ul>
  * 리뷰어 프롬프트 생성과 판정 파싱도 여기 둔다. 실행 중 abort 가 요청되면 다음 검사로 넘어가지 않는다.
@@ -35,11 +34,9 @@ public class VerifyService {
     private static final Logger log = LoggerFactory.getLogger(VerifyService.class);
 
     private final GitLabProperties props;
-    private final PreviewProperties preview;
 
-    public VerifyService(GitLabProperties props, PreviewProperties preview) {
+    public VerifyService(GitLabProperties props) {
         this.props = props;
-        this.preview = preview;
     }
 
     /** 검사 1건의 결과. */
@@ -95,24 +92,8 @@ public class VerifyService {
             out.add(new Check("JS 문법(node --check) " + js.size() + "개", ok, false, sb.toString().strip(), System.currentTimeMillis() - t0));
         }
         if (!jsp.isEmpty() && !aborted.getAsBoolean()) {
-            boolean hasLib = false;
-            try (var st = Files.list(worktree.resolve("target"))) {
-                hasLib = st.anyMatch(d -> Files.isDirectory(d.resolve("WEB-INF").resolve("lib")));
-            } catch (IOException ignore) {
-                // target 없음
-            }
-            if (!hasLib || preview == null || !preview.enabled()) {
-                out.add(new Check("JSP 컴파일(jspcheck) " + jsp.size() + "개", true, true,
-                        "빌드 산출물(target/<war>/WEB-INF/lib)이 없어 건너뜀 — 리뷰어가 코드로 확인", 0));
-            } else {
-                // Git Bash 는 "C:/..." 형태는 받지만 백슬래시는 이스케이프로 먹는다 → 슬래시로 넘긴다
-                List<String> cmd = new ArrayList<>(List.of(bashExe(), Path.of("scripts", "bin", "jspcheck").toAbsolutePath().toString().replace('\\', '/')));
-                cmd.addAll(jsp);
-                Map<String, String> env = new LinkedHashMap<>();
-                env.put("PREVIEW_JAVA_HOME", nz(preview.javaHome()));
-                env.put("PREVIEW_CATALINA_HOME", nz(preview.catalinaHome()));
-                out.add(exec("JSP 컴파일(jspcheck) " + jsp.size() + "개", worktree, cmd, env, cfg().commandTimeoutMs()));
-            }
+            out.add(new Check("JSP 컴파일 " + jsp.size() + "개", true, true,
+                    "JSP 컴파일 검사는 제공하지 않아 건너뜀 — 리뷰어가 코드로 확인", 0));
         }
         if (!aborted.getAsBoolean()) {
             List<String> build = buildCommand(worktree, projectPath);
@@ -120,10 +101,6 @@ public class VerifyService {
                 out.add(new Check("빌드", true, true, "빌드 명령을 정하지 못해 건너뜀(gitlab.verify.commands 에 지정 가능)", 0));
             } else {
                 Map<String, String> env = new LinkedHashMap<>();
-                if (preview != null && preview.enabled() && Files.isDirectory(Path.of(nz(preview.javaHome())))) {
-                    env.put("JAVA_HOME", preview.javaHome());
-                    env.put("PATH", Path.of(preview.javaHome()).resolve("bin") + java.io.File.pathSeparator + System.getenv().getOrDefault("Path", System.getenv().getOrDefault("PATH", "")));
-                }
                 out.add(exec("빌드: " + String.join(" ", displayCmd(build)), worktree, build, env, cfg().commandTimeoutMs()));
             }
         }
@@ -137,11 +114,7 @@ public class VerifyService {
             return Os.shellLine(configured);
         }
         if (Files.isRegularFile(worktree.resolve("pom.xml"))) {
-            String mvnName = Os.isWindows() ? "mvn.cmd" : "mvn";
-            String mvn = preview != null && preview.mavenHome() != null && !preview.mavenHome().isBlank()
-                    && Files.isRegularFile(Path.of(preview.mavenHome()).resolve("bin").resolve(mvnName))
-                    ? Path.of(preview.mavenHome()).resolve("bin").resolve(mvnName).toString() : "mvn";
-            return Os.viaShell(mvn, "-o", "-q", "-B", "-DskipTests", "-Dmaven.test.skip=true", "compile");
+            return Os.viaShell("mvn", "-o", "-q", "-B", "-DskipTests", "-Dmaven.test.skip=true", "compile");
         }
         if (!Os.isWindows() && Files.isRegularFile(worktree.resolve("gradlew"))) {
             return List.of("sh", "gradlew", "--no-daemon", "-q", "compileJava");
@@ -238,7 +211,7 @@ public class VerifyService {
 
     /** 독립 리뷰어 프롬프트. 이슈·설계·수정 보고·diff·봇 검사 결과를 주고 PASS/FAIL 을 받는다. */
     public String reviewerPrompt(IssueSession s, String issueDescription, String diff, List<Check> checks,
-                                 List<String> screenshots, boolean previewUp, int round) {
+                                 int round) {
         StringBuilder sb = new StringBuilder();
         sb.append("다음 이슈를 고친 변경이 이슈를 실제로 해결하는지, 회귀 위험은 없는지 독립적으로 검증하세요(검증 ").append(round).append("회차).\n\n");
         sb.append("## 이슈 ").append(s.ref()).append("\n").append(s.getIssueTitle()).append('\n');
@@ -252,22 +225,15 @@ public class VerifyService {
             sb.append("\n## 수정 세션의 보고(검증 대상 — 그대로 믿지 말 것)\n").append(abbreviate(s.getChangeSummary(), 3000)).append('\n');
         }
         sb.append("\n## 봇이 직접 돌린 검사\n").append(checks.isEmpty() ? "(없음)" : report(checks)).append('\n');
-        if (!screenshots.isEmpty()) {
-            sb.append("\n## 수정 세션이 남긴 스크린샷(Read 로 볼 수 있음)\n");
-            for (String p : screenshots) {
-                sb.append("- ").append(p).append('\n');
-            }
-        }
         sb.append("\n## git diff\n").append(diff == null || diff.isBlank() ? "(변경 없음)" : diff).append('\n');
         sb.append("\n검증 방법:\n")
           .append("1) diff 를 이슈·설계와 대조해 (a) 이슈의 원인이 실제로 제거됐는지 (b) 설계와 다른 변경이 섞였는지 (c) 널/예외/기존 동작 회귀 가능성을 확인.\n")
-          .append("2) 필요한 파일은 Read/Grep 으로 직접 열어 보세요. 바뀐 JSP/JS 는 jspcheck/jscheck 를 돌려도 됩니다.\n")
-          .append(previewUp ? "3) 프리뷰가 떠 있으니 화면 이슈면 playwright 로 재현 경로를 직접 확인하고 스크린샷을 남기세요.\n"
-                            : "3) 프리뷰가 없으므로 화면 동작은 코드로 판단하고 한계를 근거에 적으세요.\n")
+          .append("2) 필요한 파일은 Read/Grep 으로 직접 열어 보세요.\n")
+          .append("3) 화면 동작은 코드로 판단하고 한계를 근거에 적으세요.\n")
           .append("4) 봇 검사에 FAIL 이 있으면 반드시 FAIL 입니다.\n\n")
           .append("출력은 다음 형식만(1200자 이내):\n")
           .append("## 판정\nPASS 또는 FAIL (한 단어)\n")
-          .append("## 근거\n(확인한 것과 결과 3~6줄. 스크린샷을 찍었으면 파일명)\n")
+          .append("## 근거\n(확인한 것과 결과 3~6줄)\n")
           .append("## 수정 요청\n(FAIL 일 때만: 수정 세션이 바로 고칠 수 있게 파일·위치·무엇을 어떻게. PASS 면 '없음')");
         return sb.toString();
     }
@@ -298,17 +264,6 @@ public class VerifyService {
 
     // ---------------------------------------------------------------- 유틸
 
-    /** Git Bash 실행 파일(WSL bash 가 PATH 에 먼저 잡히는 것을 피한다). 없으면 PATH 의 bash. */
-    static String bashExe() {
-        for (String c : List.of("C:/Program Files/Git/bin/bash.exe", "C:/Program Files/Git/usr/bin/bash.exe",
-                System.getProperty("user.home", "") + "/AppData/Local/Programs/Git/bin/bash.exe")) {
-            if (Files.isRegularFile(Path.of(c))) {
-                return c;
-            }
-        }
-        return "bash";
-    }
-
     private static List<String> displayCmd(List<String> cmd) {
         List<String> out = new ArrayList<>();
         for (String c : cmd) {
@@ -319,10 +274,6 @@ public class VerifyService {
             out.add(slash >= 0 && c.toLowerCase(Locale.ROOT).endsWith(".cmd") ? c.substring(slash + 1) : c);
         }
         return out;
-    }
-
-    private static String nz(String s) {
-        return s == null ? "" : s;
     }
 
     private static String indent(String s) {

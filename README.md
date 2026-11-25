@@ -4,8 +4,8 @@
 
 > 모든 화면은 localhost 전용입니다. 메신저는 **사용자 자신의 대화 하나**(받기·보내기)만 다루며, 이슈 에이전트의 확인은 자기 대화/로컬 대시보드에서만 받습니다.
 
-- **Stack**: Java 17 · Spring Boot 3.3.5 · MyBatis · PostgreSQL 16(내장 또는 외부) · Claude Code CLI · Playwright MCP
-- **배포**: 실행 파일 패키지(`Dev Agent.exe` / `.app`, Java·DB 내장) 또는 소스 빌드 — [설치 & 실행](#설치--실행)
+- **Stack**: Java 17 · Spring Boot 3.3.5 · MyBatis · PostgreSQL 16(내장 또는 외부) · Claude Code CLI
+- **배포**: 서버는 jar + systemd([deploy/README.md](deploy/README.md)), 개발 PC 는 `java -jar` — [설치 & 실행](#설치--실행)
 - **작업 규칙**: [CLAUDE.md](CLAUDE.md)
 
 ---
@@ -80,18 +80,17 @@
 
 ```
 ┌──────────────── 로컬 PC(호스트) ─────────────────────────────┐
-│ Dev Agent (Java, 상시 실행 — 실행 파일 또는 run.cmd 감시 루프) │
+│ Dev Agent (Java, 상시 실행 — systemd 또는 java -jar) │
 │   ├ MessengerPort ────▶ 메신저(선택)        자기 대화 수신·전송 │
 │   ├ claude.exe -p (세션별 worktree) ─▶ Claude  이슈 분석/수정/리뷰│
-│   │     └ --mcp-config: 사용자 정의 MCP · playwright                │
-│   ├ PreviewService ─▶ tools/tomcat-preview:8790  화면 검증용 WAR │
+│   │     └ --mcp-config: 사용자 정의 MCP                │
 │   └ 관리 페이지 · 대시보드 :8777 (localhost)                      │
 │ PostgreSQL (내장 또는 외부)                                      │
 └───────────────────────────────────────────────────────────────┘
 ```
 
 - **LLM 접근**: SDK 대신 **Claude Code CLI 를 headless 로** 호출합니다(구독 로그인 사용). 코딩은 저장소 worktree 에서 `claude -p --session-id/--resume`(stream-json 으로 도구 이벤트 수신). API 키를 쓰려면 포트(`CodingAgent`) 구현체만 추가해 갈아 끼웁니다(아래 "포트와 어댑터").
-- **안정성**: `run.cmd` 는 supervisor(크래시 시 5초 후 재기동, 작업 스케줄러가 5분마다 재실행, `bot.lock` 단일 인스턴스). 중지는 반드시 `stop.cmd`/`restart.cmd`. 운영 알림(시작/오류)은 자기방으로.
+- **안정성**: 서버는 systemd 가 감시합니다(`Restart=on-failure` — 종료 코드 10 은 다시 뜨고 0 은 다시 뜨지 않음). 개발 PC 의 `java -jar` 는 감시자가 없어 화면의 「재시작」이 거부됩니다. 운영 알림(시작/오류)은 자기방으로.
 
 ### 포트와 어댑터 (메신저 · 코딩 에이전트 교체)
 
@@ -133,9 +132,9 @@
                       DESIGN_WAIT ──피드백──▶ 같은 세션(--resume) 재설계 → DESIGN_WAIT
                             │ 진행
                             ▼
-                        FIXING      claude(편집 + 허용 명령 + 프리뷰/Playwright + 사용자 정의 MCP)
+                        FIXING      claude(편집 + 허용 명령 + 사용자 정의 MCP)
                             ▼
-                       VERIFYING    봇 검사(node --check · jspcheck · mvn/gradle compile) + 독립 리뷰어 세션 PASS/FAIL
+                       VERIFYING    봇 검사(node --check · mvn/gradle compile) + 독립 리뷰어 세션 PASS/FAIL
                             │        FAIL → 같은 세션에 자동 재수정(최대 2회) → 다시 검증
                             ▼
                       REVIEW_WAIT ──피드백──▶ 추가 수정 → 검증 → REVIEW_WAIT
@@ -168,19 +167,9 @@
 
 ### 검증 단계(VERIFYING)
 
-- **봇 검사**(`VerifyService`): 바뀐 `.js` → `node --check`, 바뀐 `.jsp` → `jspcheck`(Tomcat JspC, 빌드 산출물 필요), 빌드(`GITLAB_VERIFY_COMMANDS` 의 `group/repo=명령`, 없으면 pom → `mvn -o -q compile`, gradle → `gradlew compileJava`). 코드를 쓴 모델의 보고와 무관하게 돕니다.
-- **독립 리뷰어**: 수정 세션과 분리된 새 Claude 세션(읽기 전용 + 정적검사 + 프리뷰 상태/로그, 프리뷰가 떠 있으면 Playwright)이 이슈·설계·수정 보고·검사 결과·diff·스크린샷을 보고 `## 판정 PASS|FAIL / ## 근거 / ## 수정 요청` 으로 답합니다. 모델/노력은 관리 페이지 "모델"에서 **기획(분석·설계) / 개발(수정) / 테스트(리뷰어)** 를 따로 고릅니다(fable·opus·sonnet·haiku × low·medium·high, DB 저장, 다음 실행부터 적용). 고른 모델을 쓸 수 없으면(권한 없음) 실행기가 **opus 로 대체**해 같은 세션을 `--resume` 으로 이어가고 활동 로그에 경고를 남깁니다. 대시보드 스테퍼에는 단계별로 실제 쓴 모델이 표시되고, 실행 중이면 모델명 꼬리표를 단 아바타가 현재 단계 위에서 통통 튀다가 단계가 바뀌면 그 자리로 뛰어갑니다(확인 대기 중엔 그 단계 위에 조용히 서 있음).
+- **봇 검사**(`VerifyService`): 바뀐 `.js` → `node --check`(바뀐 `.jsp` 는 검사 도구가 없어 SKIP 으로 보고하고 리뷰어가 코드로 확인), 빌드(`GITLAB_VERIFY_COMMANDS` 의 `group/repo=명령`, 없으면 pom → `mvn -o -q compile`, gradle → `gradlew compileJava`). 코드를 쓴 모델의 보고와 무관하게 돕니다.
+- **독립 리뷰어**: 수정 세션과 분리된 새 Claude 세션(읽기 전용)이 이슈·설계·수정 보고·검사 결과·diff 를 보고 `## 판정 PASS|FAIL / ## 근거 / ## 수정 요청` 으로 답합니다. 모델/노력은 관리 페이지 "모델"에서 **기획(분석·설계) / 개발(수정) / 테스트(리뷰어)** 를 따로 고릅니다(fable·opus·sonnet·haiku × low·medium·high, DB 저장, 다음 실행부터 적용). 고른 모델을 쓸 수 없으면(권한 없음) 실행기가 **opus 로 대체**해 같은 세션을 `--resume` 으로 이어가고 활동 로그에 경고를 남깁니다. 대시보드 스테퍼에는 단계별로 실제 쓴 모델이 표시되고, 실행 중이면 모델명 꼬리표를 단 아바타가 현재 단계 위에서 통통 튀다가 단계가 바뀌면 그 자리로 뛰어갑니다(확인 대기 중엔 그 단계 위에 조용히 서 있음).
 - FAIL 이면 보고 전체를 피드백으로 **같은 수정 세션에 자동 재수정**(최대 `GITLAB_VERIFY_MAX_RETRIES`=2회). 그래도 FAIL 이면 실패 내역과 함께 리뷰 대기로 올려 사람이 판단합니다. 결과는 대시보드 "검증" 탭과 리뷰 확인 메시지에 붙습니다.
-
-### 화면 검증: 정적 검사 + 로컬 프리뷰
-
-Spring MVC + JSP 처럼 WAR 가 떠야 화면을 볼 수 있는 Maven 프로젝트용입니다(기본 꺼짐, `PREVIEW_ENABLED=true`). 수정 단계의 Claude 에게 두 층을 줍니다.
-
-- `jscheck`/`jspcheck <파일…>`: 문법·JSP 컴파일 검사(수 초~15초).
-- `preview deploy`: 봇이 worktree 를 `mvn package` 로 빌드해 `tools/tomcat-preview`(포트 8790, 127.0.0.1 바인드)에 배포·기동(빌드 12분 + 기동 9분 안팎). 이어서 Claude 가 **Playwright MCP** 로 `http://localhost:8790/app/` 를 열어 재현·확인하고 스크린샷을 `work/preview/shots/<세션id>/` 에 남깁니다(대시보드 갤러리).
-- `preview sync`: 프리뷰가 떠 있으면 JSP/JS/CSS 변경만 Tomcat 전개 디렉터리에 복사(수 초, Jasper 재컴파일). Java/pom 변경이 섞이면 "전체 재배포 필요" 로 알립니다. 즉 deploy 1회 뒤 반복 수정·확인은 수 초 단위.
-- 프리뷰 Tomcat 은 세션 간 **1개 공유**(다른 세션이 쓰는 중이면 최대 25분 대기), 세션 종료 시 내려갑니다. WAR 에 구워진 설정 중 `PREVIEW_OVERLAY_DIRS` 로 지정한 디렉터리만 소스의 값으로 덮습니다.
-- 설치 `scripts/setup-preview.ps1`(JDK 21·Maven·Tomcat 10.1·Ant jar → `tools/`), 수동 `scripts/preview-tomcat.cmd start|stop|status`, API `GET /api/preview/status`, `POST /api/preview/deploy|sync|stop`, `GET /api/preview/log`.
 
 ### 브랜치 · 커밋 컨벤션
 
@@ -193,7 +182,7 @@ Spring MVC + JSP 처럼 WAR 가 떠야 화면을 볼 수 있는 Maven 프로젝�
 ### 동시 처리 · 실행 상한
 
 - **동시 2건**(`GITLAB_CONCURRENCY`): 워커 풀 + 세션별 직렬 체인. 자리가 나면 READY → NEW 순으로 시작하고, 차 있으면 다음 1건을 선분석합니다.
-- **단계별 상한**: 분석 60분/80턴(`GITLAB_AGENT_TIMEOUT_MS`), **개발 4시간/600턴**(`GITLAB_AGENT_FIX_TIMEOUT_MS`), 리뷰어 60분(`GITLAB_VERIFY_REVIEWER_TIMEOUT_MS`), 무응답 20분(`GITLAB_AGENT_IDLE_TIMEOUT_MS`: 도구 호출·출력이 전혀 없으면 중단). Bash 도구 상한은 단계 상한에 맞춰 최대 50분(`preview deploy` 를 품음).
+- **단계별 상한**: 분석 60분/80턴(`GITLAB_AGENT_TIMEOUT_MS`), **개발 4시간/600턴**(`GITLAB_AGENT_FIX_TIMEOUT_MS`), 리뷰어 60분(`GITLAB_VERIFY_REVIEWER_TIMEOUT_MS`), 무응답 20분(`GITLAB_AGENT_IDLE_TIMEOUT_MS`: 도구 호출·출력이 전혀 없으면 중단). Bash 도구 상한은 단계 상한에 맞춰 최대 50분.
 - **개발 상한 초과 시** 작업트리 변경을 보존한 채 리뷰 대기로 넘기고(검증 생략), 「피드백: 이어서 진행」으로 같은 세션을 재개합니다. 변경이 없으면 FAILED.
 - **서브 에이전트 · 팀 에이전트**: 관리 페이지 "모델" 카드의 토글 두 개(둘 다 기본 허용). 서브 에이전트를 끄면 Claude 가 Agent/Task 도구를 못 쓰고, 팀 에이전트(Claude Code 실험 기능)를 끄면 팀 메시지 도구를 금지하고 자식 프로세스의 실험 플래그를 0 으로 덮습니다. 병렬로 토큰을 크게 쓰므로 사용량이 빠듯하면 팀부터 끄는 것을 권합니다.
 
@@ -277,9 +266,9 @@ Spring MVC + JSP 처럼 WAR 가 떠야 화면을 볼 수 있는 Maven 프로젝�
 | 단계 | 허용 |
 |---|---|
 | 분석 / 리뷰어 | Read·Grep·Glob + `git log/show/blame`, 사용자 정의 MCP 읽기 도구 |
-| 수정 | 위 + Edit/Write, 허용 명령 접두어만(`gradlew`, `mvn`, `npm test` …, `gitlab.agent.fix-tools`), `preview deploy|sync`, `jscheck`/`jspcheck`, Playwright |
+| 수정 | 위 + Edit/Write, 허용 명령 접두어만(`gradlew`, `mvn`, `npm test` …, `gitlab.agent.fix-tools`) |
 
-git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 권한 패턴을 우회하므로 금지(`--disallowedTools`). 스크립트는 `~/bin` 심으로 제공합니다(Claude 의 Bash 는 봇이 넣은 PATH 를 쓰지 않음).
+git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 권한 패턴을 우회하므로 금지(`--disallowedTools`).
 
 ### 안전장치
 
@@ -296,42 +285,15 @@ GitLab PAT(scope `api`, `write_repository`) → `.env` 에 `GITLAB_ENABLED=true`
 ---
 
 ## 설치 & 실행
+## 설치 & 실행
 
-두 가지 방식이 있습니다. **쓰기만 할 사람은 A(실행 파일)**, 이 저장소를 고치며 돌릴 사람은 B.
+실행 방식은 둘뿐입니다. 서버는 jar + systemd, 개발 PC 는 `java -jar` 입니다. 둘 다 같은 jar·같은 화면이고 내장 PostgreSQL 또는 외부 DB(`DB_URL`)를 씁니다.
 
-### A. 실행 파일 패키지 (권장 — Java·DB 설치 불필요)
+### A. 서버 (jar + systemd)
 
-받는 사람이 준비할 것은 **Claude Code(로그인)** 와 **Git** 뿐입니다. Java 런타임과 PostgreSQL 은 패키지에 들어 있습니다.
+설치 절차는 [deploy/README.md](deploy/README.md) 를 따릅니다(unit·환경 파일 예시·smoke 시험 포함). 화면은 `127.0.0.1:8777` 에만 바인딩합니다.
 
-1. `dev-agent-<버전>-windows.zip` 을 풀고 **`Dev Agent.exe` 를 더블클릭**. 잠시 뒤 브라우저에 화면이 열리고 트레이에 아이콘이 생깁니다(첫 실행은 내장 DB 준비로 1분쯤).
-2. 홈 폴더 `~/.dev-agent/.env`(자동 생성된 틀)에 GitLab 주소·토큰 등을 채우고 **트레이 아이콘 > 재시작**. 트레이의 "설정 폴더 열기"로 바로 갑니다.
-3. 화면 **플랫폼 > 시스템 > 설치 점검** 에서 빠진 것을 확인합니다(아래 그림). 팀의 스킬·MCP·루틴 구성은 **구성 묶음 가져오기**로 한 번에 받습니다.
-
-![시스템 · 설치 점검](docs/images/platform-system.png)
-
-| | |
-|---|---|
-| 홈 폴더 | `~/.dev-agent`(바꾸려면 환경변수 `DEV_AGENT_HOME`): `.env` · `logs/` · `pgdata-embedded/`(내장 DB) · `work/`(clone·worktree) |
-| 다시 실행 | 이미 떠 있으면 화면만 엽니다(중복 실행 없음). 앱이 비정상 종료하면 감시자가 다시 띄웁니다 |
-| 종료 · 재시작 | 트레이 아이콘 메뉴, 또는 플랫폼 > 시스템의 "재시작"(작업 중인 세션이 있으면 경고) |
-| 자동 실행 | 트레이 메뉴 "로그인 시 자동 실행"(Windows, 현재 사용자 Run 레지스트리 — 관리자 권한 불필요) |
-| 메신저 | 선택 사항. 기본은 **메신저 없이** 화면(에이전트·리서치·플랫폼)만 씁니다 — 확인·알림은 대시보드로. 연결하려면 `MessengerPort` 어댑터를 추가합니다 |
-| 접근 범위 | `127.0.0.1` 전용. 계정·토큰은 `.env` 밖으로 나가지 않고 화면에서 다루지 않습니다 |
-
-**macOS**: jpackage 는 빌드하는 OS 용 실행 파일만 만들 수 있어, 맥용 `Dev Agent.app` 은 맥에서 `./gradlew dist` 로 만듭니다. 맥 빌드 없이 쓰려면 **OS 공통 묶음** `dev-agent-<버전>-portable.zip` 을 풀고 `./dev-agent.sh`(Java 17 필요, `brew install temurin@17`). 같은 jar·같은 화면이며 내장 DB 는 Intel·Apple Silicon 바이너리를 모두 담고 있습니다. 다만 **로컬 프리뷰(화면 검증)는 Windows 전용**이고(`PREVIEW_ENABLED=false`), 맥 실행은 이 저장소에서 실기 검증하지 못했습니다 — 처음 띄우면 설치 점검부터 확인하세요.
-
-**왜 서버 한 대에 띄우지 않나**: 에이전트는 각자의 **Claude 구독 로그인**(Claude Code CLI)과 각자의 메신저 계정·GitLab 토큰으로 동작합니다. 한 서버에 올리면 한 사람의 구독·권한을 여럿이 나눠 쓰게 되어 한도와 책임이 섞입니다. 그래서 "각자 PC 에서 실행 파일로" 가 기본이고, 공용 서버형은 LLM 포트를 API 키 구현체로 바꾼 뒤의 선택지입니다([포트와 어댑터](#포트와-어댑터-메신저--llm-교체)).
-
-배포판 만들기:
-
-```bash
-gradlew.bat dist           # build/dist/Dev Agent/ (exe + 런타임 + jar) 와 dev-agent-<버전>-windows.zip
-gradlew.bat distPortable   # build/dist/dev-agent-<버전>-portable.zip (jar + dev-agent.sh/.cmd, Java 17 필요)
-```
-
-구조: `Dev Agent.exe`(jpackage 실행기) → **감시자**(`boot/Launcher`, 트레이·자식 감시, 힙 48MB) → **앱 JVM**(자식, 홈 폴더를 작업 디렉터리로) → 내장 PostgreSQL(`boot/EmbeddedDb`, 127.0.0.1 전용). 런타임은 jlink 로 필요한 모듈만 담습니다.
-
-### B. 소스에서 (개발용)
+### B. 개발 PC (`java -jar`)
 
 사전 요구: JDK 17, Node.js + Claude Code CLI(로그인 완료), Git. DB 는 Docker PostgreSQL 을 쓰거나 `DB_URL` 을 비워 내장 DB 를 씁니다.
 
@@ -339,20 +301,25 @@ gradlew.bat distPortable   # build/dist/dev-agent-<버전>-portable.zip (jar + d
 cp .env.example .env            # 1) 값 채우기 (GitLab 토큰, DB …)
 docker compose up -d postgres   # 2) DB (DB_URL 을 비우면 생략 — 내장 DB)
 gradlew.bat test bootJar        # 3) 빌드 → build/libs/dev-agent.jar  (JAVA_HOME=JDK 17)
-run.cmd                         # 4) 실행 (supervisor)
-powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # 로그인 시 자동 기동 + 5분 감시(1회)
+java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .env · logs/ · work/ · 내장 DB 가 여기에 생김)
 ```
 
-- `run.cmd` 는 기동 때 jar 를 `run/` 으로 복사해 실행하므로 **봇이 도는 중에 빌드해도 안전**합니다(반영은 `restart.cmd` 또는 플랫폼 > 시스템 > 재시작).
-- `.cmd`/`.ps1` 은 ASCII 전용(OEM 코드페이지).
-- 화면 검증까지 쓰려면 `scripts/setup-preview.ps1` 로 `tools/` 에 JDK 21·Maven·Tomcat 을 설치하고 `.env` 에 `PREVIEW_LOGIN_ID/PW` 를 넣습니다.
+- `.env` 가 없으면 첫 기동이 틀을 만듭니다(메신저 없음 모드). 채운 뒤 다시 실행합니다.
+- 감시자가 없으므로 화면의 「재시작」은 거부됩니다(종료 후 다시 실행). 종료는 `POST /api/system/shutdown` 또는 프로세스 종료.
+- 같은 PC 에서 인스턴스를 둘 띄울 때는 `ADMIN_PORT` 와 작업 디렉터리를 따로 줍니다.
+- 메신저는 선택 사항입니다. 기본은 메신저 없이 화면(에이전트·리서치·플랫폼)만 씁니다 — 확인·알림은 대시보드로. 연결하려면 `MessengerPort` 어댑터를 추가합니다.
+- 접근 범위는 `127.0.0.1` 전용입니다. 계정·토큰은 `.env` 밖으로 나가지 않고 화면에서 다루지 않습니다.
+
+![시스템 · 설치 점검](docs/images/platform-system.png)
+
+화면 **플랫폼 > 시스템 > 설치 점검** 에서 빠진 것을 확인합니다. 구성(스킬·MCP·루틴)은 **구성 묶음 가져오기**로 한 번에 받습니다.
 
 ### 설치 점검 · 구성 묶음 · 재시작 (플랫폼 > 시스템)
 
-- **설치 점검**(`GET /api/system/doctor`, `ops/Doctor`): 실행 환경 · DB · 코딩 에이전트(CLI) · Claude 로그인 · Git · 메신저 · GitLab(토큰 확인) · 작업 디렉터리 위치 · Node.js · Git Bash · 로컬 프리뷰. 항목마다 정상/주의/필요와 **고치는 방법 한 줄**. 토큰을 쓰지 않고 60초 캐시합니다.
+- **설치 점검**(`GET /api/system/doctor`, `ops/Doctor`): 실행 환경 · DB · 코딩 에이전트(CLI) · Claude 로그인 · Git · 메신저 · GitLab(토큰 확인) · 작업 디렉터리 위치 · Node.js · Git Bash. 항목마다 정상/주의/필요와 **고치는 방법 한 줄**. 토큰을 쓰지 않고 60초 캐시합니다.
 - **구성 묶음**(`GET /api/bundle/export`, `POST /api/bundle/import`): 스킬 · 사용자 정의 MCP 서버 · 루틴 · 에이전트 설정(모델·서브/팀) · 대상 프로젝트를 JSON 한 파일로 옮깁니다. **비밀값은 들어가지 않습니다**(MCP 인증 헤더는 저장 단계에서 `${ENV}` 자리표시자만 허용, 계정·토큰은 대상이 아님). 가져오기는 같은 이름을 덮어쓰고 지우지 않으며, 대상 프로젝트는 합칩니다.
-- **재시작 · 종료**(`POST /api/system/restart|shutdown`): 감시자(실행 파일의 Launcher 또는 `run.cmd`)가 다시 띄웁니다. 작업 중인 세션이 있으면 거부하고(`force=true` 로 강행 — 그 세션은 실패 처리), 다른 사이트의 페이지가 브라우저를 통해 보낸 요청(Origin 불일치)은 거부합니다.
-- **상태**(`GET /api/system/status`): 버전 · 실행 방식(launcher / run.cmd / direct) · DB 방식(embedded / external) · 작업 중 건수 · 아직 안 채운 설정. 홈 화면 맨 위 안내가 이것을 씁니다.
+- **재시작 · 종료**(`POST /api/system/restart|shutdown`): 감시자(systemd)가 다시 띄웁니다(감시자 없이 `java -jar` 로 뜬 경우 재시작은 거부). 작업 중인 세션이 있으면 거부하고(`force=true` 로 강행 — 그 세션은 실패 처리), 다른 사이트의 페이지가 브라우저를 통해 보낸 요청(Origin 불일치)은 거부합니다.
+- **상태**(`GET /api/system/status`): 버전 · 실행 방식(systemd / direct) · DB 방식(embedded / external) · 작업 중 건수 · 아직 안 채운 설정. 홈 화면 맨 위 안내가 이것을 씁니다.
 
 ## 환경변수 (`.env`)
 
@@ -368,7 +335,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 | `GITLAB_VERIFY_ENABLED` / `GITLAB_VERIFY_MAX_RETRIES` / `GITLAB_VERIFY_REVIEWER` / `GITLAB_VERIFY_MODEL` / `GITLAB_VERIFY_EFFORT` / `GITLAB_VERIFY_COMMANDS` / `GITLAB_VERIFY_REVIEWER_TIMEOUT_MS` | 검증 단계 · 자동 재수정 2회 · 독립 리뷰어 · 리뷰어 모델/노력 · 프로젝트별 검사 명령 · 리뷰어 상한 60분 |
 | `RESEARCH_ENABLED` / `RESEARCH_TIMEOUT_MS` / `RESEARCH_MAX_TURNS` / `RESEARCH_MODEL` / `RESEARCH_EFFORT` / `RESEARCH_VERIFY` / `RESEARCH_ATTACHMENT_KEEP_DAYS` | 질의 워크플로우 · 질문 1건 상한 30분/60턴 · 기본 모델/노력(비우면 기획 모델) · 2차 검증 기본값 · 첨부 이미지 보관 일수(기본 7) |
 | `MAINTAIN_ENABLED` / `MAINTAIN_REPO_DIR` / `MAINTAIN_MODEL` / `MAINTAIN_EFFORT` / `MAINTAIN_TIMEOUT_MS` / `MAINTAIN_MAX_TURNS` / `MAINTAIN_TOOLS` | 플랫폼 관리(렌치 버튼 채팅 창) · 소스 저장소 경로(비우면 실행 디렉터리가 소스 저장소일 때만 켜짐) · 기본 모델/노력(비우면 '개발') · 요청 1건 상한 2시간/300턴 · 허용 도구(`git push` 는 넣어도 금지) |
-| `PREVIEW_ENABLED` / `PREVIEW_LOGIN_ID` / `PREVIEW_LOGIN_PW` / `PREVIEW_START_TIMEOUT_MS` | 로컬 프리뷰 · 로그인 테스트 계정 · 기동 대기 상한(15분) |
 | `PLATFORM_MESSENGER` / `PLATFORM_CODING_AGENT` | 포트 구현체 선택(기본 none / claude-cli) |
 | `BOT_JAVA_OPTS`(환경변수) | 봇 JVM 옵션. 기본 `-XX:+UseSerialGC -Xms32m -Xmx512m -XX:TieredStopAtLevel=1`(로컬 경량 운용) |
 | `GITLAB_WORK_DIR` | 에이전트 작업 디렉터리(clone·worktree·MCP 설정·스킬 파일). **이 저장소 밖 경로로 지정** — 안에 두면 에이전트 세션이 이 저장소의 CLAUDE.md 를 읽는다 |
@@ -383,13 +349,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 
 ```
 src/main/java/io/github/lib0823/devagent/
-  boot/       Bootstrap(.env 틀·메신저 없음 모드·내장 DB·초기 스키마) · EmbeddedDb · Launcher(실행 파일 모드: 감시자 + 트레이)
+  boot/       Bootstrap(.env 틀·메신저 없음 모드·내장 DB·초기 스키마) · EmbeddedDb
   routine/    Routine · RoutineMapper · RoutineService(예약 질의: 1분 틱 → 질의 접수)
-  config/     Gw/Bot/Claude/GitLab/Mcp/Preview Properties(record)
+  config/     Gw/Bot/Claude/GitLab/Mcp Properties(record)
   messenger/  MessengerPort(포트: 자기 대화 받기·보내기) · MessengerService(알림 유형 켜고 끄기) · IncomingMessage/SelfInbox/SelfMessage · none/(메신저 없음 어댑터)
   command/    MessengerCommandRouter(`이슈 …`·`질문 …` 분기) · MessengerReceiver(자기 대화 수신 루프)
   llm/        UsageService · ClaudeUsageMapper(토큰 사용량 기록)
-  agent/      CodingAgent(포트) · claude/ClaudeCliAgent(claude -p, stream-json, 단계별 상한, ~/bin 심)
+  agent/      CodingAgent(포트) · claude/ClaudeCliAgent(claude -p, stream-json, 단계별 상한)
   mcp/        McpConfigService(mcp-servers.json·허용 도구·사용자 정의 서버) · McpServer(Mapper)
   gitlab/     IssueAgentService(상태기계·대화·동시 처리) · IssueTexts(순수 함수) · IssueReferences(참고 저장소) · IssueProjects(대상 프로젝트)
               · IssueNotifier(자기방 알림) · IssuePrompts(프롬프트)
@@ -399,21 +365,17 @@ src/main/java/io/github/lib0823/devagent/
   maintain/   MaintainService(플랫폼 관리: 소스 저장소에서 도는 세션 · 대화 --resume · 저장소 상태 · 푸시) · MaintainTurn(Mapper) · MaintainPrompts
   skill/      SkillService(플랫폼 스킬 등록·수정·삭제, 단계별 프롬프트 주입) · AgentSkill(Mapper)
   platform/   PortHealth(포트 상태) · CallStats(최근 호출 성공/실패 기록)
-  preview/    PreviewService(Maven WAR → Tomcat 배포·핫 동기화·공유 대기)
-  admin/      AdminController · AgentMonitorController(대시보드 API/SSE) · ResearchController(질의 API) · MaintainController(플랫폼 관리 API) · PlatformController(활성 어댑터) · McpController · PreviewController · SettingService
+  admin/      AdminController · AgentMonitorController(대시보드 API/SSE) · ResearchController(질의 API) · MaintainController(플랫폼 관리 API) · PlatformController(활성 어댑터) · McpController · SettingService
 src/main/resources/   application.yml · static/home.html(홈) · agent.html(에이전트) · research.html(리서치) · messenger.html(메신저) · platform.html(플랫폼) · admin.js·admin.css(홈·메신저·플랫폼 공통) · ui.css·ui.js
-scripts/bin/          preview · jscheck · jspcheck (에이전트가 Bash 로 호출, ~/bin 심으로 복사됨)
-scripts/              setup-preview.ps1 · preview-tomcat.cmd
-db/schema.sql · docker-compose.yml · run.cmd(supervisor) · stop.cmd · restart.cmd · install-autostart.ps1
+db/schema.sql · docker-compose.yml · deploy/(systemd unit · 서버 설치 절차 · smoke)
 docs/                 images/
 ```
 
 ## 유지보수 · 보안
 
-- **중지/재시작**: 실행 파일 모드는 트레이 메뉴, 소스 실행은 `stop.cmd` / `restart.cmd` 또는 플랫폼 > 시스템 > 재시작(java 를 직접 죽이면 supervisor 가 되살림). 재시작은 이슈 세션이 대기 상태일 때만(`GET /api/issues`).
-- **로그**: `logs/dev-agent.log`(10MB 롤링, 7일). 점검 API: `/api/preview/status`, `/api/agent/overview`.
+- **중지/재시작**: 서버는 `systemctl`, 개발 PC 는 프로세스 종료 후 다시 실행. 플랫폼 > 시스템 > 재시작은 systemd 로 뜬 경우만 동작합니다. 재시작은 이슈 세션이 대기 상태일 때만(`GET /api/issues`).
+- **로그**: `logs/dev-agent.log`(10MB 롤링, 7일). 점검 API: `/api/agent/overview`.
 - `.env`(토큰·비밀번호), `work/`, `tools/`, `build/`, `logs/`, `pgdata/` 는 커밋 제외. 토큰은 코드·설정 파일·메모리에 적지 않습니다.
-- 프리뷰 Tomcat 은 개발 DB/OpenSearch 에 붙으므로 쓰기가 발생할 수 있습니다.
 
 ## 라이선스
 

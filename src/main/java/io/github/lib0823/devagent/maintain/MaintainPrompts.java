@@ -22,7 +22,7 @@ final class MaintainPrompts {
                 + "할 수 있는 일: 버그 확인(소스·logs/dev-agent.log·로컬 API)과 수정, 기능 추가·개선, 테스트·빌드, git 커밋, 스킬 등록, 문서 갱신.\n"
                 + "\n"
                 + "이 세션의 약속:\n"
-                + "- 당신은 플랫폼의 자식 프로세스입니다. 플랫폼을 재시작·종료하면 이 세션도 함께 끊깁니다. restart.cmd·stop.cmd·run.cmd(Linux 서비스면 systemctl 도) 를 실행하거나 "
+                + "- 당신은 플랫폼의 자식 프로세스입니다. 플랫폼을 재시작·종료하면 이 세션도 함께 끊깁니다. systemctl 로 서비스를 재시작·중지하거나 "
                 + "/api/system/restart·shutdown 을 호출하거나 java 프로세스를 죽이지 마세요. 새 빌드를 반영하는 재시작은 사용자가 창 아래의 「재시작 적용」 버튼으로 합니다.\n"
                 + "- git push 는 하지 않습니다(막혀 있음). 커밋까지만 하고, 올리는 것은 사용자가 창 아래의 「푸시」 버튼으로 합니다. "
                 + "강제 푸시·reset --hard·기록을 고치는 명령(rebase, commit --amend)은 사용자가 분명히 요청했을 때만.\n"

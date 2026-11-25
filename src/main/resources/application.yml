@@ -61,30 +61,6 @@ mcp:
   enabled: ${MCP_ENABLED:true}               # 사용자 정의 MCP 기능 전체(테이블 준비·설정 파일 생성)
   agent-enabled: ${MCP_AGENT_ENABLED:true}   # 이슈 에이전트(분석/수정) 실행에 붙일지
 
-# 로컬 프리뷰(화면 검증): 이슈 에이전트가 수정한 소스를 Maven 으로 WAR 빌드 → 봇 호스트 Tomcat 인스턴스에 배포 → Playwright MCP(Edge headless)로
-# 실제 화면을 열어 스크린샷·검증. 도구는 scripts/setup-preview.ps1 로 tools/ 아래에 설치(git 제외). 대상: shop(Spring MVC+JSP, Java 21).
-preview:
-  enabled: ${PREVIEW_ENABLED:false}
-  java-home: ${PREVIEW_JAVA_HOME:${user.dir}/tools/jdk-21}
-  maven-home: ${PREVIEW_MAVEN_HOME:${user.dir}/tools/maven}
-  catalina-home: ${PREVIEW_CATALINA_HOME:${user.dir}/tools/tomcat}
-  catalina-base: ${PREVIEW_CATALINA_BASE:${user.dir}/tools/tomcat-preview}
-  port: ${PREVIEW_PORT:8790}
-  context-path: ${PREVIEW_CONTEXT_PATH:/app}
-  war-name: ${PREVIEW_WAR_NAME:app.war}
-  # 프리뷰 빌드는 WAR 만 필요: 테스트 컴파일과 배포용 assembly tar(수백 MB, 수 분)를 건너뛴다. 예: -s tools/m2-settings.xml 추가 가능
-  maven-args: ${PREVIEW_MAVEN_ARGS:-Dmaven.test.skip=true -Dassembly.skipAssembly=true}
-  # shop WAR 는 deploy/standard/webapp 의 127.0.0.1 설정을 WEB-INF/classes 에 굽는다 → 개발서버 설정(src/main/resources)으로 덮어쓴다.
-  # config.properties(메일/SMS 게이트웨이)는 일부러 localhost 그대로 둔다(프리뷰에서 실제 발송 방지).
-  overlay-dirs: ${PREVIEW_OVERLAY_DIRS:db,opensearch}
-  build-timeout-ms: ${PREVIEW_BUILD_TIMEOUT_MS:900000}
-  start-timeout-ms: ${PREVIEW_START_TIMEOUT_MS:900000}   # jar/TLD 스캔(3~6분) + Spring 초기화(2~3분): 실측 최대 9분 → 15분 상한
-  login-id: ${PREVIEW_LOGIN_ID:}                # 프리뷰 로그인 테스트 계정(선택) — 모델에게 전달됨
-  login-pw: ${PREVIEW_LOGIN_PW:}
-  playwright-version: ${PREVIEW_PLAYWRIGHT_VERSION:0.0.85}
-  browser: ${PREVIEW_BROWSER:msedge}            # 설치된 Edge 사용(브라우저 다운로드 불필요)
-  headless: ${PREVIEW_HEADLESS:true}
-
 gitlab:
   enabled: ${GITLAB_ENABLED:false}
   url: ${GITLAB_URL:}
@@ -115,7 +91,7 @@ gitlab:
     effort: ${GITLAB_AGENT_EFFORT:high}
     timeout-ms: ${GITLAB_AGENT_TIMEOUT_MS:3600000}         # 분석(설계·재설계) 1회 실행 상한 60분
     max-turns: ${GITLAB_AGENT_MAX_TURNS:80}                # 분석 턴 상한
-    fix-timeout-ms: ${GITLAB_AGENT_FIX_TIMEOUT_MS:14400000} # 개발(수정·재수정) 1회 실행 상한 4시간 — 큰 이슈(마이그레이션 등)용. preview deploy(20분 안팎)도 품는다
+    fix-timeout-ms: ${GITLAB_AGENT_FIX_TIMEOUT_MS:14400000} # 개발(수정·재수정) 1회 실행 상한 4시간 — 큰 이슈(마이그레이션 등)용
     fix-max-turns: ${GITLAB_AGENT_FIX_MAX_TURNS:600}       # 개발 턴 상한(파일 수십 개 수정이면 수백 턴)
     idle-timeout-ms: ${GITLAB_AGENT_IDLE_TIMEOUT_MS:2700000} # 무응답 상한 45분: 도구 호출·출력이 이 시간 동안 없으면 멈춘 것으로 보고 중단(0=끔). 긴 빌드는 Bash 결과가 와야 갱신되므로 빌드 시간보다 길게
     # 상한에 걸리면 분석은 실패(FAILED), 개발은 작업트리 변경을 보존한 채 리뷰 대기로 넘겨 「피드백: 이어서 진행」으로 같은 세션을 계속할 수 있다
@@ -125,7 +101,7 @@ gitlab:
     fix-tools: ${GITLAB_AGENT_FIX_TOOLS:Read,Grep,Glob,LS,Edit,Write,MultiEdit,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(gradlew:*),Bash(./gradlew:*),Bash(gradlew.bat:*),Bash(mvn:*),Bash(./mvnw:*),Bash(npm test:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx jest:*),Bash(node --check:*)}
     test-hint: ${GITLAB_AGENT_TEST_HINT:Gradle 프로젝트는 gradlew test (또는 영향 모듈만 :module:test), Maven 은 mvn -q test, Node 는 npm test 를 실행}
     max-message-chars: ${GITLAB_AGENT_MAX_MESSAGE_CHARS:3000}  # 메신저 1건 길이 상한(초과 시 분할 전송)
-  # 검증 단계: 수정 후 봇이 직접 컴파일/정적검사(jscheck·jspcheck)를 돌리고, 독립 리뷰어 Claude 세션이 이슈·설계·diff·프리뷰를 보고 PASS/FAIL.
+  # 검증 단계: 수정 후 봇이 직접 컴파일/JS 문법 검사(node --check)를 돌리고, 독립 리뷰어 Claude 세션이 이슈·설계·diff 를 보고 PASS/FAIL.
   # FAIL 이면 실패 내역을 피드백으로 자동 재수정(max-retries 회), 그래도 FAIL 이면 실패 내역과 함께 리뷰 대기로 올린다.
   verify:
     enabled: ${GITLAB_VERIFY_ENABLED:true}
@@ -136,7 +112,7 @@ gitlab:
     command-timeout-ms: ${GITLAB_VERIFY_COMMAND_TIMEOUT_MS:900000}
     # 프로젝트별 검사 명령 "group/repo=명령;group/repo2=명령". 비우면 pom.xml → mvn -o -q compile, gradle → gradlew compileJava, 그 외 생략.
     commands: ${GITLAB_VERIFY_COMMANDS:}
-    tools: ${GITLAB_VERIFY_TOOLS:Read,Grep,Glob,LS,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(preview status:*),Bash(preview log:*),Bash(jscheck:*),Bash(jspcheck:*)}
+    tools: ${GITLAB_VERIFY_TOOLS:Read,Grep,Glob,LS,Bash(git diff:*),Bash(git status:*),Bash(git log:*)}
     reviewer-timeout-ms: ${GITLAB_VERIFY_REVIEWER_TIMEOUT_MS:3600000}   # 리뷰어 세션 1회 실행 상한 60분(0 이면 agent.timeout-ms)
 
 bot:

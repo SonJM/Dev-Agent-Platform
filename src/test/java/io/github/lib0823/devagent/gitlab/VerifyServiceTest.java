@@ -1,7 +1,6 @@
 package io.github.lib0823.devagent.gitlab;
 
 import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.config.PreviewProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,8 +25,7 @@ class VerifyServiceTest {
                 new GitLabProperties.Agent("opus", "high", 1000, 10, List.of("Read"), List.of("Read"), "", 3000, 0, 0, 0),
                 new GitLabProperties.Verify(true, 2, true, "", "medium", 60000, commands, List.of("Read"), 0),
                 new GitLabProperties.Convention("develop", "main", "develop", List.of(), List.of(), "#?(\\d{5,7})"), 2);
-        PreviewProperties preview = new PreviewProperties(false, "", "", "", "", 8790, "/x", "x.war", "", "", 0, 0, "", "", "0.0.85", "msedge", true);
-        return new VerifyService(props, preview);
+        return new VerifyService(props);
     }
 
     @Test

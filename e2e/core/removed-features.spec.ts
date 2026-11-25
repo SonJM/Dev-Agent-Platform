@@ -139,6 +139,13 @@ test('TC-013 제거 대상 요소·API가 되살아나지 않고 남은 화면�
   expect(plat).not.toMatch(/프리뷰 스크린샷/);
   await expect(page.getByText('방 목록 · 메시지 수집')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/지식|RAG/);
+  // T-009: the setup check (설치 점검) lists its rows but has no 「로컬 프리뷰(화면 검증)」 row.
+  const doctorRows = page.locator('#doctorList .doc');
+  await expect(doctorRows.first()).toBeVisible();
+  expect(await doctorRows.count()).toBeGreaterThan(0);
+  await expect(page.locator('#doctorList')).not.toContainText(/프리뷰/);
+  await expect(page.locator('#doctorList .doc b', { hasText: '로컬 프리뷰' })).toHaveCount(0);
+  await shot(page, testInfo, 'platform-doctor');
   // Integration card: messenger + coding agent rows only. Health of each port depends on the host
   // (no Claude CLI login in QA), so only the denominator is fixed.
   await expect(page.locator('#platPorts .plat')).toHaveCount(2);

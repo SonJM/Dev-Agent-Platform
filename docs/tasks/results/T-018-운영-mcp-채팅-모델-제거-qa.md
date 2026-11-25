@@ -53,9 +53,9 @@
 - FR-208·TC-014 추적: T-018분 확인 완료 기록 가능.
 
 ## 검증
-- 로그: `/c/Users/Public/Documents/ESTsoft/CreatorTemp/qa-run-20261125-112900-267.log` (임시 폴더)
+- 로그: `<tmp>/qa-run-20261125-112900-267.log` (임시 폴더)
 ```
-log: /c/Users/Public/Documents/ESTsoft/CreatorTemp/qa-run-20261125-112900-267.log
+log: <tmp>/qa-run-20261125-112900-267.log
 == up
 == health (http://127.0.0.1:8778/api/system/status, timeout 150s)
 == test (@task:T-018|@task:T-007|@task:T-008|@core)

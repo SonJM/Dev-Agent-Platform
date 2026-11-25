@@ -450,7 +450,7 @@ public class ResearchService {
             events.emit(eid, IssueEvent.CLAUDE, "▶ 질의 " + (resume ? "이어서 " : "") + "시작 (" + j.getModel() + "/" + j.getEffort() + ", 상한 "
                     + props.timeoutOr() / 60_000 + "분/" + props.maxTurnsOr() + "턴)", prompt);
             CodingAgent.Result r = agent.run(cwd, sid, resume, gitlabProps.agent().analyzeTools(), sys, prompt,
-                    (kind, message, detail) -> events.emit(eid, kind, message, detail), null, CodingAgent.Stage.ANALYZE, false, ov);
+                    (kind, message, detail) -> events.emit(eid, kind, message, detail), CodingAgent.Stage.ANALYZE, ov);
             guard(refs, eid);
             if (abortRequested.contains(j.getId())) {
                 finish(j, ResearchJob.ABORTED, null, "사용자 중단");
@@ -513,7 +513,7 @@ public class ResearchService {
             String vprompt = ResearchPrompts.verifierPrompt(j.getQuestion() + attachments.promptNote(j), document);
             events.emit(eid, IssueEvent.CLAUDE, "▶ 2차 검증 시작 (" + m.verifyModel() + "/" + m.verifyEffort() + ", 독립 세션)", vprompt);
             v = agent.run(cwd, UUID.randomUUID().toString(), false, gitlabProps.agent().analyzeTools(),
-                    ResearchPrompts.verifierSystem() + refsNote(refs), vprompt, listener, null, CodingAgent.Stage.ANALYZE, false, vov);
+                    ResearchPrompts.verifierSystem() + refsNote(refs), vprompt, listener, CodingAgent.Stage.ANALYZE, vov);
             guard(refs, eid);
             addCost(j, v);
         } catch (RuntimeException e) {
@@ -541,8 +541,8 @@ public class ResearchService {
         try {
             String rprompt = j.issueDraft() ? ResearchPrompts.reviseIssuePrompt(problems) : ResearchPrompts.revisePrompt(problems);
             events.emit(eid, IssueEvent.CLAUDE, "▶ 검증 지적 반영 시작 (" + j.getModel() + "/" + j.getEffort() + ", 작성 세션 이어서)", rprompt);
-            CodingAgent.Result r2 = agent.run(cwd, sid, true, gitlabProps.agent().analyzeTools(), sys, rprompt, listener, null,
-                    CodingAgent.Stage.ANALYZE, false, ov);
+            CodingAgent.Result r2 = agent.run(cwd, sid, true, gitlabProps.agent().analyzeTools(), sys, rprompt, listener,
+                    CodingAgent.Stage.ANALYZE, ov);
             guard(refs, eid);
             addCost(j, r2);
             events.emit(eid, IssueEvent.CLAUDE, String.format("■ 검증 지적 반영 완료 · %d턴 · %s · %ds%s", r2.turns(), r2.tokens(), r2.elapsedMs() / 1000,

@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.config.McpProperties;
-import io.github.lib0823.devagent.config.PreviewProperties;
-import io.github.lib0823.devagent.platform.Os;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,9 +31,7 @@ public class McpConfigService {
 
     private final McpProperties props;
     private final GitLabProperties gitlab;
-    private final PreviewProperties preview;
     private final ObjectMapper json = new ObjectMapper();
-    private final Map<String, Path> sessionConfigs = new java.util.concurrent.ConcurrentHashMap<>();
 
     private volatile Path configPath;
     private volatile List<String> tools = List.of();
@@ -44,14 +40,10 @@ public class McpConfigService {
     private final McpServerMapper serverMapper;
     private final org.springframework.core.env.Environment environment;
 
-    /** 내장 서버 이름 — 사용자 정의 서버가 쓸 수 없다(프리뷰 playwright 만 남음, T-009 에서 정리). */
-    public static final List<String> RESERVED = List.of("playwright");
-
-    public McpConfigService(McpProperties props, GitLabProperties gitlab, PreviewProperties preview,
+    public McpConfigService(McpProperties props, GitLabProperties gitlab,
                             McpServerMapper serverMapper, org.springframework.core.env.Environment environment) {
         this.props = props;
         this.gitlab = gitlab;
-        this.preview = preview;
         this.serverMapper = serverMapper;
         this.environment = environment;
     }
@@ -76,18 +68,16 @@ public class McpConfigService {
         List<McpServer> cs = List.of();
         if (props.enabled() && serverMapper != null) {
             try {
-                cs = serverMapper.findAll().stream().filter(McpServer::isEnabled).filter(s -> !RESERVED.contains(s.getName())).toList();
+                cs = serverMapper.findAll().stream().filter(McpServer::isEnabled).toList();
             } catch (RuntimeException e) {
                 log.warn("사용자 정의 MCP 서버 조회 실패(서버 없이 진행): {}", e.toString());
             }
         }
         custom = cs;
-        sessionConfigs.clear();
         if (cs.isEmpty()) {
             configPath = null;
             tools = List.of();
             log.info("사용자 정의 MCP 비활성(mcp.enabled=false 또는 서버 없음)");
-            // 서버가 없어도 프리뷰(playwright)용 세션 설정은 configFor() 가 만든다
             return;
         }
         try {
@@ -170,9 +160,6 @@ public class McpConfigService {
         if (!name.matches("[a-z0-9][a-z0-9-]{1,30}")) {
             return "이름은 영소문자·숫자·하이픈 2~31자여야 합니다(도구 접두어 mcp__<이름>__ 로 쓰입니다).";
         }
-        if (RESERVED.contains(name)) {
-            return "'" + name + "' 는 내장 서버 이름이라 쓸 수 없습니다.";
-        }
         s.setName(name);
         String type = s.getType() == null ? "" : s.getType().strip().toLowerCase(java.util.Locale.ROOT);
         if (!List.of("http", "sse", "stdio").contains(type)) {
@@ -251,73 +238,6 @@ public class McpConfigService {
     /** 이슈 에이전트에 사용자 정의 MCP 를 줄지. */
     public boolean agentEnabled() {
         return available() && props.agentEnabled();
-    }
-
-    public boolean playwrightEnabled() {
-        return preview != null && preview.enabled();
-    }
-
-    /** playwright MCP 는 브라우저를 봇 호스트에서 띄우므로 서버 단위로 허용. */
-    public List<String> playwrightTools() {
-        return playwrightEnabled() ? List.of("mcp__playwright") : List.of();
-    }
-
-    /**
-     * 이슈 세션용 설정 파일: 사용자 정의 서버(agentEnabled 일 때) + playwright(프리뷰 켜짐일 때, 스크린샷 출력 폴더 세션별).
-     * 둘 다 없으면 null. 파일은 work/mcp/ 아래에 캐시된다.
-     */
-    public Path configFor(Path shotsDir) {
-        boolean custom = agentEnabled();
-        boolean pw = playwrightEnabled() && shotsDir != null;
-        if (!custom && !pw) {
-            return null;
-        }
-        String key = (custom ? "custom" : "nocustom") + "|" + (pw ? shotsDir.toAbsolutePath() : "");
-        return sessionConfigs.computeIfAbsent(key, k -> {
-            try {
-                ObjectNode root = json.createObjectNode();
-                ObjectNode servers = root.putObject("mcpServers");
-                if (custom) {
-                    servers.setAll((ObjectNode) json.readTree(Files.readString(configPath, StandardCharsets.UTF_8)).path("mcpServers"));
-                }
-                if (pw) {
-                    Files.createDirectories(shotsDir);
-                    servers.set("playwright", playwrightNode(preview, shotsDir));
-                }
-                Path dir = workDir().resolve("mcp");
-                Files.createDirectories(dir);
-                Path file = dir.resolve("mcp-session-" + Integer.toHexString(key.hashCode()) + ".json");
-                Files.writeString(file, json.writerWithDefaultPrettyPrinter().writeValueAsString(root), StandardCharsets.UTF_8);
-                return file;
-            } catch (IOException e) {
-                log.warn("세션 MCP 설정 생성 실패: {}", e.toString());
-                return configPath;
-            }
-        });
-    }
-
-    /** Playwright MCP(stdio) 서버 정의. Windows 에서만 npx 를 cmd /c 로 감싼다(실제 호출로 확인). Linux/macOS 는 npx 를 직접. */
-    public static ObjectNode playwrightNode(PreviewProperties p, Path shotsDir) {
-        return playwrightNode(p, shotsDir, Os.isWindows());
-    }
-
-    static ObjectNode playwrightNode(PreviewProperties p, Path shotsDir, boolean windows) {
-        ObjectNode n = new ObjectMapper().createObjectNode();
-        var args = n.putArray("args");
-        if (windows) {
-            n.put("command", "cmd");
-            args.add("/c").add("npx");
-        } else {
-            n.put("command", "npx");
-        }
-        args.add("-y").add("@playwright/mcp@" + (p.playwrightVersion() == null || p.playwrightVersion().isBlank() ? "latest" : p.playwrightVersion().strip()));
-        args.add("--browser").add(p.browser() == null || p.browser().isBlank() ? "msedge" : p.browser().strip());
-        if (p.headless()) {
-            args.add("--headless");
-        }
-        args.add("--isolated");
-        args.add("--output-dir").add(shotsDir.toAbsolutePath().toString());
-        return n;
     }
 
     private Path workDir() {

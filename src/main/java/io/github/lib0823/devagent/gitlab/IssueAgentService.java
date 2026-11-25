@@ -7,7 +7,6 @@ import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.ops.AlertService;
-import io.github.lib0823.devagent.preview.PreviewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -63,7 +62,6 @@ public class IssueAgentService {
     private final AlertService alert;
     private final SettingService settings;
     private final IssueEventBus events;
-    private final PreviewService preview;
     private final VerifyService verifier;
     /** 분리한 협력 객체: 참고 저장소 / 대상 프로젝트 / 자기방 알림 / 프롬프트. */
     private final IssueReferences refs;
@@ -107,7 +105,7 @@ public class IssueAgentService {
 
     public IssueAgentService(GitLabProperties props, GitLabClient gitlab, GitRunner git,
                              CodingAgent agent, IssueSessionMapper sessions,
-                             MessengerService client, AlertService alert, SettingService settings, IssueEventBus events, PreviewService preview, VerifyService verifier,
+                             MessengerService client, AlertService alert, SettingService settings, IssueEventBus events, VerifyService verifier,
                              IssueReferences refs, IssueProjects projectReg, IssueNotifier notifier, IssuePrompts prompts,
                              io.github.lib0823.devagent.llm.UsageService usage,
                              @org.springframework.beans.factory.annotation.Value("${server.port:8777}") int adminPort) {
@@ -133,7 +131,6 @@ public class IssueAgentService {
         this.alert = alert;
         this.settings = settings;
         this.events = events;
-        this.preview = preview;
         this.adminPort = adminPort;
     }
 
@@ -159,8 +156,6 @@ public class IssueAgentService {
                 events.emit(active.getId(), IssueEvent.INFO, "봇 재기동 — 대기 상태 유지, 답변을 계속 받습니다");
             }
         }
-        preview.setOwnerBusy(dir -> sessions.findActiveAll().stream()
-                .anyMatch(s -> !s.isWaiting() && dirOf(s).toString().equalsIgnoreCase(dir)));   // 프리뷰 1개 공유: 작업 중인 세션이 쓰면 대기
         // 선분석 중이던 세션은 아직 사용자에게 보여준 게 없으므로 조용히 NEW 로 되돌린다
         IssueSession preparing = sessions.findPreparing();
         if (preparing != null) {
@@ -901,56 +896,6 @@ public class IssueAgentService {
                 + "\n유형을 바꾸려면 피드백으로 '작업 유형: hotfix' 처럼 알려 주세요.";
     }
 
-    /** 세션별 프리뷰 스크린샷 폴더(work/preview/shots/<id>). */
-    public Path shotsDirOf(IssueSession s) {
-        Path dir = Path.of(props.workDir() == null || props.workDir().isBlank() ? "work" : props.workDir())
-                .toAbsolutePath().resolve("preview").resolve("shots").resolve(String.valueOf(s.getId()));
-        try {
-            Files.createDirectories(dir);
-        } catch (java.io.IOException e) {
-            log.debug("스크린샷 폴더 생성 실패 {}: {}", dir, e.toString());
-        }
-        return dir;
-    }
-
-    public List<Path> shots(long sessionId) {
-        IssueSession s = sessions.find(sessionId);
-        if (s == null) {
-            return List.of();
-        }
-        Path dir = shotsDirOf(s);
-        try (var st = Files.list(dir)) {
-            return st.filter(p -> { String n = p.getFileName().toString().toLowerCase(Locale.ROOT); return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg"); })
-                    .sorted(java.util.Comparator.comparingLong(p -> p.toFile().lastModified())).toList();
-        } catch (java.io.IOException e) {
-            return List.of();
-        }
-    }
-
-    private int countShots(IssueSession s) {
-        return shots(s.getId()).size();
-    }
-
-    /** 이 세션의 worktree 가 프리뷰에 올라가 있으면 내린다(종료 시). */
-    private void stopPreviewIfMine(IssueSession s) {
-        try {
-            PreviewService.Deployment dep = preview.current();
-            if (dep != null && dep.dir().equalsIgnoreCase(dirOf(s).toString())) {
-                preview.stop();
-                events.emit(s.getId(), IssueEvent.INFO, "프리뷰 Tomcat 중지");
-            }
-        } catch (RuntimeException e) {
-            log.debug("프리뷰 정리 실패(무시): {}", e.toString());
-        }
-    }
-
-    /** 프리뷰가 이 세션 것이면 URL. */
-    public String previewUrlFor(long sessionId) {
-        IssueSession s = sessions.find(sessionId);
-        PreviewService.Deployment dep = s == null ? null : preview.current();
-        return dep != null && dep.dir().equalsIgnoreCase(dirOf(s).toString()) ? dep.url() : null;
-    }
-
     private String dashboardUrl(IssueSession s) {
         return "http://localhost:" + adminPort + "/agent.html#s=" + s.getId();
     }
@@ -1165,7 +1110,7 @@ public class IssueAgentService {
         notifier.sendSelf(PFX + "검증 실패 → 자동 재수정 " + s.getVerifyRounds() + "/" + verifier.cfg().maxRetries() + " (" + s.ref() + ")");
         String prompt = "자동 검증에서 실패했습니다. 아래 검사 결과와 리뷰어의 수정 요청을 반영해 코드를 고치세요.\n\n" + failureReport
                 + "\n\n같은 출력 형식(## 변경 요약 / ## 검증 결과 / ## 커밋 메시지)으로 전체 변경 기준으로 다시 출력하세요. "
-                + "git 명령으로 커밋/브랜치를 만들지 마세요. 프리뷰가 떠 있고 JSP/JS/CSS 만 고쳤다면 `preview sync` 로 반영하세요.";
+                + "git 명령으로 커밋/브랜치를 만들지 마세요.";
         CodingAgent.Result r;
         try {
             r = runClaude(s, "검증 반영 수정 " + s.getVerifyRounds(), true, props.agent().fixTools(), prompt, true);
@@ -1237,10 +1182,6 @@ public class IssueAgentService {
         Path dir = dirOf(s);
         String stat = git.diffStat(dir);
         events.emit(s.getId(), IssueEvent.GIT, "git diff --stat: " + abbreviate(lastLine(stat), 120), stat);
-        int shots = countShots(s);
-        if (shots > 0) {
-            events.emit(s.getId(), IssueEvent.INFO, "프리뷰 스크린샷 " + shots + "장 — 대시보드 변경 요약 탭에서 확인");
-        }
         s.setChangeSummary(r.text());
         sessions.update(s);
         if (verifier.enabled() && !stat.isBlank()) {
@@ -1251,7 +1192,7 @@ public class IssueAgentService {
     }
 
     /**
-     * 검증 단계: 봇이 직접 돌리는 결정적 검사(JS 문법·JSP 컴파일·빌드) + 독립 리뷰어 세션(새 Claude 세션, 읽기 전용, 프리뷰 열람).
+     * 검증 단계: 봇이 직접 돌리는 결정적 검사(JS 문법·빌드) + 독립 리뷰어 세션(새 Claude 세션, 읽기 전용).
      * 실패면 실패 보고를 피드백으로 자동 재수정(상한 gitlab.verify.max-retries), 그래도 실패면 보고와 함께 리뷰 대기로 올린다.
      */
     private void verify(IssueSession s) {
@@ -1280,26 +1221,23 @@ public class IssueAgentService {
         VerifyService.Verdict verdict = VerifyService.Verdict.UNKNOWN;
         String reviewText = "";
         if (verifier.cfg().reviewer()) {
-            PreviewService.Deployment dep = preview.current();
-            boolean previewUp = dep != null && dep.dir().equalsIgnoreCase(dir.toString());
             String desc = "";
             try {
                 desc = gitlab.issue(s.getProjectId(), s.getIssueIid()).description();
             } catch (RuntimeException e) {
                 log.debug("이슈 본문 재조회 실패(무시): {}", e.toString());
             }
-            List<String> shotNames = shots(id).stream().map(p -> p.toAbsolutePath().toString()).toList();
-            String prompt = verifier.reviewerPrompt(s, desc, git.diff(dir, 20000), checks, shotNames, previewUp, round);
+            String prompt = verifier.reviewerPrompt(s, desc, git.diff(dir, 20000), checks, round);
             String reviewerSession = UUID.randomUUID().toString();
             reviewerSessions.put(id, reviewerSession);
             SettingService.AgentModels am = settings.getAgentModels();
             String model = am.verifyModel() + "/" + am.verifyEffort();
-            events.emit(id, IssueEvent.CLAUDE, "▶ 독립 리뷰 시작 (" + model + ", 새 세션" + (previewUp ? ", 프리뷰 열람 가능" : "") + ")", prompt);
+            events.emit(id, IssueEvent.CLAUDE, "▶ 독립 리뷰 시작 (" + model + ", 새 세션" + ")", prompt);
             CodingAgent.Result r = null;
             try {
                 r = agent.run(dir, reviewerSession, false, verifier.cfg().tools(), prompts.systemPrompt(s), prompt,
-                        (kind, message, detail) -> events.emit(id, kind, message, detail), shotsDirOf(s),
-                        CodingAgent.Stage.VERIFY, previewUp);
+                        (kind, message, detail) -> events.emit(id, kind, message, detail),
+                        CodingAgent.Stage.VERIFY);
             } catch (CodingAgent.UsageLimitException e) {
                 notifier.notifyLimit(e);                       // 리뷰어는 생략하고(판정 없음) 봇 검사 결과만으로 리뷰 대기로 올린다
                 events.emit(id, IssueEvent.ERROR, "독립 리뷰 생략: " + e.getMessage() + " — 리셋 뒤 검증을 자동으로 다시 돌립니다", String.valueOf(e));
@@ -1344,14 +1282,11 @@ public class IssueAgentService {
         toReviewWait(s, head + " — 자동 재수정 상한(" + verifier.cfg().maxRetries() + "회) 도달. 실패 내역을 보고 피드백을 주거나 중단해 주세요.");
     }
 
-    /** 리뷰 대기로 전이 + 자기방 보고(변경 요약 · 검증 결과 · diff stat · 스크린샷 · 프리뷰). */
+    /** 리뷰 대기로 전이 + 자기방 보고(변경 요약 · 검증 결과 · diff stat). */
     private void toReviewWait(IssueSession s, String verifyLine) {
         Path dir = dirOf(s);
         String stat = git.diffStat(dir);
-        int shots = countShots(s);
         toWait(s, IssueSession.REVIEW_WAIT);
-        PreviewService.Deployment dep = preview.current();
-        String previewLine = dep != null && dep.dir().equalsIgnoreCase(dir.toString()) ? "\n프리뷰 실행 중: " + dep.url() : "";
         String verifyBlock = "";
         if (verifyLine != null) {
             String review = section(s.getVerifyResult(), "독립 리뷰");
@@ -1363,7 +1298,6 @@ public class IssueAgentService {
         notifier.sendSelf(PFX + "수정 완료 " + s.ref() + "\n\n" + s.getChangeSummary()
                 + verifyBlock
                 + "\n\n## git diff --stat\n" + (stat.isBlank() ? "(변경 없음)" : stat.strip())
-                + (shots > 0 ? "\n\n📷 스크린샷 " + shots + "장: " + dashboardUrl(s) : "") + previewLine
                 + "\n\n" + askReview());
     }
 
@@ -1449,7 +1383,6 @@ public class IssueAgentService {
             }
         }
         transition(s, IssueSession.DONE);
-        stopPreviewIfMine(s);
         git.cleanup(s.getProjectPath(), s.getIssueIid());
         notifier.sendSelf(PFX + "완료 " + s.ref() + " — " + s.getIssueTitle()
                 + "\n브랜치: " + branch + " (" + sha + ")\n" + branchUrl
@@ -1464,7 +1397,6 @@ public class IssueAgentService {
         if (s == null || !s.isActive()) {
             return;
         }
-        stopPreviewIfMine(s);
         git.cleanup(s.getProjectPath(), s.getIssueIid());
         s.setLastError(reason);
         events.emit(s.getId(), IssueEvent.INFO, "중단 (" + reason + ") — 세션 작업트리 제거");
@@ -1483,7 +1415,6 @@ public class IssueAgentService {
         s.setLastError(stage + ": " + abbreviate(e.getMessage(), 500));
         events.emit(s.getId(), IssueEvent.ERROR, stage + " 실패: " + abbreviate(e.getMessage(), 300), String.valueOf(e));
         transition(s, IssueSession.FAILED);
-        stopPreviewIfMine(s);
         git.cleanup(s.getProjectPath(), s.getIssueIid());
         notifier.sendSelf(PFX + "실패 " + s.ref() + " (" + stage + ")\n" + abbreviate(e.getMessage(), 600)
                 + "\n다시 시작: 이슈 " + s.ref());
@@ -1520,12 +1451,12 @@ public class IssueAgentService {
         SettingService.AgentModels am = settings.getAgentModels();
         String modelLabel = fixStage ? am.devModel() + "/" + am.devEffort() : am.designModel() + "/" + am.designEffort();
         events.emit(id, IssueEvent.CLAUDE, "▶ " + label + " 시작 (" + modelLabel
-                + (resume ? ", 세션 이어서" : ", 새 세션") + (fixStage && preview.enabled() ? ", 프리뷰/Playwright 사용 가능" : "") + ")", prompt);
+                + (resume ? ", 세션 이어서" : ", 새 세션") + ")", prompt);
         CodingAgent.Result r;
         try {
             r = agent.run(dirOf(s), s.getClaudeSessionId(), resume, tools,
                     prompts.systemPrompt(s), prompt, (kind, message, detail) -> events.emit(id, kind, message, detail),
-                    fixStage ? shotsDirOf(s) : null, fixStage);
+                    fixStage);
         } finally {
             refs.guardReferences(id);                      // 타임아웃·실패로 끝나도 참고 저장소는 되돌린다
         }
@@ -1706,7 +1637,7 @@ public class IssueAgentService {
         events.emit(id, IssueEvent.INFO, "변경 요약이 없어 diff 로 다시 생성합니다(읽기 전용 세션)");
         try {
             CodingAgent.Result r = agent.run(dir, UUID.randomUUID().toString(), false, props.agent().analyzeTools(), prompts.systemPrompt(s), prompt,
-                    (kind, message, detail) -> events.emit(id, kind, message, detail), null, CodingAgent.Stage.ANALYZE, false);
+                    (kind, message, detail) -> events.emit(id, kind, message, detail), CodingAgent.Stage.ANALYZE);
             events.emit(id, IssueEvent.CLAUDE, String.format("■ 변경 요약 생성 · %d턴 · %s · %ds%s", r.turns(), r.tokens(), r.elapsedMs() / 1000,
                     r.error() ? " · 오류" : ""), r.text());
             if (!r.error() && hasRealSummary(r.text())) {

@@ -73,33 +73,30 @@ public interface CodingAgent {
      * @param systemAppend 시스템 프롬프트에 덧붙일 지시
      * @param prompt       사용자 메시지
      * @param listener     진행 활동 수신(선택)
-     * @param shotsDir     스크린샷 출력 폴더(화면 검증을 쓰는 단계에서만, 아니면 null)
      * @param stage        실행 단계
-     * @param previewUp    VERIFY 에서 이 작업트리의 프리뷰가 떠 있는지
      * @param overrides    호출별 재정의(선택)
      */
     Result run(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
-               String systemAppend, String prompt, Listener listener, Path shotsDir, Stage stage, boolean previewUp,
-               Overrides overrides);
+               String systemAppend, String prompt, Listener listener, Stage stage, Overrides overrides);
 
     default Result run(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
-                       String systemAppend, String prompt, Listener listener, Path shotsDir, Stage stage, boolean previewUp) {
-        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, shotsDir, stage, previewUp, null);
+                       String systemAppend, String prompt, Listener listener, Stage stage) {
+        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, stage, null);
     }
 
     default Result run(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
-                       String systemAppend, String prompt, Listener listener, Path shotsDir, boolean fixStage) {
-        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, shotsDir, fixStage ? Stage.FIX : Stage.ANALYZE, false, null);
+                       String systemAppend, String prompt, Listener listener, boolean fixStage) {
+        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, fixStage ? Stage.FIX : Stage.ANALYZE, null);
     }
 
     default Result run(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
                        String systemAppend, String prompt, Listener listener) {
-        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, null, Stage.ANALYZE, false, null);
+        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, Stage.ANALYZE, null);
     }
 
     default Result run(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
                        String systemAppend, String prompt) {
-        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, null, null, Stage.ANALYZE, false, null);
+        return run(cwd, sessionId, resume, allowedTools, systemAppend, prompt, null, Stage.ANALYZE, null);
     }
 
     /** 해당 세션의 실행을 강제 종료한다. 실행 중이 아니면 false. */

@@ -19,17 +19,13 @@ target/
 logs/
 scratch/
 
-# runtime flags
-bot-stop.flag
-bot.lock
-
 # gitlab issue agent: cloned repositories
 work/
 
-# preview runtime (jdk/maven/tomcat) installed by scripts/setup-preview.ps1
+# local tools directory (not tracked)
 tools/
 
-# running copy of the jar (run.cmd copies build/libs here so gradle builds do not touch the live JVM)
+# running copy of the jar (not tracked)
 run/
 
 # embedded PostgreSQL (DB_URL empty): data + extracted binaries

@@ -3,7 +3,6 @@ package io.github.lib0823.devagent.ops;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.boot.Bootstrap;
 import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.config.PreviewProperties;
 import io.github.lib0823.devagent.gitlab.GitLabClient;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.messenger.MessengerService;
@@ -37,20 +36,18 @@ public class Doctor {
     private final GitLabProperties gitlab;
     private final GitLabClient gitlabClient;
     private final SettingService settings;
-    private final PreviewProperties preview;
 
     private volatile List<Map<String, Object>> cache;
     private volatile long cachedAt;
 
     public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, GitLabProperties gitlab, GitLabClient gitlabClient,
-                  SettingService settings, PreviewProperties preview) {
+                  SettingService settings) {
         this.jdbc = jdbc;
         this.agent = agent;
         this.messenger = messenger;
         this.gitlab = gitlab;
         this.gitlabClient = gitlabClient;
         this.settings = settings;
-        this.preview = preview;
     }
 
     public List<Map<String, Object>> checks(boolean refresh) {
@@ -71,7 +68,6 @@ public class Doctor {
         if (Os.isWindows()) {
             out.add(gitBash());
         }
-        out.add(previewCheck());
         cache = out;
         cachedAt = System.currentTimeMillis();
         return out;
@@ -176,18 +172,7 @@ public class Doctor {
                 return check("bash", "Git Bash", "ok", c, null);
             }
         }
-        return check("bash", "Git Bash", "warn", "찾지 못했습니다", "Claude Code 의 Bash 도구와 검사 스크립트(jscheck·jspcheck)가 Git Bash 를 씁니다. Git for Windows 를 설치하세요.");
-    }
-
-    private Map<String, Object> previewCheck() {
-        if (preview == null || !preview.enabled()) {
-            return check("preview", "로컬 프리뷰(화면 검증)", "off", "꺼짐(PREVIEW_ENABLED=false)", null);
-        }
-        boolean tools = !blank(preview.catalinaHome()) && Files.isDirectory(Path.of(preview.catalinaHome()))
-                && !blank(preview.javaHome()) && Files.isDirectory(Path.of(preview.javaHome()));
-        return tools ? check("preview", "로컬 프리뷰(화면 검증)", "ok", "도구 설치됨(" + preview.catalinaHome() + ")", null)
-                : check("preview", "로컬 프리뷰(화면 검증)", "warn", "도구(JDK 21·Maven·Tomcat)가 설치돼 있지 않습니다",
-                "화면 검증은 Windows 에서만 지원합니다(scripts/setup-preview.ps1). 쓰지 않으면 PREVIEW_ENABLED=false 로 끕니다.");
+        return check("bash", "Git Bash", "warn", "찾지 못했습니다", "Claude Code 의 Bash 도구가 Git Bash 를 씁니다. Git for Windows 를 설치하세요.");
     }
 
     private Map<String, Object> tool(String key, String name, List<String> cmd, String missing, String hint) {

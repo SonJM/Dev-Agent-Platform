@@ -67,9 +67,9 @@
 없음
 
 ## 검증
-- 로그: `/c/Users/Public/Documents/ESTsoft/CreatorTemp/qa-run-20261125-113837-583.log`
+- 로그: `<tmp>/qa-run-20261125-113837-583.log`
 ```
-log: /c/Users/Public/Documents/ESTsoft/CreatorTemp/qa-run-20261125-113837-583.log
+log: <tmp>/qa-run-20261125-113837-583.log
 == up
 == health (http://127.0.0.1:8778/api/system/status, timeout 150s)
 == test (@core)

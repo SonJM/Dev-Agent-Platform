@@ -45,7 +45,7 @@ QA PASS. 실패 0(변경 오류 0, 회귀 0, 기존 결함 0). 기준 기록: qa
 ## 검증
 - 로그: `qa-run-20261124-162737-49852.log`(qa-run 임시 로그)
 ```
-log: /c/Users/Public/Documents/ESTsoft/CreatorTemp/qa-run-20261124-162737-49852.log
+log: <tmp>/qa-run-20261124-162737-49852.log
 == up
 == health (http://127.0.0.1:8778/api/system/status, timeout 180s)
 == test (@core)

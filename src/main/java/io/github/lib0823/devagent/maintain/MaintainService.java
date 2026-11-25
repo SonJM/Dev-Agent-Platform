@@ -251,7 +251,7 @@ public class MaintainService {
         try {
             CodingAgent.Result r;
             try {
-                r = agent.run(repo, sid, resume, props.toolsOr(), sys, t.getQuestion(), listener, null, CodingAgent.Stage.FIX, false, ov);
+                r = agent.run(repo, sid, resume, props.toolsOr(), sys, t.getQuestion(), listener, CodingAgent.Stage.FIX, ov);
             } catch (CodingAgent.UsageLimitException | CodingAgent.AgentTimeoutException e) {
                 throw e;
             } catch (RuntimeException e) {
@@ -263,7 +263,7 @@ public class MaintainService {
                 t.setClaudeSessionId(sid);
                 turns.update(t);
                 events.emit(eid, IssueEvent.INFO, "이전 대화 세션을 찾지 못해 새 세션으로 시작합니다(앞선 대화 맥락 없음)");
-                r = agent.run(repo, sid, false, props.toolsOr(), sys, t.getQuestion(), listener, null, CodingAgent.Stage.FIX, false, ov);
+                r = agent.run(repo, sid, false, props.toolsOr(), sys, t.getQuestion(), listener, CodingAgent.Stage.FIX, ov);
             }
             t.setTurns(r.turns());
             t.setInputTokens(r.inputTotal());

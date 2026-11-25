@@ -17,12 +17,12 @@ fi
 mkdir -p "$HOME_DIR"
 rm -rf "$HOME_DIR/pgdata-embedded"
 cd "$HOME_DIR"
-export ADMIN_PORT=$PORT PREVIEW_ENABLED=false MAINTAIN_ENABLED=false
-# No Claude CLI call at startup (warm session prime). One fake target project so the routine
-# screens work without GitLab (adding a project through the UI needs a real GitLab).
-export CLAUDE_WARM=false CLAUDE_WARM_PREWARM=false GITLAB_PROJECTS=qa-group/qa-sample
-unset DB_URL DEV_AGENT_SUPERVISED
-# user.home is redirected: the app writes agent shims (preview, jscheck, jspcheck) to
-# <user.home>/bin, which would otherwise overwrite the real user's shims.
+export ADMIN_PORT=$PORT MAINTAIN_ENABLED=false
+# One fake target project so the routine screens work without GitLab
+# (adding a project through the UI needs a real GitLab).
+export GITLAB_PROJECTS=qa-group/qa-sample
+unset DB_URL
+# user.home is redirected so the test app (and any Claude CLI state it writes under the
+# home directory) stays isolated from the real user's home.
 mkdir -p "$HOME_DIR/home"
 exec java -Duser.home="$HOME_DIR/home" -jar "$JAR"

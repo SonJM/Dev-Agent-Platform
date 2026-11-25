@@ -40,18 +40,17 @@ class McpCustomOnlyTest {
         when(gitlab.workDir()).thenReturn(workDir.toString());
         McpServerMapper mapper = mock(McpServerMapper.class);
         when(mapper.findAll()).thenReturn(List.of(servers));
-        McpConfigService svc = new McpConfigService(new McpProperties(enabled, agentEnabled), gitlab, null, mapper, null);
+        McpConfigService svc = new McpConfigService(new McpProperties(enabled, agentEnabled), gitlab, mapper, null);
         svc.init();
         return svc;
     }
 
     @Test
     void tc014_formerBuiltInNamesAreNoLongerReserved() {
-        assertEquals(List.of("playwright"), McpConfigService.RESERVED);
         assertNull(McpConfigService.validate(http("opensearch", null)));
         assertNull(McpConfigService.validate(http("postgres", null)));
         assertNull(McpConfigService.validate(http("k3s-ops", null)));
-        assertNotNull(McpConfigService.validate(http("playwright", null)));
+        assertNull(McpConfigService.validate(http("playwright", null)));
     }
 
     @Test
@@ -73,12 +72,14 @@ class McpCustomOnlyTest {
     }
 
     @Test
-    void tc014_configForUsesCustomServerWithoutPlaywright() throws Exception {
+    void tc014_configHasOnlyCustomServerAndNoPlaywright() throws Exception {
         McpConfigService svc = service(true, true, http("jira", null));
 
-        Path session = svc.configFor(null);
+        Path session = svc.configPath();
         assertNotNull(session);
         JsonNode servers = new ObjectMapper().readTree(Files.readString(session)).path("mcpServers");
+        assertEquals(1, servers.size());
+        assertFalse(servers.has("playwright"));
         assertTrue(servers.has("jira"));
         assertEquals(List.of("mcp__jira"), svc.tools());
     }
@@ -89,7 +90,7 @@ class McpCustomOnlyTest {
 
         assertFalse(svc.available());
         assertFalse(svc.agentEnabled());
-        assertNull(svc.configFor(null));
+        assertNull(svc.configPath());
         assertEquals("", svc.usageHint());
     }
 
@@ -99,7 +100,6 @@ class McpCustomOnlyTest {
 
         assertTrue(svc.available());
         assertFalse(svc.agentEnabled());
-        assertNull(svc.configFor(null));
     }
 
     @Test

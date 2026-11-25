@@ -84,7 +84,7 @@ $EDITOR <APP_HOME>/.env                            # 자리표시자를 모두 �
 - **줄바꿈은 LF 로 저장한다.** Windows 편집기에서 CRLF 로 저장해 올리면 값 끝에 CR 이 붙는 키가 생긴다(`DEV_AGENT_RUN_MODE` 는 견디지만 다른 값은 아닐 수 있다). 확인: `file <APP_HOME>/.env` 에 `CRLF` 가 나오면 `sed -i 's/\r$//' <APP_HOME>/.env`.
 - 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_USERNAME`·`DB_PASSWORD`, `GITLAB_WORK_DIR`(앱 홈 **밖**), GitLab 항목.
 - **`.env` 에 `DB_URL` 을 적지 않는다.** `resolve-db.sh` 가 조회한 주소로 `DB_URL` 을 만든다. `.env` 에 `DB_URL=` 줄이 있으면 `resolve-db.sh` 가 거부한다(주석 처리한 줄은 무방).
-- `PREVIEW_ENABLED=false`, `MAINTAIN_ENABLED=false` 를 유지한다(플랫폼 관리 사용 여부는 OI-14 미정).
+- `MAINTAIN_ENABLED=false` 를 유지한다(플랫폼 관리 사용 여부는 OI-14 미정).
 - `.env` 는 비밀값이 들어 있으니 git·메신저·로그에 올리지 않는다.
 
 ## 5. jar 올리기

@@ -34,7 +34,7 @@ class ReplyDeliveryTest {
     void setUp() {
         when(props.enabled()).thenReturn(true);
         when(props.concurrencyOr()).thenReturn(1);
-        service = new IssueAgentService(props, null, null, null, sessions, null, null, null, events, null, null,
+        service = new IssueAgentService(props, null, null, null, sessions, null, null, null, events, null,
                 null, mock(IssueProjects.class), notifier, null, null, 8777);
     }
 

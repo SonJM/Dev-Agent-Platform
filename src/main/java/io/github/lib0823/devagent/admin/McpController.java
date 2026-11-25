@@ -48,7 +48,6 @@ public class McpController {
             list.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("reserved", McpConfigService.RESERVED);
         out.put("servers", list);
         return out;
     }

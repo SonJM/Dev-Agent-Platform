@@ -2,7 +2,6 @@ package io.github.lib0823.devagent.agent.claude;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.platform.CallStats;
-import io.github.lib0823.devagent.platform.Os;
 import io.github.lib0823.devagent.platform.PortHealth;
 import io.github.lib0823.devagent.gitlab.IssueEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.config.ClaudeProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.config.PreviewProperties;
 import io.github.lib0823.devagent.mcp.McpConfigService;
 import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
@@ -74,7 +72,6 @@ public class ClaudeCliAgent implements CodingAgent {
     private final ClaudeProperties claude;
     private final GitLabProperties props;
     private final McpConfigService mcp;
-    private final PreviewProperties preview;
     private final SettingService settings;
     private final int adminPort;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -132,7 +129,7 @@ public class ClaudeCliAgent implements CodingAgent {
     private final io.github.lib0823.devagent.skill.SkillService skills;
 
     public ClaudeCliAgent(ClaudeProperties claude, GitLabProperties props, McpConfigService mcp,
-                             PreviewProperties preview, SettingService settings,
+                             SettingService settings,
                              io.github.lib0823.devagent.llm.UsageService usage,
                              io.github.lib0823.devagent.skill.SkillService skills,
                              @Value("${server.port:8777}") int adminPort) {
@@ -142,82 +139,18 @@ public class ClaudeCliAgent implements CodingAgent {
         this.settings = settings;
         this.props = props;
         this.mcp = mcp;
-        this.preview = preview;
         this.adminPort = adminPort;
-    }
-
-    /** 프리뷰/정적검사 스크립트(scripts/bin)의 Bash 허용 패턴 — 수정 단계에서만 쓰인다. */
-    List<String> previewTools(boolean fixStage) {
-        return previewTools(fixStage ? Stage.FIX : Stage.ANALYZE);
-    }
-
-    List<String> previewTools(Stage stage) {
-        if (stage == Stage.ANALYZE || preview == null || !preview.enabled()) {
-            return List.of();
-        }
-        if (stage == Stage.VERIFY) {
-            return List.of("Bash(jscheck:*)", "Bash(jspcheck:*)");   // 배포/중지는 리뷰어에게 주지 않는다(preview status/log 는 verify.tools 에서)
-        }
-        return List.of("Bash(preview:*)", "Bash(jscheck:*)", "Bash(jspcheck:*)");
-    }
-
-    /** 리뷰어(검증 단계) 안내: 프리뷰가 떠 있으면 Playwright 로 직접 확인, 파일은 수정하지 않는다. */
-    String verifyHint(Path shotsDir, boolean previewUp) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("당신은 수정 세션과 분리된 독립 리뷰어입니다. 파일을 수정하지 말고 읽기·실행·확인만 하세요.\n");
-        if (preview != null && preview.enabled() && previewUp) {
-            sb.append("프리뷰 Tomcat 이 ").append(preview.url()).append(" 에 이 작업트리로 떠 있습니다. 화면 이슈면 playwright 도구(mcp__playwright)로 직접 열어 ")
-              .append("이슈의 재현 경로를 따라가 수정 결과를 눈으로 확인하세요. 스크린샷은 browser_take_screenshot 의 filename 에 절대경로 ")
-              .append(shotsDir == null ? "(출력 폴더)" : shotsDir.toAbsolutePath().toString().replace('\\', '/'))
-              .append("/verify-<설명>.png 로 저장하세요.\n");
-            if (preview.hasLogin()) {
-                sb.append("   로그인 계정: ").append(preview.loginId()).append(" / ").append(preview.loginPw()).append("\n");
-            }
-            sb.append("`preview log 80` 으로 Tomcat 로그의 예외를 확인할 수 있습니다.\n");
-        } else if (preview != null && preview.enabled()) {
-            sb.append("프리뷰 Tomcat 은 현재 떠 있지 않습니다(수정 세션이 배포하지 않았거나 내려감). 화면 확인은 코드 리뷰와 정적검사(jscheck/jspcheck)로 대신하고 그 사실을 근거에 적으세요.\n");
-        }
-        return sb.toString();
-    }
-
-    /** 프리뷰·화면 검증 사용법(수정 단계 시스템 프롬프트). */
-    String previewHint(Path shotsDir) {
-        if (preview == null || !preview.enabled()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append("명령 실행 규칙: `preview`, `jscheck`, `jspcheck`, `mvn`(JDK 21 포함) 은 PATH 에 있으니 **경로 없이 그 이름으로** 실행하세요. ")
-          .append("`cd …&&` 를 앞에 붙이거나 절대경로로 부르면 권한 패턴과 어긋나 거부됩니다(현재 디렉터리가 이미 작업트리). PowerShell 도구는 쓰지 마세요.\n")
-          .append("화면/JSP/JS 를 고쳤다면 반드시 실제 화면으로 검증하세요. 순서:\n")
-          .append("1) 정적 검사: 수정한 파일에 `jscheck <파일…>`(JS 문법), `jspcheck <파일…>`(JSP 를 Jasper 로 컴파일; 빌드 산출물이 필요하므로 preview deploy 뒤에 실행 가능).\n")
-          .append("2) `preview deploy` — 현재 worktree 를 Maven 으로 빌드해 로컬 Tomcat 에 배포하고 URL 을 돌려줍니다(빌드 10분 안팎 + 기동 최대 9분, 한 번만 기다리세요). ")
-          .append("Bash 도구의 timeout 을 2400000(40분)으로 지정해 실행하세요. 프리뷰 Tomcat 은 1개를 여러 이슈가 순서대로 쓰므로 다른 세션이 쓰는 중이면 응답이 그만큼 늦어집니다(최대 25분 대기 후 FAIL 이면 다시 실행). ")
-          .append("빌드 실패면 출력의 오류를 고친 뒤 다시 실행, 기동만 문제면 `preview redeploy`.\n")
-          .append("   프리뷰가 이미 떠 있고 그 뒤 JSP/JS/CSS/이미지(src/main/webapp)만 고쳤다면 `preview sync`(수 초)로 반영하세요 — 다시 deploy 하지 마세요. Java/resources/pom 을 고쳤을 때만 `preview deploy`.\n")
-          .append("   권장 순서: 화면 이슈면 수정 전에 먼저 `preview deploy` 로 띄워 현상을 재현·캡처(before-*.png) → 수정 → `preview sync` → 재확인·캡처(after-*.png).\n")
-          .append("3) playwright 도구(mcp__playwright)로 ").append(preview.url()).append(" 을 열어 이슈의 화면을 재현하고 수정 결과를 확인하세요. ")
-          .append("스크린샷은 browser_take_screenshot 의 filename 에 반드시 절대경로 ")
-          .append(shotsDir == null ? "(출력 폴더)" : shotsDir.toAbsolutePath().toString().replace('\\', '/'))
-          .append("/<설명>.png 로 저장하세요(예: after-metric-list.png). 상대 경로로 저장하면 저장소가 오염됩니다.\n");
-        if (preview.hasLogin()) {
-            sb.append("   로그인 계정: ").append(preview.loginId()).append(" / ").append(preview.loginPw()).append("\n");
-        } else {
-            sb.append("   로그인 계정이 아직 없으면 로그인 화면까지만 확인하고 그 사실을 적으세요.\n");
-        }
-        sb.append("4) '## 검증 결과' 에 실행한 검사·프리뷰 결과와 스크린샷 파일명을 적으세요. `preview log 80` 으로 Tomcat 로그를 볼 수 있습니다.\n")
-          .append("프리뷰 Tomcat 은 개발 DB/OpenSearch 에 붙습니다(쓰기 허용됨). 작업이 끝나면 `preview stop` 은 하지 않아도 됩니다(봇이 정리).");
-        return sb.toString();
     }
 
     @Override
     public Result run(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
-                      String systemAppend, String prompt, Listener listener, Path shotsDir, Stage stage, boolean previewUp,
+                      String systemAppend, String prompt, Listener listener, Stage stage,
                       Overrides ov) {
         // 상태 표시용 기록: 예외·오류 결과는 실패, 그 외는 성공(연동 카드의 "최근 실행")
         // 사용자 중단과 사용량 한도는 장애가 아니므로 실패로 세지 않는다
         long t0 = System.currentTimeMillis();
         try {
-            Result r = doRun(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, shotsDir, stage, previewUp, ov);
+            Result r = doRun(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, stage, ov);
             if (killed.remove(sessionId)) {
                 return r;
             }
@@ -236,7 +169,7 @@ public class ClaudeCliAgent implements CodingAgent {
     }
 
     private Result doRun(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
-                         String systemAppend, String prompt, Listener listener, Path shotsDir, Stage stage, boolean previewUp,
+                         String systemAppend, String prompt, Listener listener, Stage stage,
                          Overrides ov) {
         // 모델/노력은 관리 페이지(DB) 값 우선 — 기획(분석·재설계) / 개발(수정·재수정) / 테스트(독립 리뷰어) 따로
         SettingService.AgentModels m = settings.getAgentModels();
@@ -248,7 +181,7 @@ public class ClaudeCliAgent implements CodingAgent {
         if (ov != null && ov.effort() != null && !ov.effort().isBlank()) {
             effort = ov.effort().strip();
         }
-        Result r = runOnce(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, shotsDir, stage, previewUp, model, effort, ov);
+        Result r = runOnce(cwd, sessionId, resume, allowedTools, systemAppend, prompt, listener, stage, model, effort, ov);
         if (r.error() && isModelUnavailable(r.text()) && !FALLBACK_MODEL.equalsIgnoreCase(model)) {
             String msg = "모델 '" + model + "' 사용 불가(권한 없음 또는 미지원) → '" + FALLBACK_MODEL + "' 로 대체 실행";
             log.warn("claude(agent) {}: {}", msg, abbreviate(r.text(), 200));
@@ -256,16 +189,16 @@ public class ClaudeCliAgent implements CodingAgent {
                 listener.onActivity(IssueEvent.ERROR, "⚠ " + msg, r.text());
             }
             // 같은 --session-id 재사용은 "already in use" 로 거부되지만 --resume 은 된다(실측). 거부된 호출도 세션 파일은 만든다.
-            r = runOnce(cwd, sessionId, true, allowedTools, systemAppend, prompt, listener, shotsDir, stage, previewUp, FALLBACK_MODEL, effort, ov);
+            r = runOnce(cwd, sessionId, true, allowedTools, systemAppend, prompt, listener, stage, FALLBACK_MODEL, effort, ov);
         }
         return r;
     }
 
     private Result runOnce(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
-                           String systemAppend, String prompt, Listener listener, Path shotsDir, Stage stage, boolean previewUp,
+                           String systemAppend, String prompt, Listener listener, Stage stage,
                            String model, String effort, Overrides ov) {
         boolean fixStage = stage == Stage.FIX;
-        // 플랫폼 관리 세션(자기 저장소 유지보수): 대상 프로젝트용 프리뷰·사용자 정의 MCP 안내를 싣지 않고, 푸시는 화면 버튼의 몫이라 막는다
+        // 플랫폼 관리 세션(자기 저장소 유지보수): 대상 프로젝트용 사용자 정의 MCP 안내를 싣지 않고, 푸시는 화면 버튼의 몫이라 막는다
         boolean maintain = ov != null && MAINTAIN_SOURCE.equals(ov.source());
         List<String> cmd = new ArrayList<>();
         cmd.add(claude.command());              // claude.exe 직접 실행 (한글 인자 안전)
@@ -328,21 +261,12 @@ public class ClaudeCliAgent implements CodingAgent {
             cmd.add(String.valueOf(maxTurns));
         }
         boolean withMcp = mcp.agentEnabled() && !maintain;
-        boolean withPw = (fixStage || (stage == Stage.VERIFY && previewUp)) && shotsDir != null && mcp.playwrightEnabled();
         List<String> tools = new ArrayList<>(allowedTools == null ? List.of() : allowedTools);
-        if (!maintain) {
-            tools.addAll(previewTools(stage));        // preview / jscheck / jspcheck 스크립트
-        }
-        Path mcpConfig = withPw ? mcp.configFor(shotsDir) : (withMcp ? mcp.configPath() : null);
+        Path mcpConfig = withMcp ? mcp.configPath() : null;
         if (mcpConfig != null) {
-            cmd.add("--mcp-config");                  // 사용자 정의 MCP 서버 + (수정 단계) playwright
+            cmd.add("--mcp-config");                  // 사용자 정의 MCP 서버
             cmd.add(mcpConfig.toString());
-            if (withMcp) {
-                tools.addAll(mcp.tools());
-            }
-            if (withPw) {
-                tools.addAll(mcp.playwrightTools());
-            }
+            tools.addAll(mcp.tools());
         }
         if (!tools.isEmpty()) {
             cmd.add("--allowedTools");
@@ -355,16 +279,9 @@ public class ClaudeCliAgent implements CodingAgent {
         if (!skillNote.isEmpty()) {
             sys = (sys.isEmpty() ? "" : sys + "\n\n") + skillNote;
         }
-        if (fixStage && !maintain) {
-            String ph = previewHint(shotsDir);
-            if (!ph.isEmpty()) {
-                sys = (sys.isEmpty() ? "" : sys + "\n\n") + ph;
-            }
-        } else if (stage == Stage.VERIFY) {
-            String vh = verifyHint(shotsDir, previewUp);
-            if (!vh.isEmpty()) {
-                sys = (sys.isEmpty() ? "" : sys + "\n\n") + vh;
-            }
+        String stageNote = stageNote(stage);
+        if (!stageNote.isEmpty()) {
+            sys = (sys.isEmpty() ? "" : sys + "\n\n") + stageNote;
         }
         if (withMcp) {
             sys = (sys.isEmpty() ? "" : sys + "\n\n") + mcp.usageHint()
@@ -386,9 +303,6 @@ public class ClaudeCliAgent implements CodingAgent {
                 pb.environment().putAll(mcp.env());   // 사용자 정의 서버의 비밀값은 env 로만(설정 파일엔 ${ENV} 자리표시자)
             }
             Map<String, String> env = pb.environment();
-            Path scripts = Path.of("scripts", "bin").toAbsolutePath();   // preview / jscheck / jspcheck
-            // 주의: Claude 의 Bash 도구는 이 PATH 를 쓰지 않는다 → 실제 해결은 installShims()(~/bin). 다른 도구/프로세스용으로 남겨 둔다.
-            env.put("PATH", scripts + java.io.File.pathSeparator + env.getOrDefault("PATH", env.getOrDefault("Path", "")));
             env.put("DEV_AGENT_PORT", String.valueOf(adminPort));
             // 모델이 돌리는 gradlew 가 데몬을 남기면 그 데몬이 supervisor 의 bot.lock 핸들을 상속해 재시작을 막는다(11-12 두 번 실측) → 데몬 금지
             env.put("GRADLE_OPTS", (env.getOrDefault("GRADLE_OPTS", "") + " -Dorg.gradle.daemon=false").strip());
@@ -396,23 +310,14 @@ public class ClaudeCliAgent implements CodingAgent {
             if (!teams) {
                 env.put("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "0");
             }
-            // Bash 도구 기본 타임아웃(2분)·상한(10분)으로는 preview deploy(빌드 12분+기동 9분, 공유 대기 포함 최대 45분)가 끊긴다
+            // Bash 도구 기본 타임아웃(2분)·상한(10분)으로는 긴 빌드·테스트(gradlew build 등)가 끊긴다
             env.put("BASH_DEFAULT_TIMEOUT_MS", "600000");
             env.put("BASH_MAX_TIMEOUT_MS", String.valueOf(Math.max(600_000L, Math.min(3_000_000L, timeoutMs - 60_000L))));
-            installShims();                           // 설정이 바뀌었을 수 있으니 매 실행 전 멱등 갱신
             if (maintain) {
-                // 플랫폼 자신을 빌드한다: 프리뷰 JDK(21)가 아니라 지금 이 JVM 의 JDK(javac 가 있으면)를 쓴다. JRE 로 떴으면 물려받은 JAVA_HOME 그대로
+                // 플랫폼 자신을 빌드한다: 지금 이 JVM 의 JDK(javac 가 있으면)를 쓴다. JRE 로 떴으면 물려받은 JAVA_HOME 그대로
                 Path own = Path.of(System.getProperty("java.home"));
                 if (java.nio.file.Files.exists(own.resolve("bin").resolve("javac.exe")) || java.nio.file.Files.exists(own.resolve("bin").resolve("javac"))) {
                     env.put("JAVA_HOME", own.toString());
-                }
-            } else if (preview != null && preview.enabled()) {
-                env.put("JAVA_HOME", nz(preview.javaHome()));   // 대상 저장소(Java 21) 빌드용. 봇 자신은 JDK 17 로 돌지만 자식은 프리뷰 JDK
-                env.put("PREVIEW_JAVA_HOME", nz(preview.javaHome()));
-                env.put("PREVIEW_CATALINA_HOME", nz(preview.catalinaHome()));
-                env.put("PREVIEW_URL", preview.url());
-                if (shotsDir != null) {
-                    env.put("PREVIEW_SHOTS_DIR", shotsDir.toAbsolutePath().toString());
                 }
             }
             process = pb.start();
@@ -634,6 +539,14 @@ public class ClaudeCliAgent implements CodingAgent {
     }
 
     /** 도구 호출 한 줄 요약: "Read src/main/java/.../Foo.java", "Bash gradlew test" 등. */
+    /** 단계별 시스템 프롬프트 안내. 검증(VERIFY) 리뷰어는 acceptEdits 로 도니 수정 금지를 프롬프트로 못박는다. */
+    static String stageNote(Stage stage) {
+        if (stage == Stage.VERIFY) {
+            return "당신은 수정 세션과 분리된 독립 리뷰어입니다. 파일을 수정하지 말고 읽기·실행·확인만 하세요.";
+        }
+        return "";
+    }
+
     static String describeTool(String name, JsonNode input, Path cwd) {
         String arg;
         switch (name) {
@@ -714,31 +627,5 @@ public class ClaudeCliAgent implements CodingAgent {
 
     private static String abbreviate(String s, int n) {
         return s == null ? "" : (s.length() > n ? s.substring(0, n) + "…" : s);
-    }
-
-    // ---------------------------------------------------------------- ~/bin 심(shim)
-
-    /**
-     * Claude Code 의 Bash 도구는 봇이 자식 프로세스 환경에 넣어 준 PATH 를 보지 않는다(세션 시작 때 로그인 셸로 찍은 스냅샷의 PATH 를 쓴다).
-     * 그래서 scripts/bin 을 PATH 에 붙여도 `jspcheck: command not found` 가 난다(2026-11-11 실측). Git Bash 의 로그인 PATH 맨 앞에는
-     * 항상 `~/bin`(%USERPROFILE%\bin)이 있으므로 거기에 실행 심을 써 둔다: preview / jscheck / jspcheck → 저장소 스크립트,
-     * mvn → 프리뷰용 Maven(JDK 21). 필요한 환경변수는 심 안에 절대값으로 박아 Bash 도구 환경과 무관하게 만든다. 멱등(내용 같으면 안 씀).
-     * Linux 서버에서는 프리뷰가 꺼져 있으면 아무것도 쓰지 않고, 사용자의 기존 파일은 덮어쓰지 않는다({@link AgentShims}).
-     */
-    @jakarta.annotation.PostConstruct
-    void installShims() {
-        try {
-            Path bin = Path.of(System.getProperty("user.home")).resolve("bin");
-            List<String> written = AgentShims.install(bin, Path.of("scripts", "bin").toAbsolutePath(), adminPort, preview, Os.isWindows());
-            if (!written.isEmpty()) {
-                log.info("에이전트 실행 심 준비: {} {}", bin, written);
-            }
-        } catch (IOException e) {
-            log.warn("~/bin 심 생성 실패(에이전트가 jspcheck/preview 를 못 찾을 수 있음): {}", e.toString());
-        }
-    }
-
-    private static String nz(String s) {
-        return s == null ? "" : s;
     }
 }

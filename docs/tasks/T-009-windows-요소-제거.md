@@ -3,7 +3,7 @@
 ```
 id: T-009
 담당: backend-dev (backend-dev)
-상태: 대기
+상태: 완료
 depends: [T-018, T-019]
 병렬: 불가
 충돌: [T-021]  # agent/claude/ClaudeCliAgent.java, gitlab/VerifyService.java — T-021은 이 작업 뒤
@@ -86,7 +86,10 @@ bash deploy/smoke/server-smoke.sh
 ```
 
 ## 검증 증거
-개발 에이전트가 작성.
+- 일시: 2026-11-25
+- 명령: `./gradlew test bootJar`, 검색·파일 존재 확인(검증 명령 2~4행), 04 §8 형태로 8778 기동 후 status·doctor 확인 및 종료
+- 결과: 테스트 125건 실패 0, 검색 0건, 삭제 확인, status 200(runMode=direct), doctor에 preview 없음, `-Duser.home` 아래 bin 미생성, 종료 뒤 8778·54329 LISTEN 0. `server-smoke.sh` 미실행 — `DEV_AGENT_SSH` 없음
+- 변경 설명서: [results/T-009-windows-요소-제거.md](./results/T-009-windows-요소-제거.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
@@ -96,3 +99,6 @@ bash deploy/smoke/server-smoke.sh
 | 2026-11-25 | 대기 | PM 수정(T-007 분할): `depends`를 T-018로(T-007 → T-018 → T-009). T-008 qa 제안 반영 — Doctor의 「로컬 프리뷰」 항목 제거를 명시(qa 확인 항목), playwright MCP 연동·예약 이름 제거를 범위에 추가. 단계 수준 그대로 — 착수 전 PM 재확인 |
 | 2026-11-25 | 대기 | PM 수정(T-018 검수): T-018 설명서 제안·리뷰 LOW4를 배정 — `start-app.sh`의 `CLAUDE_WARM`·`CLAUDE_WARM_PREWARM` 정리(같은 줄의 `PREVIEW_ENABLED`와 함께), `admin.js` `PLAT_KEYS`의 warm 표시 키 3개 삭제를 "이 작업에 한해 허용"에 추가. 04 §8 표는 T-009 검수 때 PM |
 | 2026-11-25 | 대기 | PM 재확인(착수 가능): T-007·T-018 뒤 코드 대조로 관련 코드 경로를 파일·메서드 단위로 확정(`AgentShims`, `RunMode`, `CodingAgent` 인자, `VerifyService` jspcheck·프리뷰 Maven, `AgentMonitorController` 스크린샷 API, `MaintainPrompts` 문구, `gradle/dist/`, 테스트 4개). OI-20 결정 ① → 심 전부 제거(범위 4). `RUN_MODE` 라벨 맞추기를 허용 범위로 옮김(보고 사항이던 것). `depends`에 T-019(같은 core 파일), 충돌 T-021. 검증 명령 검색 패턴 확대 |
+| 2026-11-25 | 검수 요청 | backend-dev 작업 + java-reviewer 1회(Block, HIGH 1 — VERIFY 리뷰어 수정 금지 문장 소실) 뒤 재작업(`ClaudeCliAgent.stageNote` + 단위 테스트 2건) |
+| 2026-11-25 | 검수 요청 | **PM 검수 통과 — qa 확인 대기**. 지시서 변경은 상태·검증 증거뿐(HEAD 대조). 재실행: `gradlew test bootJar` 성공(127건 실패 0), 검색 rc=1, 삭제 확인, `start-app.sh`·`env.server.example` 검색 rc=1. `server-smoke.sh`는 `DEV_AGENT_SSH` 없어 미실행(완료 조건이 허용한 형태). 기동 확인(status 200·`direct`·doctor에 preview 없음·`bin/` 미생성)은 설명서 기록으로 인정 — qa 확인에서 다시 본다. `파일 지도`에 `.gitignore`가 빠졌으나 `## 재작업 이력`(리뷰 LOW 반영)에 적혀 있어 인정. `jspcheck` → SKIP 보고 근거 확인. 04 §8·§9 심·warm 문구는 PM이 고침. 제안·보고는 OI-29(검증 빌드 JDK)·OI-30(리뷰어 수정 금지를 도구 수준으로)·OI-31(`server-smoke.sh`)로 등록 |
+| 2026-11-25 | 완료 | **qa 확인 QA PASS** — [qa 보고서](./results/T-009-windows-요소-제거-qa.md) `@core` 7/7(`report.json` expected 7·unexpected 0과 일치, `## 검증` 마지막 줄 `QA PASS`). TC-013 T-009 시점 단언(설치 점검 「로컬 프리뷰」 행 없음)이 `e2e/core/removed-features.spec.ts`에 더해짐(`e2e/` 변경은 그 파일 7줄 + 지시서가 허용한 `start-app.sh`). 격리 홈 `bin/` 미생성, 실행 방식 「직접 실행」 화면 확인. qa 제안: `03-platform-doctor.png`의 `~\…\e2e\test-results\qa-home` 표시는 홈이 `~`로 가려져 계정명이 없고 나머지는 공개 저장소의 상대 경로라 **그대로 올려도 된다**고 판단(OI-28 규칙 `~`/`<repo>`/`<tmp>`에 맞음). `T-009-qa/app.log`에는 절대 경로·계정명이 있으나 `.gitignore`로 추적 제외 확인. 07 FR-206·TC-013 갱신 |

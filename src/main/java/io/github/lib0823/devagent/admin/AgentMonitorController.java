@@ -5,8 +5,6 @@ import io.github.lib0823.devagent.gitlab.IssueEvent;
 import io.github.lib0823.devagent.gitlab.IssueEventBus;
 import io.github.lib0823.devagent.gitlab.IssueSession;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -85,38 +83,6 @@ public class AgentMonitorController {
                                    @RequestParam(defaultValue = "0") long afterId,
                                    @RequestParam(defaultValue = "1000") int limit) {
         return agent.events(id, afterId, limit);
-    }
-
-    /** 세션의 프리뷰 스크린샷 목록 + (이 세션 것이면) 프리뷰 URL. */
-    @GetMapping("/api/agent/sessions/{id}/shots")
-    public Map<String, Object> shots(@PathVariable long id) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        List<Map<String, Object>> list = new java.util.ArrayList<>();
-        for (java.nio.file.Path p : agent.shots(id)) {
-            Map<String, Object> f = new LinkedHashMap<>();
-            f.put("name", p.getFileName().toString());
-            f.put("size", p.toFile().length());
-            f.put("modifiedAt", p.toFile().lastModified());
-            f.put("url", "/api/agent/sessions/" + id + "/shots/" + p.getFileName());
-            list.add(f);
-        }
-        m.put("shots", list);
-        m.put("previewUrl", agent.previewUrlFor(id));
-        return m;
-    }
-
-    @GetMapping("/api/agent/sessions/{id}/shots/{name}")
-    public ResponseEntity<FileSystemResource> shot(@PathVariable long id, @PathVariable String name) {
-        if (name.contains("..") || name.contains("/") || name.contains("\\")) {
-            return ResponseEntity.badRequest().build();
-        }
-        for (java.nio.file.Path p : agent.shots(id)) {
-            if (p.getFileName().toString().equals(name)) {
-                MediaType type = name.toLowerCase().endsWith(".png") ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG;
-                return ResponseEntity.ok().contentType(type).body(new FileSystemResource(p));
-            }
-        }
-        return ResponseEntity.notFound().build();
     }
 
     /** 이벤트 1건 전체(본문 포함) — 목록은 본문 없이 내려가고 클릭 시 조회. */
