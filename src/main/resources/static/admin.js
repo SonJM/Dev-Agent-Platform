@@ -205,16 +205,70 @@ async function sysRestart() {
     if (Date.now() - t0 > 120000) { clearInterval(wait); toast('다시 연결되지 않습니다. 로그를 확인하세요.', 'err'); }
   }, 1500);
 }
+// 구성 묶음 가져오기 확인 창 — 서버에 보내기 전에 파일 내용(특히 stdio MCP 의 실행 명령)을 보여 준다.
+// 판별·값 읽기는 서버 BundleController.importBundle/McpConfigService.validate 와 같은 기준(type 을 strip+소문자로 비교,
+// 문자열이 아닌 command/args 는 asText 처럼 처리)이라 화면에 보인 목록과 저장되는 목록이 같다.
+const BUNDLE_FORMAT = 'dev-agent-bundle';        // 서버 BundleController.FORMAT 과 같은 값
+const BUNDLE_MAX_BYTES = 2 * 1024 * 1024;        // 이보다 큰 파일은 읽지 않고 거부
+const BUNDLE_MAX_SHOWN = 50;                     // 확인 창에 그리는 stdio 항목 상한(경고·확인은 전체 기준)
+const bundleItems = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+const bundleText = v => v == null ? '' : (typeof v === 'object' ? '' : String(v));
+// Java String.strip() 이 지우는 공백(Character.isWhitespace: U+001C~U+001F 포함, NBSP·U+2007·U+202F 제외)과 같은 집합.
+const BUNDLE_WS = [[9, 13], [32, 32], [0x1c, 0x1f], [0x1680, 0x1680], [0x2000, 0x2006], [0x2008, 0x200a], [0x2028, 0x2029], [0x205f, 0x205f], [0x3000, 0x3000]];
+const bundleIsWs = ch => { const c = ch.charCodeAt(0); return BUNDLE_WS.some(([a, b]) => c >= a && c <= b); };
+const javaStrip = s => { let a = 0, b = s.length; while (a < b && bundleIsWs(s[a])) a++; while (b > a && bundleIsWs(s[b - 1])) b--; return s.slice(a, b); };
+// 닫히는 쪽 판별: 정규화한 type 이 정확히 http·sse 일 때만 "원격"으로 보고, 나머지(stdio·누락·배열·이상한 값)는 전부 실행 명령 경고 대상.
+const bundleIsRemote = t => { const k = javaStrip(bundleText(t)).toLowerCase(); return k === 'http' || k === 'sse'; };
+// 서버와 같은 규칙으로 줄 정리(command strip, args 는 줄 분리·빈 줄 제거·줄마다 strip).
+const bundleArgLines = s => s.split(/\r?\n/).map(javaStrip).filter(a => a !== '');
+// 제어·서식 문자(개행 제외)는 \uXXXX 로 바꿔 눈에 보이게 한다.
+const bundleVisible = s => s.replace(/[\p{Cc}\p{Cf}]/gu, c => c === '\n' ? c : String.fromCharCode(92) + 'u' + c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'));
+function bundleStdio(json) {
+  return bundleItems(json && json.mcpServers).filter(m => m && !bundleIsRemote(m.type))
+    .map(m => ({ name: bundleText(m.name), command: javaStrip(bundleText(m.command)), args: bundleArgLines(bundleText(m.args)) }));
+}
+let bundlePending = null;
+function bundleConfirmOpen(json) {
+  const stdio = bundleStdio(json), n = k => bundleItems(json[k]).length;
+  const parts = [`스킬 ${n('skills')}`, `MCP 서버 ${n('mcpServers')}`, `루틴 ${n('routines')}`];
+  if (json.settings && typeof json.settings === 'object' && !Array.isArray(json.settings)) parts.push('에이전트 설정');
+  $('bcCount').textContent = parts.join(' · ');
+  const box = $('bcStdio'); box.textContent = '';
+  stdio.slice(0, BUNDLE_MAX_SHOWN).forEach(s => {
+    const it = document.createElement('div'); it.className = 'bc-it';
+    const nm = document.createElement('div'); nm.className = 'bc-nm'; nm.textContent = bundleVisible(s.name) || '(이름 없음)';
+    const cmd = document.createElement('pre'); cmd.className = 'bc-cmd';
+    cmd.textContent = bundleVisible([s.command, ...s.args].join('\n'));
+    it.append(nm, cmd); box.append(it);
+  });
+  if (stdio.length > BUNDLE_MAX_SHOWN) {
+    const more = document.createElement('div'); more.className = 'bc-nm'; more.textContent = `외 ${stdio.length - BUNDLE_MAX_SHOWN}개 (모두 실행 명령으로 등록됩니다)`; box.append(more);
+  }
+  $('bcWarn').hidden = !stdio.length; box.hidden = !stdio.length; $('bcAckRow').hidden = !stdio.length;
+  $('bcAck').checked = false; $('bcOk').disabled = stdio.length > 0;
+  bundlePending = json;
+  $('bundleDlg').showModal();
+}
+function bundleCancel() { bundlePending = null; $('bundleDlg').close(); }
+async function bundleCommit() {
+  const json = bundlePending; if (!json || $('bcOk').disabled) return;
+  bundlePending = null; $('bundleDlg').close();
+  let r;
+  try {
+    const res = await fetch('/api/bundle/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(json) });
+    try { r = await res.json(); } catch (e) { toast(`서버 응답을 읽지 못했습니다 (HTTP ${res.status})`, 'err'); return; }
+  } catch (e) { toast('가져오기 실패', 'err'); return; }
+  toast(r.result + ((r.errors || []).length ? ' — ' + r.errors[0] : ''), r.ok ? 'ok' : 'err');
+  if (typeof loadSkills === 'function' && $('skillList')) { loadSkills(); loadMcpCustom(); loadModels(); loadProjects(); }
+}
 async function bundleImport(input) {
   const f = input.files && input.files[0]; input.value = '';
   if (!f) return;
+  if (f.size > BUNDLE_MAX_BYTES) { toast(`파일이 너무 큽니다 (최대 ${BUNDLE_MAX_BYTES / 1024 / 1024}MB)`, 'err'); return; }
   let json; try { json = JSON.parse(await f.text()); } catch (e) { toast('JSON 파일을 읽지 못했습니다', 'err'); return; }
-  const n = k => (json[k] || []).length;
-  if (!confirm(`구성 묶음을 가져올까요?\n스킬 ${n('skills')} · MCP 서버 ${n('mcpServers')} · 루틴 ${n('routines')}${json.settings ? ' · 에이전트 설정' : ''}\n같은 이름은 덮어씁니다.`)) return;
-  let r; try { r = await (await fetch('/api/bundle/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(json) })).json(); }
-  catch (e) { toast('가져오기 실패', 'err'); return; }
-  toast(r.result + ((r.errors || []).length ? ' — ' + r.errors[0] : ''), r.ok ? 'ok' : 'err');
-  if (typeof loadSkills === 'function' && $('skillList')) { loadSkills(); loadMcpCustom(); loadModels(); loadProjects(); }
+  if (!json || typeof json !== 'object' || Array.isArray(json)) { toast('구성 묶음 파일이 아닙니다', 'err'); return; }
+  if (json.format !== BUNDLE_FORMAT) { toast(`구성 묶음 파일이 아닙니다 (format 이 ${BUNDLE_FORMAT} 여야 합니다)`, 'err'); return; }
+  bundleConfirmOpen(json);
 }
 
 // ---------------------------------------------------------------- issue agent

@@ -109,6 +109,18 @@
 </div>
 <div class="toasts" id="toasts"></div>
 
+<dialog class="bundle-confirm" id="bundleDlg" aria-labelledby="bcTitle" oncancel="bundlePending=null">
+  <div class="bc-head"><h3 id="bcTitle">구성 묶음을 가져올까요?</h3><div class="hint" id="bcCount"></div></div>
+  <div class="bc-body">
+    <div class="callout warn" id="bcWarn" hidden><span>이 명령은 다음 에이전트 실행 때 이 서버 계정 권한으로 실행됩니다. 직접 만들었거나 믿을 수 있는 묶음일 때만 가져오세요.</span></div>
+    <div class="bc-list" id="bcStdio" hidden></div>
+    <div class="hint">같은 이름은 덮어쓰고 지우지는 않습니다.</div>
+  </div>
+  <div class="bc-foot">
+    <label class="bc-ack" id="bcAckRow" hidden><input type="checkbox" id="bcAck" onchange="$('bcOk').disabled=!this.checked"> 위 명령을 확인했고 실행을 허용합니다</label>
+    <div class="bc-btns"><button class="btn" onclick="bundleCancel()">취소</button><button class="btn primary" id="bcOk" onclick="bundleCommit()">가져오기</button></div>
+  </div>
+</dialog>
 <script src="/ui.js"></script>
 <script src="/admin.js"></script>
 <script>

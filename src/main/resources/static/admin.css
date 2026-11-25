@@ -82,3 +82,22 @@
     .pgrid > .col:nth-child(3) { grid-column: 1 / -1; flex-direction: row; align-items: flex-start; }
     .pgrid > .col:nth-child(3) > .card { flex: 1; }
   }
+
+/* 구성 묶음 가져오기 확인 창(platform.html #bundleDlg, T-025) */
+dialog.bundle-confirm { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border-radius: 16px; border: 1px solid var(--line2); background: var(--surface); color: var(--text); overflow: hidden; box-shadow: 0 24px 60px -16px rgba(0,0,0,.6); }
+dialog.bundle-confirm[open] { display: flex; flex-direction: column; }
+dialog.bundle-confirm::backdrop { background: rgba(0,0,0,.5); }
+dialog.bundle-confirm [hidden] { display: none !important; }
+.bundle-confirm .bc-head { padding: 18px 20px 4px; }
+.bundle-confirm .bc-head h3 { margin: 0 0 4px; font-size: 16px; }
+.bundle-confirm .bc-body { padding: 10px 20px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.bundle-confirm .bc-list { display: flex; flex-direction: column; gap: 8px; }
+.bundle-confirm .bc-it { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; background: var(--surface2); min-width: 0; }
+.bundle-confirm .bc-nm { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.bundle-confirm .bc-cmd { margin: 6px 0 0; font-family: var(--mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; }
+.bundle-confirm .bc-foot { padding: 12px 20px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.bundle-confirm .bc-ack { display: flex; align-items: center; gap: 10px; font-size: 13px; min-height: 44px; cursor: pointer; }
+.bundle-confirm .bc-ack input { width: 20px; height: 20px; flex: none; }
+.bundle-confirm .bc-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.bundle-confirm .bc-btns .btn { min-height: 44px; }
+.bundle-confirm .bc-btns .btn:disabled { opacity: .45; cursor: not-allowed; }
