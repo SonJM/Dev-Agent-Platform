@@ -1,8 +1,8 @@
 # Dev Agent — 로컬 에이전트 운용 플랫폼
 
-로컬 PC 에서 도는 에이전트 운용 플랫폼입니다. 라벨이 붙은 GitLab 이슈를 **분석 → 설계 확인 → 수정 → 검증 → 리뷰 확인 → 브랜치 푸시·MR** 까지 대화형으로 처리하고, 소스를 훑어 문서로 답하는 **질의**, 예약 실행(**루틴**), 운영 MCP 조회를 한 화면에서 다룹니다. 메신저를 연결하면(`MessengerPort` 어댑터) 대화방 **정기 요약**, **멘션 초안/자동응답**, `@AI` 명령도 씁니다. LLM 호출은 전부 **Claude Code CLI(headless)** 입니다(API 키 없이 구독 로그인).
+로컬 PC 에서 도는 에이전트 운용 플랫폼입니다. 라벨이 붙은 GitLab 이슈를 **분석 → 설계 확인 → 수정 → 검증 → 리뷰 확인 → 브랜치 푸시·MR** 까지 대화형으로 처리하고, 소스를 훑어 문서로 답하는 **질의**, 예약 실행(**루틴**), 운영 MCP 조회를 한 화면에서 다룹니다. 메신저를 연결하면(`MessengerPort` 어댑터) 자기 대화로 `이슈 …`·`질문 …` 명령을 보내고 알림·확인 답을 주고받을 수 있습니다. LLM 호출은 전부 **Claude Code CLI(headless)** 입니다(API 키 없이 구독 로그인).
 
-> 모든 화면은 localhost 전용입니다. 메신저를 붙였을 때 그룹방 자동 전송은 화이트리스트로만, 이슈 에이전트의 확인은 자기방/로컬 대시보드에서만 받습니다.
+> 모든 화면은 localhost 전용입니다. 메신저는 **사용자 자신의 대화 하나**(받기·보내기)만 다루며, 이슈 에이전트의 확인은 자기 대화/로컬 대시보드에서만 받습니다.
 
 - **Stack**: Java 17 · Spring Boot 3.3.5 · MyBatis · PostgreSQL 16(내장 또는 외부) · Claude Code CLI · Playwright MCP
 - **배포**: 실행 파일 패키지(`Dev Agent.exe` / `.app`, Java·DB 내장) 또는 소스 빌드 — [설치 & 실행](#설치--실행)
@@ -14,13 +14,11 @@
 
 | 트리거 | 누가 | 동작 |
 |---|---|---|
-| **정기 요약** | 스케줄(평일 09·13·18시) | 방별 신규 메시지를 `결정사항 / 나에게 요청된 일 / 미해결 이슈` 로 요약해 **자기방**으로 |
-| **이름 멘션** | 남이 나를 부름 | 화이트리스트 방이면 그 방에 `[자동응답]`, 아니면 자기방에 `[멘션 초안]` |
-| **`@AI` 명령** | 내가 봇을 호출 | 질문·요약·사내 문서(RAG) 검색·`@AI 운영 …`(운영 MCP 조회)·`@AI 이슈 …`(에이전트 명령) |
-| **GitLab 이슈 에이전트** | 라벨 `ai-fix` 이슈(2분 스캔) / `@AI 이슈 group/repo#12` | 분석 → **설계 확인** → 수정 → **검증(봇 검사 + 독립 리뷰, 실패 시 자동 재수정)** → **리뷰 확인** → 컨벤션 브랜치 푸시 → 이슈 코멘트·Draft MR |
-| **리서치** | 대시보드 「리서치」 탭 / `@AI 질문 batch: …` | 대상 프로젝트 소스를 **읽기 전용**으로 훑어 마크다운 문서(요약·표·근거·미확인)로 답. 후속 질문은 같은 세션 재사용. 코드 수정·빌드 없음 |
+| **메신저 명령** | 내가 자기 대화로 보냄 | `이슈 …`(에이전트 명령) · `질문 …`(리서치 접수) · 확인 대기 중이면 진행·중단·피드백 답 |
+| **GitLab 이슈 에이전트** | 라벨 `ai-fix` 이슈(2분 스캔) / `이슈 group/repo#12` | 분석 → **설계 확인** → 수정 → **검증(봇 검사 + 독립 리뷰, 실패 시 자동 재수정)** → **리뷰 확인** → 컨벤션 브랜치 푸시 → 이슈 코멘트·Draft MR |
+| **리서치** | 대시보드 「리서치」 탭 / `질문 batch: …` | 대상 프로젝트 소스를 **읽기 전용**으로 훑어 마크다운 문서(요약·표·근거·미확인)로 답. 후속 질문은 같은 세션 재사용. 코드 수정·빌드 없음 |
 
-**안전 설계**: 그룹 전송 기본 차단(`bot.safety.block-group-send`), 멘션 AUTO 는 화이트리스트 방에서만(민감 요청은 초안으로 다운그레이드), 봇 생성물 접두어(`[방 요약]`/`[자동응답]`/`[멘션 초안]`/`[AI]`/`[이슈]`/`[질의]`/`[봇]`)는 수집·답변에서 제외해 루프를 막습니다.
+**안전 설계**: 메신저 포트에는 방 목록 조회·다른 방 읽기·그룹 전송이 없습니다(자기 대화 받기·보내기만). 봇 생성물 접두어(`[이슈]`/`[질의]`/`[봇]`)가 붙은 글은 어댑터가 자기가 보낸 글로 걸러야 합니다.
 
 ---
 
@@ -30,11 +28,11 @@
 
 | 탭 | 주소 | 내용 |
 |---|---|---|
-| 홈 (Alt+1) | `/home.html` | 전체 현황: 진행 중·확인 대기 이슈, 리서치, 연동 상태, Claude 사용량, 메신저 요약, 주의 알림 |
+| 홈 (Alt+1) | `/home.html` | 전체 현황: 진행 중·확인 대기 이슈, 리서치, 연동 상태, Claude 사용량, 주의 알림 |
 | 에이전트 (Alt+2) | `/agent.html` | 이슈 세션 대시보드(스테퍼·활동 로그·설계안·검증·diff) |
 | 리서치 (Alt+3) | `/research.html` | 소스 조사 리서치(프로젝트·브랜치 선택, 2차 검증, 이슈 초안), **루틴(예약 리서치)** |
-| 메신저 (Alt+4) | `/messenger.html` | 방별 수집·직접응답 설정, 최근 요약·멘션 처리 |
-| 플랫폼 (Alt+5) | `/platform.html` | **시스템(설치 점검·재시작·구성 묶음)**, 연동 상태·테스트, 에이전트 모델·대상 프로젝트, 스킬, MCP 서버, 사내 문서(RAG) |
+| 메신저 (Alt+4) | `/messenger.html` | 메신저 알림 유형별 켜기/끄기 |
+| 플랫폼 (Alt+5) | `/platform.html` | **시스템(설치 점검·재시작·구성 묶음)**, 연동 상태·테스트, 에이전트 모델·대상 프로젝트, 스킬, MCP 서버 |
 
 탭을 옮길 때 화면을 새로 읽지 않습니다 — 한 번 연 탭은 뒤에 그대로 두고 보이기만 바꾸므로 선택한 세션·스레드와 실시간 로그가 유지되고, 가려진 탭은 주기 조회를 쉽니다. 에이전트·리서치 탭은 왼쪽 목록과 본문 사이를 끌어 폭을 조절할 수 있고(더블클릭 = 기본 폭), 선택 상자는 항목이 많으면 검색칸이 붙습니다.
 
@@ -52,11 +50,11 @@
 
 ![홈](docs/images/home.png)
 
-**플랫폼** — 메신저·LLM·지식 연동의 상태와 연결 테스트, 에이전트 모델(기획/개발/테스트)·서브/팀 에이전트·대상 프로젝트, 스킬, MCP 서버, 사내 문서 적재를 관리합니다.
+**플랫폼** — 메신저·LLM 연동의 상태와 연결 테스트, 에이전트 모델(기획/개발/테스트)·서브/팀 에이전트·대상 프로젝트, 스킬, MCP 서버를 관리합니다.
 
 ![플랫폼](docs/images/platform.png)
 
-**메신저** — 방별 수집/직접응답 토글과 최근 요약·멘션 처리 내역.
+**메신저** — 플랫폼 알림(이슈 · 리서치 · 시스템)을 메신저로 보낼지 유형별로 켜고 끕니다.
 
 **에이전트 대시보드 · 활동 로그** — 7단계 스테퍼(분석 → 설계 확인 → 코드 수정 → 검증 → 리뷰 확인 → 푸시·MR → 완료)와 Claude 가 지금 읽고·고치고·실행하는 것을 줄 단위로 흘려보내는 실시간 로그(SSE). 줄을 누르면 프롬프트·전체 출력이 펼쳐집니다.
 
@@ -83,8 +81,8 @@
 ```
 ┌──────────────── 로컬 PC(호스트) ─────────────────────────────┐
 │ Dev Agent (Java, 상시 실행 — 실행 파일 또는 run.cmd 감시 루프) │
-│   ├ MessengerPort ────▶ 메신저(선택)        수집/요약/멘션 폴링 │
-│   ├ claude.exe(warm, stream-json) ─▶ Claude  채팅·요약 (~1.4s) │
+│   ├ MessengerPort ────▶ 메신저(선택)        자기 대화 수신·전송 │
+│   ├ claude.exe(warm, stream-json) ─▶ Claude  채팅 (~1.4s)     │
 │   ├ claude.exe -p (세션별 worktree) ─▶ Claude  이슈 분석/수정/리뷰│
 │   │     └ --mcp-config: opensearch · postgres · k3s(읽기) · playwright│
 │   ├ PreviewService ─▶ tools/tomcat-preview:8790  화면 검증용 WAR │
@@ -94,47 +92,44 @@
 ```
 
 - **LLM 접근**: SDK 대신 **Claude Code CLI 를 headless 로** 호출합니다(구독 로그인 사용). 채팅은 상주 warm 프로세스(`--input-format/--output-format stream-json`, 콜드스타트 1회, 20턴마다 리셋, 실패 시 `claude -p` 폴백), 코딩은 저장소 worktree 에서 `claude -p --session-id/--resume`(stream-json 으로 도구 이벤트 수신). API 키를 쓰려면 포트(`ChatModel`/`CodingAgent`) 구현체만 추가해 갈아 끼웁니다(아래 "포트와 어댑터").
-- **안정성**: `run.cmd` 는 supervisor(크래시 시 5초 후 재기동, 작업 스케줄러가 5분마다 재실행, `bot.lock` 단일 인스턴스). 중지는 반드시 `stop.cmd`/`restart.cmd`. warm 프리웜·서킷브레이커, 운영 알림(시작/오류/문서 적재 실패)은 자기방으로.
+- **안정성**: `run.cmd` 는 supervisor(크래시 시 5초 후 재기동, 작업 스케줄러가 5분마다 재실행, `bot.lock` 단일 인스턴스). 중지는 반드시 `stop.cmd`/`restart.cmd`. warm 프리웜·서킷브레이커, 운영 알림(시작/오류)은 자기방으로.
 
 ### 포트와 어댑터 (메신저 · LLM 교체)
 
-코어(수집·요약·멘션·이슈 에이전트·리서치)는 **포트(인터페이스)** 만 알고, 실제 메신저와 LLM 은 **어댑터(구현체)** 가 맡습니다. 어댑터는 `platform.*` 설정값에 해당하는 빈만 뜨므로, 새 구현체를 추가하고 값만 바꾸면 교체됩니다. 지금 활성화된 구현체와 연결 상태는 플랫폼 탭 "연동" 카드(요약은 홈)에서 봅니다.
+코어(이슈 에이전트·리서치·명령 라우터)는 **포트(인터페이스)** 만 알고, 실제 메신저와 LLM 은 **어댑터(구현체)** 가 맡습니다. 어댑터는 `platform.*` 설정값에 해당하는 빈만 뜨므로, 새 구현체를 추가하고 값만 바꾸면 교체됩니다. 지금 활성화된 구현체와 연결 상태는 플랫폼 탭 "연동" 카드(요약은 홈)에서 봅니다.
 
 | 포트 | 역할 | 현재 어댑터 | 설정 |
 |---|---|---|---|
-| `messenger/MessengerPort` | 방 목록 · 메시지 조회 · 전송 | `messenger/none/NoMessengerAdapter`(메신저 없음 — 기본) | `PLATFORM_MESSENGER=none` |
-| `llm/ChatModel` | 프롬프트 1건 → 답 1건 (요약·멘션·`@AI`) | `llm/claude/ClaudeCliChatModel`(warm 세션) | `PLATFORM_CHAT_MODEL=claude-cli` |
+| `messenger/MessengerPort` | 자기 대화의 새 메시지 받기 · 자기 대화로 보내기 | `messenger/none/NoMessengerAdapter`(메신저 없음 — 기본) | `PLATFORM_MESSENGER=none` |
+| `llm/ChatModel` | 프롬프트 1건 → 답 1건 | `llm/claude/ClaudeCliChatModel`(warm 세션) | `PLATFORM_CHAT_MODEL=claude-cli` |
 | `llm/ToolChatModel` | MCP 도구를 쓰는 one-shot (운영 질의) | `llm/claude/ClaudeCliToolChat` | 〃 |
-| `docs/KnowledgeSource` | 사내 지식 검색(RAG) → 프롬프트 주입 | `docs/DocRetrievalService`(MkDocs 색인 키워드 검색) | `PLATFORM_KNOWLEDGE=mkdocs-keyword` |
 | `agent/CodingAgent` | 작업 디렉터리에서 도구를 쓰며 여러 턴 (이슈 분석·수정·검증, 질의) | `agent/claude/ClaudeCliAgent` | `PLATFORM_CODING_AGENT=claude-cli` |
 
-- **전송 안전 정책은 코어에 있습니다**(`messenger/MessengerService`: 자기방은 항상 허용, 그 외는 화이트리스트, 그룹 차단). 메신저를 바꿔도 정책은 그대로 따라옵니다.
+- **전송은 자기 대화로만 갑니다**(`MessengerPort.sendSelf` — 방을 고르는 인자가 없습니다). 알림 유형별 켜고 끄기는 코어(`messenger/MessengerService`)가 적용합니다.
 - **연동 카드(플랫폼 탭)**: 포트별 구현체 이름·상태(정상/주의/실패)·최근 호출 성공/실패를 보여 주고, 테스트 버튼으로 실제 연결을 확인합니다(메신저: 자기방 전송, 채팅 모델: 짧은 호출 1건, 도구 모델: CLI + MCP 서버 연결, 코딩 에이전트: CLI 실행). API 는 `GET /api/platform`, `POST /api/platform/test?port=messenger|chat|tool|agent`. 구현체 전환과 자격증명은 화면에서 다루지 않고 `.env` 로만 합니다.
 
 ![연동 카드](docs/images/admin-platform.png)
 
 - **상태 보고 규약**: 모든 포트는 `health()`(즉시 응답, 네트워크·LLM 호출 없음)를 구현하고, LLM 포트는 토큰을 쓰지 않는 `selfTest()` 도 구현합니다. 최근 호출 기록은 `platform/CallStats` 로 남깁니다.
-- **벡터 RAG 로 바꿀 때**: `KnowledgeSource` 를 구현한 어댑터(예: `pgvector`)를 추가하고 `PLATFORM_KNOWLEDGE` 만 바꿉니다. 코어(@AI 답변·멘션·이슈 분석)는 그대로입니다. 권장 구성은 ① 문서를 제목 경로 + 300~800자 단위로 잘라 임베딩해 **같은 Postgres 의 pgvector** 에 저장(스케줄 적재), ② 질문 임베딩의 벡터 유사도와 지금의 키워드 점수를 합치는 **하이브리드 검색**, ③ 최고 점수가 임계치 미만이면 주입을 건너뛰는 **게이트** 유지, ④ 임베딩 모델(API 또는 Ollama 같은 로컬 모델)은 어댑터 안에서만 사용. 지금 키워드 방식은 임베딩이 필요 없어 가볍지만 표현이 다르면 못 찾습니다. 자세한 규약은 `KnowledgeSource` 주석.
-- **새 메신저(예: Slack · Discord)**: `MessengerPort` 를 구현한 `messenger/slack/SlackMessengerAdapter` 를 만들고 `@ConditionalOnProperty(prefix = "platform", name = "messenger", havingValue = "slack")` 를 붙인 뒤 `PLATFORM_MESSENGER=slack`. 방·사용자·메시지 id 는 **어댑터가 정하는 문자열**을 그대로 씁니다(Slack 채널 `C0123ABC`, 메시지 `ts`, Discord snowflake 등 — 64자 이하, `:` 제외). 코어는 id 를 같은지만 비교하고 순서는 어댑터가 보장합니다: `latest`·`after` 는 시간순으로 돌려주고, 코어는 받은 마지막 메시지 id 를 다음 `after` 의 기준으로 넘깁니다. 방 종류는 `RoomKind`(SELF=봇 계정 자신과의 방 / SINGLE / GROUP). 최소 구현 표면은 테스트의 `FakePort` 참고.
+- **새 메신저(예: Slack · Discord · Telegram)**: `MessengerPort` 를 구현한 어댑터(예: `messenger/slack/SlackMessengerAdapter`)를 만들고 `@ConditionalOnProperty(prefix = "platform", name = "messenger", havingValue = "slack")` 를 붙인 뒤 `PLATFORM_MESSENGER=slack`. 구현할 메서드는 `provider` · `health` · `selfId` · `connect` · `reset` · `receiveSelf(cursor, timeout)`(자기 대화의 새 글을 시간순으로, 글마다 `cursorAfter` 포함, 차단형 허용) · `sendSelf(text)`(자기 대화로 전송) 입니다. 사용자·메시지 id 는 **어댑터가 정하는 문자열**을 그대로 씁니다(64자 이하, `:` 제외). 자기가 보낸 글과 허용하지 않은 대화의 글을 걸러 내는 것은 어댑터 책임입니다. 최소 구현 표면은 테스트의 `FakePort` 참고.
 - **새 LLM(예: Claude API)**: `ChatModel`·`ToolChatModel`·`CodingAgent` 중 필요한 것을 구현하고 같은 방식으로 조건을 붙입니다. `CodingAgent` 구현체는 세션 이어가기(`resume`), 허용 도구 사상, 진행 이벤트(`Listener`), 상한 예외(`AgentTimeoutException`/`UsageLimitException`), 사용량 기록(`UsageService.record`)을 지켜야 합니다.
 
 > ⚠️ Claude 구독을 자동화에 쓰는 것이 약관상 허용되는지는 사용하는 요금제 기준으로 직접 확인하세요.
 
 ---
 
-## 메신저 봇
+## 메신저
 
-- **정기 요약 / 멘션 / `@AI`**: 수집은 관리 페이지에서 방별로 켭니다(`☑수집`). `@AI` 는 수집된 방에서만 감지되고, 답은 같은 방(화이트리스트)이나 자기방으로 갑니다.
-- **사내 문서 참고(RAG)**: MkDocs `search_index.json` 을 기동 시 + 매일 06:30 적재(`doc_chunk`), 질문과 관련 섹션이 있을 때만 상위 K 섹션을 프롬프트에 넣고 출처 URL 을 답에 붙입니다. 임베딩 API 가 없어 Postgres 키워드 스코어링(제목 가중, 조사 제거)으로 구현. 점검: `GET /api/docs-status`, `POST /api/docs-refresh`, `GET /api/docs-search?q=`.
+- **명령 라우터**(`command/MessengerCommandRouter`): 자기 대화로 온 글을 첫 단어로 나눕니다 — `이슈 …`(이슈 에이전트), `질문 …`·`질의 …`(리서치 접수), 그 외는 확인 대기 답변 후보(대기 세션이 없으면 명령 안내 한 번). 글은 저장하지 않고 어댑터가 넘긴 것을 바로 처리합니다.
 - **운영 MCP 조회**: 자기방(또는 직접응답 방)에서 `@AI 운영 <질문>` 이나 운영 키워드가 든 질문은 `OpsQueryService` 가 one-shot `claude -p`(sonnet/medium) 로 opensearch·postgres·k3s-ops **읽기 전용** 도구를 써서 실제 데이터를 조회해 답합니다(10~60초, 접수 안내 선전송). 설정 파일 `work/mcp-servers.json` 은 기동 시 생성되고 토큰은 env 로만 전달됩니다.
 - **응답 속도**: `claude -p` 콜드스타트 ~20s → 플래그 최적화 ~9.6s → **warm 상주 ~1.4s**. 헬스체크 `POST /api/llm-test?prompt=`.
-- **메신저 알림 끄기**: 플랫폼이 스스로 자기방에 보내는 알림은 메신저 탭 "메신저 알림" 카드에서 유형별(방 요약 · 멘션 초안 · 이슈 · 리서치 · 시스템)로 끌 수 있습니다. 꺼도 내용은 남습니다 — 요약·멘션 초안은 메신저 탭에, 이슈·리서치·시스템은 알림함에. 메신저에서 직접 친 `@AI` 명령의 답은 알림이 아니므로 항상 갑니다.
+- **메신저 알림 끄기**: 플랫폼이 스스로 자기방에 보내는 알림은 메신저 탭 "메신저 알림" 카드에서 유형별(이슈 · 리서치 · 시스템)로 끌 수 있습니다. 꺼도 내용은 알림함에 남습니다. 메신저에서 직접 친 명령의 답은 알림이 아니므로 항상 갑니다.
 
 ---
 
 ## GitLab 이슈 수정 에이전트
 
-대상 프로젝트의 **라벨(`ai-fix`) 붙은 열린 이슈**를 자동으로, 또는 자기방 `@AI 이슈 group/repo#12` 로 수동으로 집어 아래 흐름을 돕니다. 기본 비활성(`GITLAB_ENABLED=false`).
+대상 프로젝트의 **라벨(`ai-fix`) 붙은 열린 이슈**를 자동으로, 또는 자기방 `이슈 group/repo#12` 로 수동으로 집어 아래 흐름을 돕니다. 기본 비활성(`GITLAB_ENABLED=false`).
 
 ```
 이슈 스캔(2분) ─▶ NEW ─▶ ANALYZING   fetch → origin/develop 기준 worktree → claude(읽기 전용) 원인·설계·작업 유형
@@ -143,7 +138,7 @@
                       DESIGN_WAIT ──피드백──▶ 같은 세션(--resume) 재설계 → DESIGN_WAIT
                             │ 진행
                             ▼
-                        FIXING      claude(편집 + 허용 명령 + 프리뷰/Playwright + 운영 MCP + 문서 검색)
+                        FIXING      claude(편집 + 허용 명령 + 프리뷰/Playwright + 운영 MCP)
                             ▼
                        VERIFYING    봇 검사(node --check · jspcheck · mvn/gradle compile) + 독립 리뷰어 세션 PASS/FAIL
                             │        FAIL → 같은 세션에 자동 재수정(최대 2회) → 다시 검증
@@ -170,7 +165,7 @@
 | `검증` / `재검증` / `검증만 한번 더` | (리뷰 대기) 코드 수정 없이 봇 검사 + 독립 리뷰만 다시. 수정을 뜻하는 말이 섞이면 피드백으로 처리 |
 | `피드백: …` (`fb:`) | 같은 Claude 세션에 이어서 설계/코드를 수정하고 다시 보고. `작업 유형: hotfix` 로 유형 변경 가능 |
 
-**명령**(`@AI 이슈 …`): `상태` · `목록` · `스캔`(즉시) · `프로젝트 [추가|삭제 group/repo]` · `중단 [대상]` · `group/repo#12` 또는 이슈 URL · `도움말`. 관리 페이지와 대시보드에서도 같은 일을 합니다(`POST /api/issues-reply`, `/api/issues-command`).
+**명령**(`이슈 …`): `상태` · `목록` · `스캔`(즉시) · `프로젝트 [추가|삭제 group/repo]` · `중단 [대상]` · `group/repo#12` 또는 이슈 URL · `도움말`. 관리 페이지와 대시보드에서도 같은 일을 합니다(`POST /api/issues-reply`, `/api/issues-command`).
 
 **에이전트 화면에서 바로**: 「새 이슈」로 GitLab 이슈를 등록합니다(`POST /api/issues-create` — 대상 프로젝트만, "등록 후 바로 시작"이면 스캔 라벨을 붙이고 곧바로 큐에 넣음). 「이슈 목록」은 고른 프로젝트의 열린 이슈(최근 갱신 순 50건, `GET /api/issues-list?project=`)와 에이전트 상태를 보여 주고, 라벨이 없는 이슈를 「시작」하거나 실패·중단된 이슈를 「다시 시작」합니다(완료된 이슈는 「보기」만 — 미흡하면 새 이슈로. 창을 열 때만 조회). 「가져오기」는 2분 주기를 기다리지 않고 라벨 스캔을 즉시 돌립니다. 확인 대기 중 입력칸에 글을 쓴 채 「진행」을 누르면 코멘트가 함께 전달됩니다(`note` 파라미터) — 설계 확인에서는 설계대로 수정하되 추가 지시로 반영, 리뷰 확인에서는 푸시하지 않고 그 내용부터 수정·검증한 뒤 다시 확인을 받습니다.
 
@@ -224,10 +219,10 @@ Spring MVC + JSP 처럼 WAR 가 떠야 화면을 볼 수 있는 Maven 프로젝�
 
 ### 리서치 워크플로우 — 「리서치」 탭
 
-이슈→개발이 아니라 **"Batch job 목록 정리해줘"** 처럼 소스를 훑어 확인·정리해 달라는 요청용입니다. 상단 탭 「리서치」(`research.html`, Alt+3) 또는 자기방 `@AI 질문 <프로젝트[@브랜치][,프로젝트…]>: <질문>`(대상 프로젝트가 1개면 접두어 생략 가능)으로 올립니다.
+이슈→개발이 아니라 **"Batch job 목록 정리해줘"** 처럼 소스를 훑어 확인·정리해 달라는 요청용입니다. 상단 탭 「리서치」(`research.html`, Alt+3) 또는 자기방 `질문 <프로젝트[@브랜치][,프로젝트…]>: <질문>`(대상 프로젝트가 1개면 접두어 생략 가능)으로 올립니다.
 
-- **저장소 · 브랜치**: 대상 프로젝트(관리 페이지 "대상 프로젝트" 중 선택, 여러 개 가능)마다 **브랜치를 고를 수 있습니다**(기본은 기본 브랜치). 같은 프로젝트를 브랜치만 달리해 두 번 넣으면 브랜치 간 비교 질의가 됩니다. 메신저에서는 `@AI 질문 batch@develop: …`. 고른 브랜치를 `work/<grp__repo>__ref/<branch>` detached worktree(참고 저장소와 같은 방식)로 받아 **읽기 전용**으로 읽습니다. 이슈 세션의 worktree 와 겹치지 않고, 실행 뒤 변경이 생겼으면 되돌립니다.
-- **세션**: 첫 질문은 새 Claude 세션(분석 도구 Read/Grep/Glob/git log + 사내 문서 검색 + 운영 MCP 읽기), **후속 질문은 같은 세션을 `--resume`** 해 이미 읽은 코드 맥락을 재사용합니다(빠르고 토큰이 적음). 질의마다 모델/노력을 고를 수 있고(기본 '기획' 모델), 상한 30분/60턴(`RESEARCH_TIMEOUT_MS`/`RESEARCH_MAX_TURNS`).
+- **저장소 · 브랜치**: 대상 프로젝트(관리 페이지 "대상 프로젝트" 중 선택, 여러 개 가능)마다 **브랜치를 고를 수 있습니다**(기본은 기본 브랜치). 같은 프로젝트를 브랜치만 달리해 두 번 넣으면 브랜치 간 비교 질의가 됩니다. 메신저에서는 `질문 batch@develop: …`. 고른 브랜치를 `work/<grp__repo>__ref/<branch>` detached worktree(참고 저장소와 같은 방식)로 받아 **읽기 전용**으로 읽습니다. 이슈 세션의 worktree 와 겹치지 않고, 실행 뒤 변경이 생겼으면 되돌립니다.
+- **세션**: 첫 질문은 새 Claude 세션(분석 도구 Read/Grep/Glob/git log + 운영 MCP 읽기), **후속 질문은 같은 세션을 `--resume`** 해 이미 읽은 코드 맥락을 재사용합니다(빠르고 토큰이 적음). 질의마다 모델/노력을 고를 수 있고(기본 '기획' 모델), 상한 30분/60턴(`RESEARCH_TIMEOUT_MS`/`RESEARCH_MAX_TURNS`).
 - **이미지 첨부**: 질문(새 질문·후속 질문)에 화면 캡처 같은 이미지를 붙여넣기·끌어놓기·버튼으로 최대 6장(png/jpg/gif/webp, 장당 10MB) 붙일 수 있고, 모델이 파일을 직접 열어 봅니다. 스레드에 썸네일로 남고, 스레드가 끝난 뒤 7일(`RESEARCH_ATTACHMENT_KEEP_DAYS`, 0 = 지우지 않음)이 지나면 파일을 지웁니다. 루틴·메신저 접수에는 없습니다.
 - **결과**: 고정 틀의 마크다운 문서(`# 제목` / `## 요약` / `## 내용`(표) / `## 근거`(파일 경로) / `## 미확인·주의`). 리서치 탭에서 표로 렌더링, 복사·`.md` 내려받기. 메신저로 접수한 질문은 완료 시 자기방에 요약 + 링크를 보냅니다.
 - **실행**: 이슈 워커와 분리된 단일 워커가 순서대로 처리하고, Claude 사용량 한도 중에는 대기열에 두었다가 리셋 뒤 자동 시작합니다. 활동 로그는 이슈 대시보드와 같은 SSE/이벤트 저장소를 공유합니다(`issue_event.session_id = 10억 + 질의 id`). 데이터는 `research_job`.
@@ -286,22 +281,22 @@ Spring MVC + JSP 처럼 WAR 가 떠야 화면을 볼 수 있는 Maven 프로젝�
 
 | 단계 | 허용 |
 |---|---|
-| 분석 / 리뷰어 | Read·Grep·Glob + `git log/show/blame`, 사내 문서 검색·읽기(`curl -s -G` → `/api/docs-search`, `/api/docs-read`), 운영 MCP 읽기 도구 |
+| 분석 / 리뷰어 | Read·Grep·Glob + `git log/show/blame`, 운영 MCP 읽기 도구 |
 | 수정 | 위 + Edit/Write, 허용 명령 접두어만(`gradlew`, `mvn`, `npm test` …, `gitlab.agent.fix-tools`), `preview deploy|sync`, `jscheck`/`jspcheck`, Playwright |
 
 git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 권한 패턴을 우회하므로 금지(`--disallowedTools`). 스크립트는 `~/bin` 심으로 제공합니다(Claude 의 Bash 는 봇이 넣은 PATH 를 쓰지 않음).
 
 ### 안전장치
 
-- 확인은 **자기방과 localhost 대시보드에서만**. 그룹방의 `@AI 이슈` 는 무시.
+- 확인은 **자기방과 localhost 대시보드에서만**.
 - 푸시는 컨벤션 접두어 브랜치에만(코드에서 강제), main/develop 직접 푸시·강제 푸시 불가. 토큰은 `.git/config` 에 남기지 않고 명령별 env(`http.extraheader`)로만 주입.
 - 답변은 접수 시점의 대기 단계를 기억해 그 단계일 때만 적용(「진행」 두 번이 다음 단계 승인으로 번지지 않음). 대시보드 답변은 세션 id 동반.
 - 「중단」은 Claude 와 자식 프로세스(gradle/node, 리뷰어 세션)까지 즉시 종료. 푸시 실패는 리뷰 대기로 되돌려 재시도. 확인 대기 4시간마다 리마인더.
-- 봇 재기동 시 작업 중(ANALYZING/FIXING/VERIFYING/PUSHING) 세션은 FAILED(재시작 `@AI 이슈 group/repo#iid`), 확인 대기 세션은 유지되고 `--resume` 으로 이어집니다. 그래서 **재시작은 세션이 대기 상태일 때만**.
+- 봇 재기동 시 작업 중(ANALYZING/FIXING/VERIFYING/PUSHING) 세션은 FAILED(재시작 `이슈 group/repo#iid`), 확인 대기 세션은 유지되고 `--resume` 으로 이어집니다. 그래서 **재시작은 세션이 대기 상태일 때만**.
 
 ### 준비
 
-GitLab PAT(scope `api`, `write_repository`) → `.env` 에 `GITLAB_ENABLED=true`, `GITLAB_URL`, `GITLAB_TOKEN`, `GITLAB_PROJECTS`(초기값) → 재시작 → 이슈에 `ai-fix` 라벨. 대상 프로젝트는 이후 관리 페이지 칩이나 `@AI 이슈 프로젝트 추가|삭제 group/repo` 로 바꾸며 DB 에 저장됩니다(재시작 불필요). **자기방 '수집'이 켜져 있어야** 명령과 답변이 봇에 닿습니다(기동 시 꺼져 있으면 경고). 저장소는 `work/`(gitignore)에 clone 됩니다.
+GitLab PAT(scope `api`, `write_repository`) → `.env` 에 `GITLAB_ENABLED=true`, `GITLAB_URL`, `GITLAB_TOKEN`, `GITLAB_PROJECTS`(초기값) → 재시작 → 이슈에 `ai-fix` 라벨. 대상 프로젝트는 이후 관리 페이지 칩이나 `이슈 프로젝트 추가|삭제 group/repo` 로 바꾸며 DB 에 저장됩니다(재시작 불필요). 메신저 어댑터가 연결돼 있으면 자기 대화로 보낸 명령과 답변이 바로 전달됩니다. 저장소는 `work/`(gitignore)에 clone 됩니다.
 
 ---
 
@@ -359,7 +354,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 
 ### 설치 점검 · 구성 묶음 · 재시작 (플랫폼 > 시스템)
 
-- **설치 점검**(`GET /api/system/doctor`, `ops/Doctor`): 실행 환경 · DB · 코딩 에이전트(CLI) · Claude 로그인 · Git · 메신저 · GitLab(토큰 확인) · 작업 디렉터리 위치 · Node.js · Git Bash · 로컬 프리뷰 · 지식(RAG). 항목마다 정상/주의/필요와 **고치는 방법 한 줄**. 토큰을 쓰지 않고 60초 캐시합니다.
+- **설치 점검**(`GET /api/system/doctor`, `ops/Doctor`): 실행 환경 · DB · 코딩 에이전트(CLI) · Claude 로그인 · Git · 메신저 · GitLab(토큰 확인) · 작업 디렉터리 위치 · Node.js · Git Bash · 로컬 프리뷰. 항목마다 정상/주의/필요와 **고치는 방법 한 줄**. 토큰을 쓰지 않고 60초 캐시합니다.
 - **구성 묶음**(`GET /api/bundle/export`, `POST /api/bundle/import`): 스킬 · 사용자 정의 MCP 서버 · 루틴 · 에이전트 설정(모델·서브/팀) · 대상 프로젝트를 JSON 한 파일로 옮깁니다. **비밀값은 들어가지 않습니다**(MCP 인증 헤더는 저장 단계에서 `${ENV}` 자리표시자만 허용, 계정·토큰은 대상이 아님). 가져오기는 같은 이름을 덮어쓰고 지우지 않으며, 대상 프로젝트는 합칩니다.
 - **재시작 · 종료**(`POST /api/system/restart|shutdown`): 감시자(실행 파일의 Launcher 또는 `run.cmd`)가 다시 띄웁니다. 작업 중인 세션이 있으면 거부하고(`force=true` 로 강행 — 그 세션은 실패 처리), 다른 사이트의 페이지가 브라우저를 통해 보낸 요청(Origin 불일치)은 거부합니다.
 - **상태**(`GET /api/system/status`): 버전 · 실행 방식(launcher / run.cmd / direct) · DB 방식(embedded / external) · 작업 중 건수 · 아직 안 채운 설정. 홈 화면 맨 위 안내가 이것을 씁니다.
@@ -368,9 +363,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 
 | 키 | 설명 |
 |---|---|
-| `BOT_MENTION_KEYWORDS` / `BOT_COMMAND_KEYWORD` / `BOT_AUTO_ROOMS` | 멘션 키워드 · 명령어(기본 `@AI`) · AUTO 허용 방 seed |
 | `CLAUDE_WARM*` / `CLAUDE_MODEL` / `CLAUDE_EFFORT` / `CLAUDE_TIMEOUT_MS` | 채팅용 warm 세션 on/off·리셋 주기·프리웜·서킷브레이커, 모델·노력·타임아웃 |
-| `DOCS_ENABLED` / `DOCS_SEARCH_INDEX_URL` / `DOCS_SITE_BASE_URL` / `DOCS_TOP_K` / `DOCS_MIN_SCORE` | 사내 문서 RAG · 적재 소스 · 주입 섹션 수 · 게이트 임계치 |
 | `MCP_ENABLED` / `MCP_CHAT_ENABLED` / `MCP_AGENT_ENABLED` / `K3S_MCP_TOKEN` | 운영 MCP · 자기방 운영 질의 · 에이전트 MCP 도구 · k3s 토큰(없으면 k3s 제외) |
 | `GITLAB_ENABLED` / `GITLAB_URL` / `GITLAB_TOKEN` / `GITLAB_PROJECTS` / `GITLAB_LABEL` | 이슈 에이전트 · GitLab · PAT · 대상 프로젝트 초기값(DB 우선) · 라벨(ai-fix) |
 | `GITLAB_SCAN_INTERVAL_MS` / `GITLAB_CONCURRENCY` / `GITLAB_PREFETCH` / `GITLAB_WAIT_REMIND_MS` | 스캔 2분 · 동시 2건 · 선분석 · 대기 리마인더 4h |
@@ -382,7 +375,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 | `RESEARCH_ENABLED` / `RESEARCH_TIMEOUT_MS` / `RESEARCH_MAX_TURNS` / `RESEARCH_MODEL` / `RESEARCH_EFFORT` / `RESEARCH_VERIFY` / `RESEARCH_ATTACHMENT_KEEP_DAYS` | 질의 워크플로우 · 질문 1건 상한 30분/60턴 · 기본 모델/노력(비우면 기획 모델) · 2차 검증 기본값 · 첨부 이미지 보관 일수(기본 7) |
 | `MAINTAIN_ENABLED` / `MAINTAIN_REPO_DIR` / `MAINTAIN_MODEL` / `MAINTAIN_EFFORT` / `MAINTAIN_TIMEOUT_MS` / `MAINTAIN_MAX_TURNS` / `MAINTAIN_TOOLS` | 플랫폼 관리(렌치 버튼 채팅 창) · 소스 저장소 경로(비우면 실행 디렉터리가 소스 저장소일 때만 켜짐) · 기본 모델/노력(비우면 '개발') · 요청 1건 상한 2시간/300턴 · 허용 도구(`git push` 는 넣어도 금지) |
 | `PREVIEW_ENABLED` / `PREVIEW_LOGIN_ID` / `PREVIEW_LOGIN_PW` / `PREVIEW_START_TIMEOUT_MS` | 로컬 프리뷰 · 로그인 테스트 계정 · 기동 대기 상한(15분) |
-| `PLATFORM_MESSENGER` / `PLATFORM_CHAT_MODEL` / `PLATFORM_CODING_AGENT` / `PLATFORM_KNOWLEDGE` | 포트 구현체 선택(기본 none / claude-cli / claude-cli / mkdocs-keyword) |
+| `PLATFORM_MESSENGER` / `PLATFORM_CHAT_MODEL` / `PLATFORM_CODING_AGENT` | 포트 구현체 선택(기본 none / claude-cli / claude-cli) |
 | `BOT_JAVA_OPTS`(환경변수) | 봇 JVM 옵션. 기본 `-XX:+UseSerialGC -Xms32m -Xmx512m -XX:TieredStopAtLevel=1`(로컬 경량 운용) |
 | `GITLAB_WORK_DIR` | 에이전트 작업 디렉터리(clone·worktree·MCP 설정·스킬 파일). **이 저장소 밖 경로로 지정** — 안에 두면 에이전트 세션이 이 저장소의 CLAUDE.md 를 읽는다 |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` / `ADMIN_PORT` | PostgreSQL(`DB_URL` 을 **비우면 내장 DB**, 포트는 `DB_EMBEDDED_PORT` 기본 54329) · 관리 페이지 포트(8777) |
@@ -390,7 +383,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install-autostart.ps1   # �
 | `CLAUDE_EXE_COMMAND` | Claude Code 실행 파일 경로. 비우면 자동 탐색(PATH → npm 전역 → `~/.local/bin` → Homebrew) |
 | `DEV_AGENT_HOME` / `DEV_AGENT_JAVA_OPTS`(환경변수) | 실행 파일 모드의 홈 폴더(기본 `~/.dev-agent`) · 앱 JVM 옵션 |
 
-전체 목록과 설명은 [`.env.example`](.env.example). 런타임 토글(수집/화이트리스트/대상 프로젝트/모델)은 DB `bot_setting` 이 우선합니다.
+전체 목록과 설명은 [`.env.example`](.env.example). 런타임 토글(알림 유형/대상 프로젝트/모델)은 DB `bot_setting` 이 우선합니다.
 
 ## 프로젝트 구조
 
@@ -399,12 +392,11 @@ src/main/java/io/github/lib0823/devagent/
   boot/       Bootstrap(.env 틀·메신저 없음 모드·내장 DB·초기 스키마) · EmbeddedDb · Launcher(실행 파일 모드: 감시자 + 트레이)
   routine/    Routine · RoutineMapper · RoutineService(예약 질의: 1분 틱 → 질의 접수)
   config/     Gw/Bot/Claude/GitLab/Mcp/Preview Properties(record)
-  messenger/  MessengerPort(포트) · MessengerService(전송 안전 정책) · Room/IncomingMessage · none/(메신저 없음 어댑터)
-  collect/ summarize/ mention/   수집 · 정기 요약 · 멘션/@AI 명령
+  messenger/  MessengerPort(포트: 자기 대화 받기·보내기) · MessengerService(알림 유형 켜고 끄기) · IncomingMessage/SelfInbox/SelfMessage · none/(메신저 없음 어댑터)
+  command/    MessengerCommandRouter(`이슈 …`·`질문 …` 분기) · MessengerReceiver(자기 대화 수신 루프)
   llm/        ChatModel · ToolChatModel(포트) · UsageService · claude/(ClaudeCliChatModel · ClaudeWarmSession · ClaudeCliToolChat)
   agent/      CodingAgent(포트) · claude/ClaudeCliAgent(claude -p, stream-json, 단계별 상한, ~/bin 심)
-  docs/       DocIngestService · DocRetrievalService(사내 문서 RAG)
-  mcp/        McpConfigService(mcp-servers.json·허용 도구·헬스·사용자 정의 서버) · McpServer(Mapper) · OpsQueryService(@AI 운영)
+  mcp/        McpConfigService(mcp-servers.json·허용 도구·헬스·사용자 정의 서버) · McpServer(Mapper) · OpsQueryService(운영 질의)
   gitlab/     IssueAgentService(상태기계·대화·동시 처리) · IssueTexts(순수 함수) · IssueReferences(참고 저장소) · IssueProjects(대상 프로젝트)
               · IssueNotifier(자기방 알림) · IssuePrompts(프롬프트)
               · VerifyService(봇 검사·리뷰어 프롬프트) · GitRunner(worktree·참고 저장소·컨벤션 브랜치·푸시 가드) · GitLabClient
@@ -427,7 +419,7 @@ docs/                 images/
 - **중지/재시작**: 실행 파일 모드는 트레이 메뉴, 소스 실행은 `stop.cmd` / `restart.cmd` 또는 플랫폼 > 시스템 > 재시작(java 를 직접 죽이면 supervisor 가 되살림). 재시작은 이슈 세션이 대기 상태일 때만(`GET /api/issues`).
 - **로그**: `logs/dev-agent.log`(10MB 롤링, 7일). 점검 API: `POST /api/llm-test`, `/api/docs-status`, `/api/mcp-status`, `/api/preview/status`, `/api/agent/overview`.
 - `.env`(토큰·비밀번호), `work/`, `tools/`, `build/`, `logs/`, `pgdata/` 는 커밋 제외. 토큰은 코드·설정 파일·메모리에 적지 않습니다.
-- 수집 범위(타인 메시지)를 넓힐 때는 정보보안 승인 범위를 재확인하세요. 프리뷰 Tomcat 은 개발 DB/OpenSearch 에 붙으므로 쓰기가 발생할 수 있습니다.
+- 프리뷰 Tomcat 은 개발 DB/OpenSearch 에 붙으므로 쓰기가 발생할 수 있습니다.
 
 ## 라이선스
 

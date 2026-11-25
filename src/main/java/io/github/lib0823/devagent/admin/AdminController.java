@@ -1,19 +1,10 @@
 package io.github.lib0823.devagent.admin;
 
-import io.github.lib0823.devagent.config.BotProperties;
-import io.github.lib0823.devagent.config.DocsProperties;
-import io.github.lib0823.devagent.docs.DocChunk;
-import io.github.lib0823.devagent.docs.DocChunkMapper;
-import io.github.lib0823.devagent.docs.DocIngestService;
-import io.github.lib0823.devagent.docs.KnowledgeSource;
 import io.github.lib0823.devagent.gitlab.IssueAgentService;
 import io.github.lib0823.devagent.messenger.MessengerService;
-import io.github.lib0823.devagent.messenger.RoomKind;
-import io.github.lib0823.devagent.messenger.Room;
 import io.github.lib0823.devagent.llm.ChatModel;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,36 +14,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 로컬 관리 API (localhost 전용). 방 목록/상태 조회 + 자동응답 화이트리스트 편집.
+ * 로컬 관리 API (localhost 전용). 이슈 에이전트 현황·설정, 메신저 알림 유형 켜기/끄기.
  */
 @RestController
 public class AdminController {
 
     private final MessengerService client;
     private final SettingService settings;
-    private final AdminMapper admin;
-    private final BotProperties bot;
     private final ChatModel claude;
-    private final DocIngestService docIngest;
-    private final KnowledgeSource docRetrieval;
     private final IssueAgentService issueAgent;
-    private final DocChunkMapper docChunks;
-    private final DocsProperties docsProps;
 
-    public AdminController(MessengerService client, SettingService settings, AdminMapper admin,
-                           BotProperties bot, ChatModel claude,
-                           DocIngestService docIngest, KnowledgeSource docRetrieval,
-                           IssueAgentService issueAgent, DocChunkMapper docChunks, DocsProperties docsProps) {
+    public AdminController(MessengerService client, SettingService settings,
+                           ChatModel claude, IssueAgentService issueAgent) {
         this.client = client;
         this.settings = settings;
-        this.admin = admin;
-        this.bot = bot;
         this.claude = claude;
-        this.docIngest = docIngest;
-        this.docRetrieval = docRetrieval;
         this.issueAgent = issueAgent;
-        this.docChunks = docChunks;
-        this.docsProps = docsProps;
     }
 
     /** GitLab 이슈 에이전트 현황: 활성/다음 대기 + 최근 세션 (localhost 전용). */
@@ -65,7 +42,7 @@ public class AdminController {
         return m;
     }
 
-    /** 이슈 에이전트 명령 (메신저 "@AI 이슈 ..." 와 동일). 예: cmd=상태 / cmd=group/repo#12 / cmd=중단 */
+    /** 이슈 에이전트 명령 (메신저 "이슈 ..." 명령과 동일). 예: cmd=상태 / cmd=group/repo#12 / cmd=중단 */
     @PostMapping("/api/issues-command")
     public Map<String, Object> issuesCommand(@RequestParam String cmd) {
         return Map.of("result", issueAgent.command(cmd));
@@ -185,43 +162,9 @@ public class AdminController {
         return issueAgent.createIssue(project, title, description, start);
     }
 
-    @GetMapping("/api/rooms")
-    public List<Map<String, Object>> rooms() {
-        Set<String> auto = settings.getAutoRoomKeys();
-        Set<String> collect = settings.getCollectRoomKeys();
-        client.connect();
-        return client.rooms().stream()
-                .map(r -> {
-                    String key = r.key();
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("key", key);
-                    m.put("name", r.name());
-                    m.put("type", r.type());
-                    m.put("members", r.memberCount());
-                    m.put("self", r.kind() == RoomKind.SELF);
-                    m.put("collect", collect.contains(key) || auto.contains(key));
-                    m.put("auto", auto.contains(key));
-                    return m;
-                })
-                .toList();
-    }
-
-    /** 수집/화이트리스트를 함께 저장. 자동응답 방은 수집에 자동 포함되어 처리된다. */
-    @PostMapping("/api/rooms-config")
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> saveRoomsConfig(@RequestBody Map<String, Object> body) {
-        List<String> collect = (List<String>) body.getOrDefault("collect", List.of());
-        List<String> auto = (List<String>) body.getOrDefault("auto", List.of());
-        settings.setCollectRoomKeys(collect);
-        settings.setAutoRoomKeys(auto);
-        return Map.of("ok", true, "collect", settings.getCollectRoomKeys(), "auto", settings.getAutoRoomKeys());
-    }
-
     private static final Map<String, String> NOTICE_HINTS = Map.of(
-            MessengerService.NOTICE_SUMMARY, "수집한 방의 정기 요약. 꺼도 요약은 만들어져 이 화면 「최근 활동」에 남습니다.",
-            MessengerService.NOTICE_MENTION, "나를 부른 메시지의 답변 초안. 꺼도 초안은 「멘션 처리」에 남습니다(방에 직접 답은 그대로).",
             MessengerService.NOTICE_ISSUE, "설계·리뷰 확인 요청, 진행·완료·한도 안내. 끄면 확인은 에이전트 화면과 알림함에서 합니다.",
-            MessengerService.NOTICE_RESEARCH, "메신저로 접수한 질문(@AI 질문 …)의 완료 알림. 결과는 리서치 탭에 있습니다.",
+            MessengerService.NOTICE_RESEARCH, "메신저로 접수한 질문(질문 …)의 완료 알림. 결과는 리서치 탭에 있습니다.",
             MessengerService.NOTICE_SYSTEM, "플랫폼 시작됨 · 오류 알림.");
 
     /** 플랫폼이 자기방으로 보내는 알림의 유형별 켜짐 상태(메신저 탭 "메신저 알림" 카드). */
@@ -249,22 +192,8 @@ public class AdminController {
         if (label == null) {
             return Map.of("ok", false, "result", "알 수 없는 알림 유형: " + key);
         }
-        settings.setMessengerNotify(key, on);
+        settings.setMessengerNotify(key, on, MessengerService.NOTICES.keySet());
         return Map.of("ok", true, "result", "메신저 알림 「" + label + "」 " + (on ? "켬" : "끔 — 화면(알림함·각 탭)에서만 확인합니다"));
-    }
-
-    @GetMapping("/api/status")
-    public Map<String, Object> status() {
-        Set<String> auto = settings.getAutoRoomKeys();
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("messages", admin.countMessages());
-        m.put("summaries", admin.countSummaries());
-        m.put("mentions", admin.countMentionReplies());
-        m.put("collectMode", bot.collect().mode().name());
-        m.put("autoRooms", auto);
-        m.put("mentionMode", auto.isEmpty() ? "전체 DRAFT" : auto.size() + "개 방 AUTO");
-        m.put("me", client.selfId());
-        return m;
     }
 
     /** LLM 헬스체크 + 레이턴시 측정 (localhost 전용, 방 전송 없음). warm 경로 검증용. */
@@ -281,79 +210,6 @@ public class AdminController {
             m.put("error", e.toString());
         }
         m.put("elapsedMs", System.currentTimeMillis() - t0);
-        return m;
-    }
-
-    /** 문서 RAG 상태 (적재 섹션 수 / 마지막 적재 시각·결과). */
-    @GetMapping("/api/docs-status")
-    public Map<String, Object> docsStatus() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("chunkCount", docIngest.count());
-        m.put("lastRefreshAt", docIngest.getLastRefreshAt());
-        m.put("lastResult", docIngest.getLastResult());
-        return m;
-    }
-
-    /** 문서 인덱스 수동 재적재 (localhost 전용). */
-    @PostMapping("/api/docs-refresh")
-    public Map<String, Object> docsRefresh() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        long t0 = System.currentTimeMillis();
-        try {
-            int n = docIngest.refresh();
-            m.put("ok", true);
-            m.put("count", n);
-        } catch (Exception e) {
-            m.put("ok", false);
-            m.put("error", e.toString());
-        }
-        m.put("elapsedMs", System.currentTimeMillis() - t0);
-        return m;
-    }
-
-    /** 검색 디버그: 질문의 토큰·게이트 통과 여부·상위 히트(점수/제목/URL). 방 전송 없음. */
-    @GetMapping("/api/docs-search")
-    public Map<String, Object> docsSearch(@RequestParam String q,
-                                          @RequestParam(defaultValue = "6") int k) {
-        return docRetrieval.debug(q, k);
-    }
-
-    /**
-     * 문서 페이지 본문(평문). 이슈 에이전트가 검색 결과 URL 의 페이지 전체를 읽을 때 curl 로 호출한다.
-     * url 은 검색 결과의 딥링크(…/#heading 포함 가능) 또는 location. 적재된 섹션을 제목 순으로 이어 붙여 돌려준다.
-     */
-    @GetMapping(value = "/api/docs-read", produces = "text/plain;charset=UTF-8")
-    public String docsRead(@RequestParam String url, @RequestParam(defaultValue = "12000") int maxChars) {
-        String page = url.strip();
-        String base = docsProps.siteBaseUrl() == null ? "" : docsProps.siteBaseUrl();
-        if (!base.isBlank() && page.startsWith(base)) {
-            page = page.substring(base.length());
-        }
-        int hash = page.indexOf('#');
-        if (hash >= 0) {
-            page = page.substring(0, hash);
-        }
-        page = page.replaceAll("^/+", "");
-        List<DocChunk> sections = docChunks.pageSections(page);
-        if (sections.isEmpty()) {
-            return "(문서 없음) 적재된 페이지가 아닙니다: " + page + "\n/api/docs-search 로 먼저 검색해 url 을 얻으세요.";
-        }
-        StringBuilder sb = new StringBuilder("# ").append(base).append(page).append('\n');
-        for (DocChunk c : sections) {
-            sb.append("\n## ").append(c.getTitle()).append('\n').append(c.getBody()).append('\n');
-            if (sb.length() > Math.max(2000, Math.min(maxChars, 60000))) {
-                sb.append("\n… (이하 생략, maxChars 초과)\n");
-                break;
-            }
-        }
-        return sb.toString();
-    }
-
-    @GetMapping("/api/recent")
-    public Map<String, Object> recent() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("summaries", admin.recentSummaries(5));
-        m.put("mentions", admin.recentMentions(10));
         return m;
     }
 }

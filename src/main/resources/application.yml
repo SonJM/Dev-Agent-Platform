@@ -19,7 +19,7 @@ spring:
   task:
     scheduling:
       pool:
-        size: 3                    # @Scheduled 를 한 스레드가 다 돌리면 요약·멘션의 LLM 호출(수십 초) 동안 수집·답변 폴링이 멈춘다 → 3
+        size: 3                    # @Scheduled 를 한 스레드가 다 돌리면 긴 작업(LLM 호출 수십 초) 동안 다른 주기 작업이 멈춘다 → 3
       thread-name-prefix: sched-
 
 # 로컬 관리 페이지 (localhost 전용 — 외부 접속 차단)
@@ -39,13 +39,11 @@ server:
 # 플랫폼 어댑터 선택(포트-어댑터). 값에 해당하는 구현체 빈만 뜬다 — 새 메신저/LLM 은 포트를 구현한 빈을 추가하고 여기 값만 바꾼다.
 #   messenger    : MessengerPort  구현체 (none | 직접 추가한 어댑터: slack 등)
 #   chat-model   : ChatModel/ToolChatModel 구현체 (claude-cli | 추후 claude-api, openai …) — 요약·멘션·@AI·운영 질의
-#   knowledge    : KnowledgeSource 구현체 (사내 지식 검색·RAG)
 #   coding-agent : CodingAgent 구현체 (claude-cli | 추후 claude-api …) — 이슈 분석/수정/검증, 질의
 platform:
   messenger: ${PLATFORM_MESSENGER:none}   # none(메신저 없이 화면만) | 추가한 MessengerPort 어댑터 이름
   chat-model: ${PLATFORM_CHAT_MODEL:claude-cli}
   coding-agent: ${PLATFORM_CODING_AGENT:claude-cli}
-  knowledge: ${PLATFORM_KNOWLEDGE:mkdocs-keyword}   # KnowledgeSource 구현체 (mkdocs-keyword | 추후 pgvector 등 벡터 RAG)
 
 mybatis:
   configuration:
@@ -71,21 +69,6 @@ claude:
   warm-prewarm: ${CLAUDE_WARM_PREWARM:true}
   warm-failure-threshold: ${CLAUDE_WARM_FAIL_THRESHOLD:3}
   warm-breaker-cooldown-ms: ${CLAUDE_WARM_BREAKER_COOLDOWN_MS:60000}
-
-# 사내 개발문서 RAG — MkDocs search_index.json 을 주기 적재(doc_chunk)하고 @AI 질문에 관련 섹션만 주입.
-# 속도: 적재는 핫패스 밖(기동/스케줄), 검색은 DB 1쿼리(~수십 ms). 관련 문서가 없으면(min-score 미달) 주입을 건너뜀.
-docs:
-  enabled: ${DOCS_ENABLED:false}
-  search-index-url: ${DOCS_SEARCH_INDEX_URL:}
-  site-base-url: ${DOCS_SITE_BASE_URL:}
-  refresh-cron: ${DOCS_REFRESH_CRON:0 30 6 * * *}   # 매일 06:30 재적재
-  refresh-on-startup: ${DOCS_REFRESH_ON_STARTUP:true}
-  fetch-timeout-ms: ${DOCS_FETCH_TIMEOUT_MS:20000}
-  top-k: ${DOCS_TOP_K:3}                 # 주입할 최대 섹션 수(실측: 섹션↓ = 모델 추론↓ = 응답↑)
-  min-score: ${DOCS_MIN_SCORE:2}         # 게이트 임계치(최고 점수가 이 미만이면 주입 안 함)
-  max-context-chars: ${DOCS_MAX_CONTEXT_CHARS:6000}  # 주입 컨텍스트 총 길이 상한
-  max-body-chars: ${DOCS_MAX_BODY_CHARS:2500}        # 섹션 1개당 본문 상한
-  use-in-mentions: ${DOCS_USE_IN_MENTIONS:true}      # 남의 멘션 초안/AUTO 회신에도 관련 문서 참고(게이트 통과 시만)
 
 # GitLab 이슈 수정 에이전트 — 라벨 이슈를 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인) → ai/ 브랜치 푸시 → 코멘트·MR.
 # 사용자 확인은 자기방 메시지로만 받는다. 코딩용 Claude 는 저장소 디렉터리에서 별도 claude -p 세션(채팅 warm 세션과 분리).
@@ -188,49 +171,10 @@ gitlab:
     reviewer-timeout-ms: ${GITLAB_VERIFY_REVIEWER_TIMEOUT_MS:3600000}   # 리뷰어 세션 1회 실행 상한 60분(0 이면 agent.timeout-ms)
 
 bot:
-  # M1 PoC (완료 — 기본 비활성)
-  poc:
-    enabled: false
-    send-test-to-self: false
-  # M2 수집기
-  collect:
-    enabled: true
-    poll-interval-ms: 20000        # 테스트용 20s (운영 60s+ 권장)
-    mode: SELF_ONLY                # SELF_ONLY | LIST | ALL
-    room-keys: []                  # mode=LIST 일 때 수집할 방. 예: ["single:586","group:15428"]
-    excluded-room-keys: []         # mode=ALL 에서 제외할 방
-    initial-window: 30             # 최초 수집 시 가져올 최신 메시지 수
-    page-size: 100                 # 증분 조회 페이지 크기
-    max-pages-per-poll: 10         # 폭주 방지
-  # M3 요약 배치
-  summary:
-    enabled: true
-    cron: "0 0 9,13,18 * * MON-FRI"   # 업무일 09/13/18시
-    min-messages: 5                   # 최소 건수 미만이면 skip
-    max-messages: 200                 # 1회 요약에 넣을 최대 메시지
-    run-on-startup: false             # 테스트용: 기동 직후 1회 실행 (운영 시 false)
-  # M4 멘션 자동응답 (DRAFT)
-  mention:
-    enabled: true
-    context-size: 20
-    cooldown-minutes: 10              # 같은 방 N분 내 1회
-    poll-interval-ms: 20000
-    allow-self-sender: false          # 내가 보낸 이름 멘션은 무시(루프/오동작 방지)
-    # 남이 나를 부르는 키워드들(쉼표구분). 접미사 자동포함: "@길동"→@길동BE
-    keywords: ${BOT_MENTION_KEYWORDS:}
-    command-keyword: ${BOT_COMMAND_KEYWORD:@AI}  # 내가 봇을 직접 호출 — 내 메시지여도 응답
-    sensitive-keywords: ["결재", "승인", "연봉", "인사발령", "금액 확정", "일정 확정"]
-    # AUTO(실제 회신) 허용 방 — .env 의 BOT_AUTO_ROOMS 에서 편집(쉼표구분). 비우면 전부 DRAFT.
-    # 예) BOT_AUTO_ROOMS=single:586,group:17617
-    auto-room-keys: ${BOT_AUTO_ROOMS:}
-    progress-ack: ${BOT_PROGRESS_ACK:false}   # @AI 방 응답 중 느린 턴(문서 참고)에 "생성 중" 안내 선전송(기본 off)
   # M6 운영
   ops:
     notify-on-startup: true           # 기동 시 "나에게 보내기"로 시작 알림
     alert-cooldown-minutes: 30        # 오류 알림 최소 간격(스팸 방지)
-  safety:
-    block-group-send: true
-    allowed-single-room-ids: []
 
 logging:
   charset:

@@ -1,7 +1,6 @@
 package io.github.lib0823.devagent.admin;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.docs.KnowledgeSource;
 import io.github.lib0823.devagent.llm.ChatModel;
 import io.github.lib0823.devagent.llm.ToolChatModel;
 import io.github.lib0823.devagent.mcp.McpConfigService;
@@ -34,11 +33,9 @@ public class PlatformController {
     private final CodingAgent agent;
     private final McpConfigService mcp;
     private final SettingService settings;
-    private final KnowledgeSource knowledge;
 
     public PlatformController(MessengerService messenger, ChatModel chat, ToolChatModel toolChat, CodingAgent agent,
-                              McpConfigService mcp, SettingService settings, KnowledgeSource knowledge) {
-        this.knowledge = knowledge;
+                              McpConfigService mcp, SettingService settings) {
         this.messenger = messenger;
         this.chat = chat;
         this.toolChat = toolChat;
@@ -50,7 +47,7 @@ public class PlatformController {
     @GetMapping("/api/platform")
     public Map<String, Object> platform() {
         List<Map<String, Object>> ports = new ArrayList<>();
-        ports.add(entry("messenger", "메신저", "방 목록 · 메시지 수집 · 전송", "PLATFORM_MESSENGER", messenger.health(),
+        ports.add(entry("messenger", "메신저", "자기 대화 수신 · 알림·답 전송", "PLATFORM_MESSENGER", messenger.health(),
                 "자기방에 테스트 메시지 전송"));
         ports.add(entry("chat", "채팅 모델", "요약 · 멘션 초안 · @AI 답변", "PLATFORM_CHAT_MODEL", chat.health(),
                 "짧은 프롬프트 1건 호출(토큰 소량)"));
@@ -63,8 +60,6 @@ public class PlatformController {
                         + " · 테스트 " + m.verifyModel() + "/" + m.verifyEffort());
         ports.add(entry("agent", "코딩 에이전트", "이슈 분석 · 수정 · 검증, 질의", "PLATFORM_CODING_AGENT", ag,
                 "CLI 실행 확인(토큰 없음)"));
-        ports.add(entry("knowledge", "지식(RAG)", "사내 문서 검색 → @AI·멘션·이슈 분석에 주입", "PLATFORM_KNOWLEDGE", knowledge.health(),
-                "검색 1건 실행(토큰 없음)"));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ports", ports);
         // 예전 형식(이름만)도 유지
@@ -85,7 +80,6 @@ public class PlatformController {
             case "chat" -> r = chatTest();
             case "tool" -> r = toolTest();
             case "agent" -> r = agent.selfTest();
-            case "knowledge" -> r = knowledgeTest();
             default -> r = new PortHealth.TestResult(false, "알 수 없는 포트: " + port, 0);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -104,18 +98,6 @@ public class PlatformController {
                     System.currentTimeMillis() - t0);
         } catch (RuntimeException e) {
             return new PortHealth.TestResult(false, "호출 실패: " + e.getMessage(), System.currentTimeMillis() - t0);
-        }
-    }
-
-    private PortHealth.TestResult knowledgeTest() {
-        long t0 = System.currentTimeMillis();
-        try {
-            Map<String, Object> d = knowledge.debug("브랜치 컨벤션", 3);
-            Object hits = d.get("hits");
-            int n = hits instanceof List<?> l ? l.size() : 0;
-            return new PortHealth.TestResult(n > 0, n > 0 ? "'브랜치 컨벤션' 검색 " + n + "건" : "검색 결과 없음(적재 상태 확인)", System.currentTimeMillis() - t0);
-        } catch (RuntimeException e) {
-            return new PortHealth.TestResult(false, "검색 실패: " + e.getMessage(), System.currentTimeMillis() - t0);
         }
     }
 

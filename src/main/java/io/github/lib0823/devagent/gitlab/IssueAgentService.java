@@ -5,7 +5,6 @@ import jakarta.annotation.PreDestroy;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.docs.KnowledgeSource;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.ops.AlertService;
 import io.github.lib0823.devagent.preview.PreviewService;
@@ -63,7 +62,6 @@ public class IssueAgentService {
     private final MessengerService client;
     private final AlertService alert;
     private final SettingService settings;
-    private final KnowledgeSource docs;
     private final IssueEventBus events;
     private final PreviewService preview;
     private final VerifyService verifier;
@@ -109,7 +107,7 @@ public class IssueAgentService {
 
     public IssueAgentService(GitLabProperties props, GitLabClient gitlab, GitRunner git,
                              CodingAgent agent, IssueSessionMapper sessions,
-                             MessengerService client, AlertService alert, SettingService settings, KnowledgeSource docs, IssueEventBus events, PreviewService preview, VerifyService verifier,
+                             MessengerService client, AlertService alert, SettingService settings, IssueEventBus events, PreviewService preview, VerifyService verifier,
                              IssueReferences refs, IssueProjects projectReg, IssueNotifier notifier, IssuePrompts prompts,
                              io.github.lib0823.devagent.llm.UsageService usage,
                              @org.springframework.beans.factory.annotation.Value("${server.port:8777}") int adminPort) {
@@ -134,7 +132,6 @@ public class IssueAgentService {
         this.client = client;
         this.alert = alert;
         this.settings = settings;
-        this.docs = docs;
         this.events = events;
         this.preview = preview;
         this.adminPort = adminPort;
@@ -172,7 +169,6 @@ public class IssueAgentService {
             transition(preparing, IssueSession.NEW);
         }
         log.info("GitLab 이슈 에이전트 활성 — projects={} label={} prefetch={}", projectReg.projects(), props.label(), props.prefetch());
-        notifier.warnIfSelfRoomNotCollected();
     }
 
     @PreDestroy
@@ -801,7 +797,7 @@ public class IssueAgentService {
         prefetchIfPossible();
     }
 
-    /** 분석 공통: 세션 worktree 준비 → 이슈/코멘트/RAG 수집 → Claude 분석. */
+    /** 분석 공통: 세션 worktree 준비 → 이슈/코멘트 수집 → Claude 분석. */
     private CodingAgent.Result analyzeCore(IssueSession s, String label) {
         final long id = s.getId();
         GitLabClient.Project p = projectReg.project(s.getProjectPath());
@@ -823,9 +819,7 @@ public class IssueAgentService {
 
         s.setClaudeSessionId(UUID.randomUUID().toString());
         sessions.update(s);                           // 실행 중에도 DB 의 세션 id 로 runInfo(실행 중 모델)를 찾을 수 있게 바로 저장
-        String docContext = retrieveDocs(is);
-        events.emit(id, IssueEvent.INFO, docContext == null ? "사내 문서(RAG): 관련 섹션 없음" : "사내 문서(RAG) 컨텍스트 주입", docContext);
-        CodingAgent.Result r = runClaude(s, label, false, props.agent().analyzeTools(), prompts.analyzePrompt(is, notes, docContext));
+        CodingAgent.Result r = runClaude(s, label, false, props.agent().analyzeTools(), prompts.analyzePrompt(is, notes));
         if (r.error()) {
             throw new IllegalStateException(label + " 실패: " + abbreviate(r.text(), 300));
         }
@@ -1676,29 +1670,6 @@ public class IssueAgentService {
         toReviewWait(s, null);
         return true;
     }
-
-    /**
-     * 사내 개발문서(MkDocs RAG)에서 이슈와 관련된 섹션을 찾아 분석 컨텍스트로 준다.
-     * 문서 저장소 이슈라면 수정할 파일을 바로 가리키고, 코드 저장소 이슈라면 운영/설정 배경을 보강한다. 없으면 null.
-     */
-    private String retrieveDocs(GitLabClient.Issue is) {
-        try {
-            String desc = is.description() == null ? "" : is.description();
-            // 챗봇 이슈 템플릿의 HTML 주석/YAML 블록은 검색 토큰만 오염시키므로 제거
-            desc = desc.replaceAll("(?s)<!--.*?-->", " ").replaceAll("(?s)```yaml.*?```", " ");
-            String q = is.title() + " " + abbreviate(desc, 600);
-            String ctx = docs.retrieveContext(q);
-            if (ctx == null || ctx.isBlank()) {
-                return null;
-            }
-            return ctx + "\n(위 [출처] URL 의 경로는 문서 저장소의 docs/ 하위 Markdown 파일에 대응할 수 있습니다. "
-                    + "예: .../ko/security/cve/ → docs/security/cve/index.ko.md 또는 index.md)\n";
-        } catch (RuntimeException e) {
-            log.debug("이슈 RAG 검색 실패(무시): {}", e.toString());
-            return null;
-        }
-    }
-
     // ---------------------------------------------------------------- 대상 프로젝트(위임 — 구현은 IssueProjects)
 
     public List<Map<String, Object>> projectList() {

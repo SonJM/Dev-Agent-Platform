@@ -45,6 +45,7 @@ T-007을 2026-11-25 착수 전 재확인에서 나눈 뒷부분이다. T-007이 
   - `config/ClaudeProperties.java`·`application.yml` `claude.*`: 채팅 전용 항목(`warm`·`warm-*`·`system-prompt` 등) 제거. 코딩 에이전트·`ClaudeCliProbe`·`Doctor`가 읽는 키(`cli-command`·`exe-command`, `warmCommand()`가 쓰는 값 등)는 **사용처를 검색해 남기고**, 남긴 키와 이유를 설명서에 표로. 이름에 `warm`이 남는 메서드는 뜻에 맞게 바꿔도 된다
   - `llm/claude/ClaudeCliProbe.java`: 코딩 에이전트가 쓰므로 유지. 패키지를 옮길지 정하고 근거를 적는다(PM 권고: `llm/claude/`에 이 파일만 남으면 `agent/claude/`로 — 호출처 확인 뒤)
   - 주석만: `platform/PortHealth.java`(포트 목록), `mcp/McpServer.java`(내장 서버 언급), `db/schema.sql`의 `mcp_server` 주석(내장 3종 언급)
+  - T-007 리뷰가 넘긴 LOW(2026-11-25 PM 확인 — 일부는 위 삭제로 함께 사라진다): `PlatformController` 52·55행 채팅·도구 모델 행 문구(행째 삭제), `McpProperties`의 `chat.allowAutoRooms`(방 화이트리스트 — `chat`째 삭제)와 클래스 주석의 `@AI` 운영 질의 문장, `OpsQueryService.allowAutoRooms()`(클래스째 삭제), `application.yml`의 `platform.chat-model` 설명 주석(키째 삭제), `llm/ChatModel` javadoc "요약·멘션"(파일째 삭제), **`config/ClaudeProperties.java` 클래스 주석 "LLM(요약/응답) 호출 설정"**(남는 키에 맞는 문구로), **`agent/claude/ClaudeCliAgent.java` 시스템 프롬프트 파일 전달 주석(현재 375~376행)의 "문서 검색 안내의 curl 예시" 실측 사례**(T-007에서 문서 검색 안내가 사라졌으므로 "본문의 큰따옴표가 인자 파싱을 깬다"는 일반 이유로 — 파일 전달 동작은 그대로)
   - `application.yml`의 `platform.chat-model`·`mcp.opensearch-url`·`mcp.postgres-url`·`mcp.k3s-*`·`mcp.chat.*`, `.env.example`, `src/main/resources/dist/env.template`, `README.md`, `CLAUDE.md`
 
 ## 범위
@@ -65,7 +66,7 @@ T-007을 2026-11-25 착수 전 재확인에서 나눈 뒷부분이다. T-007이 
 
 ## 완료 조건
 - [ ] 범위 1의 호출처 재검색 결과를 설명서에 적었다
-- [ ] 검증 명령 2~4행 출력 없음, 제거한 API 3개(`/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status`)가 404
+- [ ] 검증 명령 2~5행 출력 없음, 제거한 API 3개(`/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status`)가 404
 - [ ] `gradlew test` 실패 0(범위 4의 새 단위 테스트 포함), `bootJar` 성공
 - [ ] 04 §8 형태로 8778에 띄워 `/api/system/status` 200, `GET /api/platform`의 `ports`가 정확히 `messenger`·`agent` 2개, `GET /api/mcp-servers` 200. 확인 뒤 반드시 내리고 8778·54329 리슨 0
 - [ ] 변경 설명서(`docs/tasks/results/T-018-운영-mcp-채팅-모델-제거.md`)가 그림·설명과 함께 있고 삭제 목록(파일·API·설정 키), 남긴 `claude.*` 키 표, `ClaudeCliProbe` 위치 결정, TC-023 보고가 있다
@@ -78,10 +79,11 @@ T-007을 2026-11-25 착수 전 재확인에서 나눈 뒷부분이다. T-007이 
 ./gradlew test bootJar
 grep -rnE 'OpsQueryService|ToolChatModel|ChatModel|ClaudeWarmSession|ClaudeCliChatModel|ClaudeCliToolChat|opensearch|k3s|K3S_|mcp-ask|llm-test|mcp-status|chat-model|CHAT_MODEL|CLAUDE_WARM|CLAUDE_SYSTEM_PROMPT|McpRouting' src/main db | grep -vE 'PreviewProperties\.java|PREVIEW_OVERLAY_DIRS' ; test $? -eq 1
 grep -rn '@AI' src/main/java ; test $? -eq 1
+grep -rnE '요약[·/ ]*(멘션|응답)|allowAutoRooms|문서 검색 안내' src/main/java src/main/resources/application.yml ; test $? -eq 1
 grep -rnE '/api/(mcp-status|mcp-ask|llm-test)' src/main/resources/static --include=*.js --include=*.html ; test $? -eq 1
 # 이어서 04 §8 형태로 8778 기동 → /api/system/status 200, /api/platform ports 2개, /api/mcp-servers 200, 제거 API 3개 404 → stop-app.sh → 8778·54329 리슨 0
 ```
-기대: 1행 성공, 2~4행 출력 없음. 2행에서 제외하는 두 패턴은 프리뷰 설정(`preview.overlay-dirs`의 `opensearch` 폴더 이름)으로 T-009가 지운다. `e2e/core/access-control.spec.ts`의 `llm-test`는 검색 대상이 아니다(범위 밖 — qa).
+기대: 1행 성공, 2~5행 출력 없음(4행은 T-007 리뷰 LOW 문구 — 2026-11-25 추가). 2행에서 제외하는 두 패턴은 프리뷰 설정(`preview.overlay-dirs`의 `opensearch` 폴더 이름)으로 T-009가 지운다. `e2e/core/access-control.spec.ts`의 `llm-test`는 검색 대상이 아니다(범위 밖 — qa).
 
 ## 검증 증거
 개발 에이전트가 작성.
@@ -90,3 +92,4 @@ grep -rnE '/api/(mcp-status|mcp-ask|llm-test)' src/main/resources/static --inclu
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-25 | 대기 | PM 작성 — T-007 착수 전 재확인에서 나눔(운영 MCP·`운영` 질의·채팅 모델 포트, 연동 카드 2행, `/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status`). 코드 확인: 화면이 `/api/platform`의 `ports`만 그림, `McpConfigService.available()`이 내장 설정 파일 기준이라 사용자 정의 서버만 남을 때의 회귀 테스트를 범위에 넣음, `RESERVED`의 `playwright`는 T-009까지 유지 |
+| 2026-11-25 | 대기 | PM 수정(T-007 검수): T-007 java-reviewer가 범위 밖으로 남긴 LOW를 대조 — `PlatformController` 행 문구·`OpsQueryService`·`ChatModel` javadoc·`platform.chat-model` 주석은 기존 삭제 범위에 포함, `McpProperties.allowAutoRooms`를 명시, 빠져 있던 `ClaudeProperties` 클래스 주석·`ClaudeCliAgent` 시스템 프롬프트 주석을 수정 목록에 추가. 검증 명령 4행(문구 grep) 추가, 완료 조건을 "2~5행"으로 |

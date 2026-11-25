@@ -1,82 +1,14 @@
 -- Dev Agent 스키마. 빈 DB 에서 첫 기동 때 실행된다(DROP 문은 제외). 이후 변경은 각 매퍼의 ensureTable() 이 맡는다.
 
-DROP TABLE IF EXISTS mention_reply;
-DROP TABLE IF EXISTS chat_summary;
-DROP TABLE IF EXISTS chat_message;
-DROP TABLE IF EXISTS chat_room_cursor;
 DROP TABLE IF EXISTS bot_setting;
-DROP TABLE IF EXISTS doc_chunk;
 DROP TABLE IF EXISTS issue_event;
 DROP TABLE IF EXISTS issue_session;
 
--- 런타임 설정 (관리 페이지에서 편집 → 재시작 없이 반영). 예: auto_room_keys
+-- 런타임 설정 (관리 페이지에서 편집 → 재시작 없이 반영). 예: gitlab_projects
 CREATE TABLE bot_setting (
     key         VARCHAR(64)  PRIMARY KEY,
     value       TEXT,
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
-);
-
--- 수집 메시지. 방·사용자·메시지 id 는 메신저 어댑터가 정하는 문자열(숫자, Slack 채널 id·ts, Discord snowflake 등)이라
--- 크기를 비교하지 않는다. 정렬·참조는 로컬 적재 순번 seq 로 한다.
-CREATE TABLE chat_message (
-    seq            BIGSERIAL    PRIMARY KEY,       -- 로컬 적재 순번
-    message_id     VARCHAR(64)  NOT NULL,          -- 메신저의 메시지 id(방 안에서 고유)
-    room_id        VARCHAR(64)  NOT NULL,
-    room_type      VARCHAR(16)  NOT NULL,          -- self | single | group
-    sender_id      VARCHAR(64),
-    sender_name    VARCHAR(100),
-    body           TEXT,
-    sent_at        TIMESTAMPTZ  NOT NULL,
-    mentioned_me   BOOLEAN      NOT NULL DEFAULT FALSE,
-    raw_json       JSONB,
-    collected_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    UNIQUE (room_type, room_id, message_id)
-);
-CREATE INDEX idx_chat_message_room_time ON chat_message (room_id, room_type, sent_at);
-CREATE INDEX idx_chat_message_mention ON chat_message (mentioned_me) WHERE mentioned_me = TRUE;
-
--- 방별 수집 커서(마지막으로 받은 메시지 id)
-CREATE TABLE chat_room_cursor (
-    room_id           VARCHAR(64)  NOT NULL,
-    room_type         VARCHAR(16)  NOT NULL,       -- self | single | group
-    room_name         VARCHAR(200),
-    last_message_id   VARCHAR(64),
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    PRIMARY KEY (room_id, room_type)
-);
-
--- 요약 결과
-CREATE TABLE chat_summary (
-    id              BIGSERIAL    PRIMARY KEY,
-    room_id         VARCHAR(64)  NOT NULL,
-    room_type       VARCHAR(16)  NOT NULL,
-    from_at         TIMESTAMPTZ  NOT NULL,
-    to_at           TIMESTAMPTZ  NOT NULL,
-    message_count   INT          NOT NULL,
-    summary         TEXT         NOT NULL,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
-);
-
--- 멘션 응답 이력 (중복 응답 방지 키)
-CREATE TABLE mention_reply (
-    message_seq    BIGINT       PRIMARY KEY REFERENCES chat_message(seq),
-    room_id        VARCHAR(64)  NOT NULL,
-    mode           VARCHAR(16)  NOT NULL,          -- DRAFT | AUTO | SKIPPED
-    reply_text     TEXT,
-    skip_reason    VARCHAR(200),
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
-);
-
--- 사내 개발문서 섹션 (MkDocs search_index.json 에서 전면 갱신, RAG 검색 대상)
--- 앱 기동 시 DocChunkMapper.ensureTable() 로도 멱등 생성되므로 기존 DB 에도 자동 추가된다.
-CREATE TABLE doc_chunk (
-    id         BIGSERIAL    PRIMARY KEY,
-    location   TEXT         NOT NULL UNIQUE,       -- MkDocs location (언어는 "ko/" prefix), 딥링크 키
-    url        TEXT         NOT NULL,              -- siteBase + location
-    title      TEXT         NOT NULL,
-    body       TEXT         NOT NULL,              -- HTML 제거한 평문
-    lang       VARCHAR(8),                         -- ko | en (vi 제외)
-    updated_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 -- GitLab 이슈 수정 에이전트 세션 (이슈 1건 = 1행). 상태: NEW → ANALYZING → DESIGN_WAIT → FIXING → REVIEW_WAIT → PUSHING → DONE (ABORTED/FAILED)

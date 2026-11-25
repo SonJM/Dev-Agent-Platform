@@ -36,8 +36,11 @@ class BootstrapTest {
         String sql = Files.readString(Path.of("db", "schema.sql"), StandardCharsets.UTF_8);
         List<String> stmts = Bootstrap.splitStatements(sql);
         assertTrue(stmts.stream().noneMatch(s -> s.toUpperCase().startsWith("DROP")), "DROP 문이 남아 있다");
-        for (String table : List.of("bot_setting", "chat_message", "chat_room_cursor", "issue_session", "research_job", "mcp_server", "agent_skill", "routine")) {
+        for (String table : List.of("bot_setting", "issue_session", "research_job", "mcp_server", "agent_skill", "routine")) {
             assertTrue(stmts.stream().anyMatch(s -> s.matches("(?is)CREATE TABLE (IF NOT EXISTS )?" + table + "\\b.*")), table + " 생성문 없음");
+        }
+        for (String gone : List.of("chat_message", "chat_room_cursor", "chat_summary", "mention_reply", "doc_chunk")) {   // TC-014: 삭제한 테이블
+            assertTrue(stmts.stream().noneMatch(s -> s.contains(gone)), gone + " 가 스키마에 남아 있다");
         }
         assertTrue(stmts.stream().noneMatch(s -> s.contains("--")), "주석이 남아 있다");
     }

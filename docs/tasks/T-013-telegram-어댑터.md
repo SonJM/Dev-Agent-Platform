@@ -27,7 +27,7 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 
 ## 근거
 - 요구사항: `FR-401`, `FR-402`, `FR-403`, `FR-205` ([01 §4.4](../01-requirements.md)), `NFR-302`
-- 설계: [02 §3.1](../02-architecture.md), [02 §4.1](../02-architecture.md)(long polling), T-006 변경 설명서의 포트 시그니처
+- 설계: [02 §2.3 메신저](../02-architecture.md)(T-007 확정 포트 메서드), [02 §3.1](../02-architecture.md), [02 §4.1](../02-architecture.md)(long polling), T-006·[T-007](./results/T-007-사내-기능-제거.md) 변경 설명서의 포트 시그니처
 - 화면: `S-04` Phase 4 ([06 §3.5](../06-functional-specification.md)) — 연결 상태 카드가 쓰는 값은 기존 `/api/platform` 구조로 제공
 - 테스트: `TC-018`, `TC-019`, `TC-020` ([07 §4](../07-test-plan.md))
 - 코딩 규약: [04 §4](../04-project-structure.md), `CLAUDE.md`(포트 규약: `health()`는 호출 없이 즉시)
@@ -35,9 +35,12 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 ## 관련 코드 경로
 - 신규: `messenger/telegram/`(구현체, `@ConditionalOnProperty` `platform.messenger=telegram`), 설정 record, 테스트
 - 수정: `application.yml`, `.env.example`, `env.template`, `deploy/env.server.example`, `ops/Doctor.java`, `README.md`
+- 읽기만: `messenger/MessengerPort.java`(구현할 규약), `command/MessengerReceiver.java`·`command/MessengerCommandRouter.java`(수신 루프·라우터 — T-007에서 `messenger/`에서 옮김. 고치지 않는다)
 
 ## 범위
 - Bot API long polling으로 수신(수신 포트 없음), 텍스트 전송, 한 건 길이 한도에 맞춘 분할.
+- 구현할 포트 메서드(T-007 확정, [02 §2.3](../02-architecture.md)): `provider()`(= `telegram`), `health()`(호출 없이 즉시), `selfId()`, `connect()`, `reset()`, `receiveSelf(String cursor, Duration timeout)`, `sendSelf(String text)`(대상 인자 없음 — 설정한 chat id로만 보낸다). 방 목록·방별 조회·방 지정 전송 메서드는 포트에 없다.
+- **자기가 보낸 글은 어댑터가 거른다**(CLAUDE.md 포트 규약 "어댑터가 자기가 보낸 글을 거른다"). 봇이 보낸 알림·답이 다시 명령으로 들어오지 않아야 한다 — Bot API `getUpdates`는 봇 자신의 글을 돌려주지 않는 것이 보통이나, 발신자가 봇 자신(`from.is_bot`·봇 id)인 글은 버리고 커서는 전진시킨다. 단위 테스트로 확인하고 설명서에 근거를 적는다.
 - 수신 계약([02 §3.1](../02-architecture.md), T-006에서 확정): `receiveSelf(String cursor, Duration timeout)` → `SelfInbox(List<SelfMessage>, String nextCursor)`. 커서는 `update_id` 기반 문자열(`getUpdates`의 `offset`), 글마다 `SelfMessage.cursorAfter`(= 그 글의 `update_id + 1`, **null 금지**)를 채운다. 버린 글(다른 대화·텍스트 아님)도 `nextCursor`는 전진시킨다. `timeout`(코어 25초)보다 HTTP 응답 제한 시간을 길게 잡는다. 커서 저장은 코어가 키 `messenger_cursor.telegram`으로 한다(어댑터는 저장하지 않는다). 수신 루프·재시도·백오프는 코어(`MessengerReceiver`)에 있으므로 어댑터가 따로 돌리지 않는다.
 - 실패는 RuntimeException으로 던지되 **예외 메시지·원인 체인·로그에 봇 토큰이 든 URL을 넣지 않는다**(코어 수신 루프는 예외 클래스 이름만 남기지만, 어댑터 자체 로그와 `health()` 상세도 같다 — T-006 검토 M-4 후속).
 - 허용 대화는 설정한 chat id 하나. 다른 대화의 글은 버리고 답하지 않는다(커서는 전진). chat id를 알아내는 방법을 절차로 제공한다(예: 미설정 상태에서 받은 대화 id를 로그가 아닌 Doctor 안내로 보여 주는 방식 — 방식은 구현 시 정하고 근거를 적는다).
@@ -73,3 +76,4 @@ Phase 4. 단계 수준 지시서 — 보안 리뷰(security-reviewer)를 1회 �
 | 2026-11-24 | 대기 | PM 작성(단계 수준) |
 | 2026-11-24 | 대기 | PM 수정(T-006 검수): 확정된 수신 계약(`SelfInbox`·`SelfMessage.cursorAfter`·커서 키)과 토큰 비노출 보안 리뷰 항목 추가. 순서: `depends: [T-007]` 유지 — T-007이 `mention/`·`collect/`를 지운 뒤라야 실제 어댑터에서 답 중복이 없다(M-6) |
 | 2026-11-24 | 대기 | PM 수정(T-006 완료): 실제 어댑터에서 `receiver` 상태 노출 확인을 완료 조건에 추가 |
+| 2026-11-25 | 대기 | PM 수정(T-007 검수): 확정된 `MessengerPort` 메서드 목록(02 §2.3), 수신 루프·라우터의 `command/` 이동(읽기만), 자기가 보낸 글 거름 확인 항목 추가 |

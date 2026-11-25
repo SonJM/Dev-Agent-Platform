@@ -1,8 +1,6 @@
 package io.github.lib0823.devagent.gitlab;
 
-import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.config.BotProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.notify.NotificationService;
@@ -16,7 +14,7 @@ import org.springframework.stereotype.Component;
 import static io.github.lib0823.devagent.gitlab.IssueTexts.*;
 
 /**
- * 이슈 에이전트의 자기방 알림: 긴 메시지 분할 전송, 사용량 한도 알림(한도 창당 1회), 자기방 수집 꺼짐 경고.
+ * 이슈 에이전트의 자기방 알림: 긴 메시지 분할 전송, 사용량 한도 알림(한도 창당 1회).
  * {@link IssueAgentService} 에서 분리.
  */
 @Component
@@ -26,46 +24,22 @@ public class IssueNotifier {
     private static final String PFX = "[이슈] ";
 
     private final GitLabProperties props;
-    private final BotProperties bot;
     private final MessengerService client;
-    private final SettingService settings;
     private final AlertService alert;
     private final io.github.lib0823.devagent.llm.UsageService usage;
     private final NotificationService notifications;
 
-    public IssueNotifier(GitLabProperties props, BotProperties bot, MessengerService client, SettingService settings, AlertService alert,
+    public IssueNotifier(GitLabProperties props, MessengerService client, AlertService alert,
                          io.github.lib0823.devagent.llm.UsageService usage, NotificationService notifications) {
         this.notifications = notifications;
         this.props = props;
-        this.bot = bot;
         this.client = client;
-        this.settings = settings;
         this.alert = alert;
         this.usage = usage;
     }
 
     /** 마지막으로 자기방에 알린 한도 리셋 시각(같은 한도 창에 한 번만 알림). */
     private volatile java.time.Instant limitNotified;
-
-    /**
-     * 이슈 에이전트는 자기방 메시지로 명령/확인 답변을 받으므로 자기방 수집이 꺼져 있으면 아무 답도 못 받는다.
-     * (실제 사고: 관리 페이지에서 자기방 수집이 꺼져 있어 "@AI 이슈 …" 가 봇에 도달하지 않음)
-     */
-    public void warnIfSelfRoomNotCollected() {
-        String selfKey = "self:" + client.selfId();
-        boolean collected = bot.collect().mode() == BotProperties.Collect.Mode.ALL
-                || settings.getCollectRoomKeys().contains(selfKey) || settings.getAutoRoomKeys().contains(selfKey);
-        if (!collected && client.notifyOn(MessengerService.NOTICE_ISSUE)) {
-            log.warn("자기방({}) 수집이 꺼져 있어 이슈 에이전트가 명령/확인 답변을 받을 수 없습니다 — 관리 페이지에서 자기방 '수집'을 켜세요", selfKey);
-            try {
-                client.connect();
-                client.sendToSelf(PFX + "⚠️ 자기방 수집이 꺼져 있어 이슈 에이전트가 이 방의 답변을 읽지 못합니다. "
-                        + "메신저 화면(:8777/messenger.html)에서 자기방 '수집'을 켜주세요.");
-            } catch (RuntimeException e) {
-                log.debug("자기방 경고 전송 실패(무시): {}", e.toString());
-            }
-        }
-    }
 
     /** 사용량 한도 알림(같은 리셋 시각에 대해 한 번만). 새 분석 시작은 {@code usage.isLimited()} 로 리셋까지 보류된다. */
     public void notifyLimit(CodingAgent.UsageLimitException e) {

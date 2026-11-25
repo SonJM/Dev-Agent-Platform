@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.config.ClaudeProperties;
-import io.github.lib0823.devagent.config.DocsProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.config.PreviewProperties;
 import io.github.lib0823.devagent.mcp.McpConfigService;
@@ -77,7 +76,6 @@ public class ClaudeCliAgent implements CodingAgent {
     private final ClaudeProperties claude;
     private final GitLabProperties props;
     private final McpConfigService mcp;
-    private final DocsProperties docs;
     private final PreviewProperties preview;
     private final SettingService settings;
     private final int adminPort;
@@ -136,7 +134,7 @@ public class ClaudeCliAgent implements CodingAgent {
     private final io.github.lib0823.devagent.skill.SkillService skills;
 
     public ClaudeCliAgent(ClaudeProperties claude, GitLabProperties props, McpConfigService mcp,
-                             DocsProperties docs, PreviewProperties preview, SettingService settings,
+                             PreviewProperties preview, SettingService settings,
                              io.github.lib0823.devagent.llm.UsageService usage,
                              io.github.lib0823.devagent.skill.SkillService skills,
                              @Value("${server.port:8777}") int adminPort) {
@@ -146,7 +144,6 @@ public class ClaudeCliAgent implements CodingAgent {
         this.settings = settings;
         this.props = props;
         this.mcp = mcp;
-        this.docs = docs;
         this.preview = preview;
         this.adminPort = adminPort;
     }
@@ -212,34 +209,6 @@ public class ClaudeCliAgent implements CodingAgent {
         sb.append("4) '## 검증 결과' 에 실행한 검사·프리뷰 결과와 스크린샷 파일명을 적으세요. `preview log 80` 으로 Tomcat 로그를 볼 수 있습니다.\n")
           .append("프리뷰 Tomcat 은 개발 DB/OpenSearch 에 붙습니다(쓰기 허용됨). 작업이 끝나면 `preview stop` 은 하지 않아도 됩니다(봇이 정리).");
         return sb.toString();
-    }
-
-    /**
-     * 사내 문서(RAG) 검색/읽기용 curl 허용. WebFetch 는 localhost 를 거부하므로 curl 을 쓴다.
-     * 실측: 패턴에 URL("http://…:8777")이 들어가면 ':' 때문에 접두 매칭이 깨져 거부되므로 "curl -s -G" 까지만 접두로 둔다
-     * (GET 전용, URL 은 시스템 프롬프트로 봇 로컬 API 에 한정).
-     */
-    List<String> docsTools() {
-        if (docs == null || !docs.enabled()) {
-            return List.of();
-        }
-        return List.of("Bash(curl -s -G:*)");
-    }
-
-    /** 문서 검색/읽기 사용법(시스템 프롬프트에 추가). */
-    String docsHint() {
-        if (docs == null || !docs.enabled()) {
-            return "";
-        }
-        // localhost 는 IPv6(::1)를 먼저 시도해 연결마다 200ms 가 더 든다(서버는 127.0.0.1 에만 바인딩) → 숫자 주소로
-        String base = "http://127.0.0.1:" + adminPort + "/api/docs-";
-        // 주의: Windows 에서 curl 인자에 한글을 넣으면 코드페이지 때문에 깨진다(바이트 단위 실측) → 검색어는 heredoc 으로 표준입력(q@-)에 넣게 한다
-        return "사내 개발문서(MkDocs) 검색·읽기를 아래 두 명령으로만 할 수 있습니다(정확히 이 형태, 다른 curl 은 거부됨):\n"
-                + "- 검색 (검색어는 반드시 heredoc 본문에 — 인자로 넣으면 한글이 깨짐):\n"
-                + "  curl -s -G \"" + base + "search\" --data-urlencode \"q@-\" --data-urlencode \"k=5\" <<'EOF'\n  <검색어>\n  EOF\n"
-                + "  → JSON hits[].title/url/score\n"
-                + "- 읽기: curl -s -G \"" + base + "read\" --data-urlencode \"url=<hits 의 url>\"  → 페이지 전체 평문\n"
-                + "컨벤션·배포·설정·운영 규칙이 궁금하면 추측하지 말고 먼저 검색해 근거를 확인하세요. 문서가 없으면 그 사실을 적으세요.";
     }
 
     @Override
@@ -363,7 +332,6 @@ public class ClaudeCliAgent implements CodingAgent {
         boolean withMcp = mcp.agentEnabled() && !maintain;
         boolean withPw = (fixStage || (stage == Stage.VERIFY && previewUp)) && shotsDir != null && mcp.playwrightEnabled();
         List<String> tools = new ArrayList<>(allowedTools == null ? List.of() : allowedTools);
-        tools.addAll(docsTools());                    // 사내 문서 검색/읽기(curl → 봇 로컬 API)
         if (!maintain) {
             tools.addAll(previewTools(stage));        // preview / jscheck / jspcheck 스크립트
         }
@@ -383,10 +351,6 @@ public class ClaudeCliAgent implements CodingAgent {
             cmd.addAll(tools);
         }
         String sys = systemAppend == null ? "" : systemAppend.strip();
-        String dh = docsHint();
-        if (!dh.isEmpty()) {
-            sys = (sys.isEmpty() ? "" : sys + "\n\n") + dh;
-        }
         // 플랫폼 스킬: 질의는 research, 플랫폼 관리는 maintain, 그 외는 단계(analyze/fix/verify)에 맞는 지침
         String skillNote = skills == null ? "" : skills.promptNote(
                 maintain ? MAINTAIN_SOURCE : ov != null && "research".equals(ov.source()) ? "research" : stage.name().toLowerCase(java.util.Locale.ROOT));
@@ -424,7 +388,7 @@ public class ClaudeCliAgent implements CodingAgent {
                 pb.environment().putAll(mcp.env());   // k3s 토큰은 env 로만(설정 파일엔 ${K3S_MCP_TOKEN})
             }
             Map<String, String> env = pb.environment();
-            Path scripts = Path.of("scripts", "bin").toAbsolutePath();   // preview / jscheck / jspcheck / (문서 curl 은 PATH 불필요)
+            Path scripts = Path.of("scripts", "bin").toAbsolutePath();   // preview / jscheck / jspcheck
             // 주의: Claude 의 Bash 도구는 이 PATH 를 쓰지 않는다 → 실제 해결은 installShims()(~/bin). 다른 도구/프로세스용으로 남겨 둔다.
             env.put("PATH", scripts + java.io.File.pathSeparator + env.getOrDefault("PATH", env.getOrDefault("Path", "")));
             env.put("DEV_AGENT_PORT", String.valueOf(adminPort));

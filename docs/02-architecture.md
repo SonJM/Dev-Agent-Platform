@@ -1,7 +1,7 @@
 # 02. 아키텍처 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.7 · 2026-11-25 · 상태: Draft
+> 버전 0.8 · 2026-11-25 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md)
 
 현재 구조의 상세는 `CLAUDE.md`·`README.md`가 기준이다. 이 문서는 **목표 구조와 바뀌는 부분의 결정**만 적는다.
@@ -80,10 +80,13 @@ flowchart LR
 - 책임: ① 알림 전송(`notifySelf(kind, text)`, 유형별 끄기) ② 명령 답변 전송 ③ **자기 대화 수신**(신규). 포트 `MessengerPort`는 "자기 대화 하나"만 다룬다.
 - 하지 않는 것: 방 목록, 다른 방 메시지 읽기·저장, 그룹 전송(관련 안전 정책 `bot.safety`도 함께 사라진다).
 - 구현체: `none`(기본, 수신 없음·전송 버림), `telegram`(Phase 4).
+- **포트 메서드**(T-007 확정 — 어댑터가 구현할 규약): `provider()`, `health()`(호출 없이 즉시), `selfId()`, `connect()`, `reset()`, `receiveSelf(String cursor, Duration timeout)` → `SelfInbox`(계약은 §3.1, 차단형 허용), `sendSelf(String text)`(대상 인자 없음 — 자기 대화로만 보낸다, 정책 검사 없음). **자기가 보낸 글과 허용하지 않은 대화의 글은 어댑터가 걸러** 돌려주지 않는다(커서는 전진). 제거된 것: `rooms()`·`latest(Room,int)`·`after(Room,String,int)`·`send(RoomKind,String,String)`, 모델 `Room`·`RoomKind`·`SendBlockedException`. `IncomingMessage`는 `SelfMessage`가 쓰므로 남는다.
+- `messenger` 패키지는 `gitlab`·`research`를 참조하지 않는다(T-007).
 
-#### 명령 라우터 (신규, `messenger/` — Phase 2)
-- 책임: 수신 메시지를 ① 명령(`이슈`·`질문`) ② 확인 대기 답변 ③ 그 외로 나눠 `IssueAgentService`·`ResearchService`를 부른다. 지금 `MentionService.handleCommand`와 `IssueAgentService.pollReplies`에 흩어진 분기를 옮긴다.
-- 하지 않는 것: 답변 해석 규칙 자체(`IssueTexts`의 순수 함수를 그대로 쓴다).
+#### 명령 라우터·수신 루프 (신규, `command/` — Phase 2)
+- 위치: `command/MessengerCommandRouter`·`command/MessengerReceiver`(T-007에서 `messenger/`에서 옮김). 라우터만 옮기면 수신 루프(`messenger`) → 라우터 → `messenger` 순환이 남아 둘을 함께 옮겼다. 의존 방향은 `command` → `messenger`·`gitlab`·`research`, `gitlab`·`research` → `messenger`의 단방향.
+- 책임: 수신 루프가 `MessengerService.receiveSelf`로 받은 글을 라우터가 ① 명령(`이슈`·`질문`) ② 확인 대기 답변 ③ 그 외로 나눠 `IssueAgentService`·`ResearchService`를 부른다. 글은 저장하지 않는다.
+- 하지 않는 것: 답변 해석 규칙 자체(`IssueTexts`의 순수 함수를 그대로 쓴다), LLM 호출(`ChatModel`에 의존하지 않는다 — 그룹방 글에 답하거나 같은 글에 두 번 답하는 경로가 없다, T-007 M-6 확인).
 
 #### 이슈 에이전트 (`gitlab/` → `issue/` — Phase 3)
 - 책임: 상태 기계·큐·검증·푸시는 그대로. 원격 API 호출만 `GitHubClient`로 바뀐다.
@@ -338,3 +341,4 @@ flowchart TB
 | 2026-11-24 | 0.5 | T-006 검수 반영: §3.1 그림을 수신 루프·라우터 구조로, 커서 키(`messenger_cursor.<provider>`)·글 단위 저장·포트 계약·예외 메시지 규약·확인 대기 세대·수신 루프 수명 추가 |
 | 2026-11-25 | 0.6 | OI-18 결정 변경: D-3 접속 경로를 "포트 공개" → "포트 공개 없이 기동 때 컨테이너 주소 조회"(선택지 (a)~(d) 평가, 조회 실패 시 기동 거부, `DB_URL` 출처 단일화), §2.2 그림·설명 수정. OI-04 삭제 확정(D-8 표는 그대로) |
 | 2026-11-25 | 0.7 | T-017 완료: D-3 동작을 실제 구성(`ExecStart` 감싸기 → `ExecStartPre=+` root 조회 + `EnvironmentFile`)으로 정정 |
+| 2026-11-25 | 0.8 | T-007 검수 반영: §2.3 메신저에 `MessengerPort` 최종 메서드·제거 목록·자기 글 거름 규약, 명령 라우터·수신 루프의 `command/` 패키지 이동과 의존 방향 |

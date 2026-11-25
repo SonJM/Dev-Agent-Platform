@@ -43,7 +43,7 @@ public class IssueAgentScheduler {
         try {
             service.remindWaiting();
         } catch (Exception e) {
-            log.error("이슈 답변 폴링 오류: {}", e.toString());
+            log.error("확인 대기 리마인더 오류: {}", e.toString());
         }
     }
 }

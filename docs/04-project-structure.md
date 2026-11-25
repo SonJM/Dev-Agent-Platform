@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.7 · 2026-11-25 · 상태: Draft
+> 버전 0.8 · 2026-11-25 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -39,6 +39,7 @@ Dev_Agent-Platform/
 | `agent/`, `agent/claude/` | `CodingAgent` 포트와 Claude CLI 구현 | 유지. Linux 동작 보정(1), 프리뷰 심·안내 제거(2) | 1, 2 |
 | `boot/` | `Bootstrap`(.env 틀·내장 DB·스키마), `EmbeddedDb`, `Launcher`, `Autostart` | `Launcher`·`Autostart` 삭제(2), 나머지 유지 | 2 |
 | `collect/`, `summarize/`, `mention/` | 방 수집·요약·멘션 | **삭제** | 2 |
+| `command/` | 메신저 명령 라우터·수신 루프(`MessengerCommandRouter`·`MessengerReceiver`) | 신규(2, T-007 — `messenger/`에서 이동, 순환 참조 정리. [02 §2.3](./02-architecture.md#23-컴포넌트-책임-바뀌는-것만)) | 2 |
 | `docs/` (Java 패키지) | 사내 문서 RAG | **삭제** (OI-02) | 2 |
 | `gitlab/` | 이슈 에이전트 | `GitLabClient` → `GitHubClient`(3, T-010), 패키지 `issue/`로 개명(3, T-011) | 3 |
 | `llm/`, `llm/claude/` | 채팅 모델 포트, 사용량 | 채팅 모델 포트(`ChatModel`·`ToolChatModel`)와 구현체(warm 세션) **삭제**. `UsageService`·`ClaudeUsageMapper`·`ClaudeCliProbe`는 유지([02 §4.2 D-11](./02-architecture.md)) | 2 |
@@ -57,7 +58,7 @@ Dev_Agent-Platform/
 
 ```mermaid
 flowchart LR
-    admin --> core[코어: issue · research · routine · maintain · notify · skill]
+    admin --> core[코어: command · issue · research · routine · maintain · notify · skill]
     core --> ports[포트: MessengerPort · CodingAgent]
     adapters[어댑터: messenger/none · messenger/telegram · agent/claude] --> ports
     core --> gh[GitHubClient · GitRunner]
@@ -170,3 +171,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-24 | 0.5 | T-016 완료: §8에 중복 기동 거부, 지시서 검증 명령의 앱 기동 형태(백그라운드 + 상한 대기 + 무조건 정지) 추가 |
 | 2026-11-25 | 0.6 | OI-18 결정 변경: §9 DB 항목을 "포트 공개 없이 기동 때 주소 조회(시작 스크립트, T-017)"로, 서버 적용 항목에서 포트 공개 제거. `deploy/` 구성 경로 표의 새 파일은 T-017 검수 때 더한다 |
 | 2026-11-25 | 0.7 | T-017 완료: §9 배포 구성 경로에 `bin/resolve-db.sh`(설치 경로 `/usr/local/libexec/dev-agent/`)·`smoke/start-server-check.sh`, "실행 중 생기는 파일"(`/run/dev-agent/db.env`) 추가. DB 항목을 실제 구성(`ExecStartPre=+` root 조회, docker 그룹 불필요, 종료 코드 2·3의 재시도 동작)으로 정정 |
+| 2026-11-25 | 0.8 | T-007 검수 반영: §2에 `command/` 패키지(라우터·수신 루프 이동), §3 그림의 코어에 `command` |

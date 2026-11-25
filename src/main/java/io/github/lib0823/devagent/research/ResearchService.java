@@ -746,7 +746,7 @@ public class ResearchService {
     public String submitFromMessenger(String text) {
         Parsed p = parseMessengerCommand(text, settings.getGitLabProjects());
         if (p == null) {
-            return "사용법: @AI 질문 <프로젝트[@브랜치][,프로젝트…]>: <질문>  예) @AI 질문 batch: 스케줄 job 목록을 표로 정리해줘 / @AI 질문 batch@develop: …"
+            return "사용법: 질문 <프로젝트[@브랜치][,프로젝트…]>: <질문>  예) 질문 batch: 스케줄 job 목록을 표로 정리해줘 / 질문 batch@develop: …"
                     + (settings.getGitLabProjects().size() == 1 ? "  (대상 프로젝트가 1개면 '프로젝트:' 생략 가능)" : "")
                     + "\n대상 프로젝트: " + settings.getGitLabProjects();
         }
@@ -806,7 +806,6 @@ public class ResearchService {
                 .append("- 목록·비교는 마크다운 표로 정리합니다(항목이 많아도 생략하지 말고 전부).\n")
                 .append("- 각 항목에 근거 파일 경로(가능하면 :라인)를 붙입니다. 저장소 루트 기준 상대 경로.\n")
                 .append("- 한국어로 쓰되 코드 식별자·파일명·설정 키는 원문 그대로.\n")
-                .append("- 사내 문서 검색 도구가 있으면 규칙·운영 맥락 확인에 활용하고 출처를 적습니다.\n")
                 .append("\n출력 형식(마크다운 문서, 이 틀을 지키세요):\n")
                 .append("# <문서 제목>\n")
                 .append("## 요약\n(3~5줄. 핵심 숫자·결론 먼저)\n")

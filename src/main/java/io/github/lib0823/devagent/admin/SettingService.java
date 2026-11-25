@@ -1,6 +1,5 @@
 package io.github.lib0823.devagent.admin;
 
-import io.github.lib0823.devagent.config.BotProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import org.springframework.stereotype.Service;
 
@@ -17,8 +16,6 @@ import java.util.stream.Collectors;
 @Service
 public class SettingService {
 
-    private static final String KEY_AUTO_ROOMS = "auto_room_keys";
-    private static final String KEY_COLLECT_ROOMS = "collect_room_keys";
     private static final String KEY_GITLAB_PROJECTS = "gitlab_projects";
     private static final String KEY_DESIGN_MODEL = "agent_design_model";
     private static final String KEY_DESIGN_EFFORT = "agent_design_effort";
@@ -28,10 +25,9 @@ public class SettingService {
     private static final String KEY_VERIFY_EFFORT = "agent_verify_effort";
 
     private final SettingMapper mapper;
-    private final BotProperties bot;
     private final GitLabProperties gitlab;
     /**
-     * bot_setting 메모리 캐시. 수집·멘션 폴링이 방마다 설정을 읽어 DB 조회가 폴링당 수백 번 나가던 것을 없앤다(11-16 실측: 로그의 25%).
+     * bot_setting 메모리 캐시. 폴링이 설정을 자주 읽어 DB 조회가 수백 번 나가던 것을 없앤다(11-16 실측: 로그의 25%).
      * 이 서비스가 유일한 쓰기 경로라 쓰기 때 갱신하면 된다. DB 를 직접 고쳤으면 재시작.
      */
     private final java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<String>> cache = new java.util.concurrent.ConcurrentHashMap<>();
@@ -45,9 +41,8 @@ public class SettingService {
         cache.put(key, java.util.Optional.ofNullable(value));
     }
 
-    public SettingService(SettingMapper mapper, BotProperties bot, GitLabProperties gitlab) {
+    public SettingService(SettingMapper mapper, GitLabProperties gitlab) {
         this.mapper = mapper;
-        this.bot = bot;
         this.gitlab = gitlab;
     }
 
@@ -128,46 +123,27 @@ public class SettingService {
         return v == null || v.isBlank() ? fallback : v.strip();
     }
 
-    /** AUTO(실제 회신) 허용 방 키 집합. DB 값이 있으면 그것을, 없으면 설정 폴백. */
-    public Set<String> getAutoRoomKeys() {
-        String v = cached(KEY_AUTO_ROOMS);
-        if (v != null) {
-            return parse(v);
-        }
-        List<String> fallback = bot.mention().autoRoomKeys();
-        return fallback == null ? new LinkedHashSet<>() : new LinkedHashSet<>(fallback);
-    }
-
-    public void setAutoRoomKeys(List<String> keys) {
-        store(KEY_AUTO_ROOMS, join(keys));
-    }
-
     private static final String KEY_NOTIFY_OFF = "messenger_notify_off";
 
-    /** 메신저(자기방)로 보내지 않기로 한 플랫폼 알림 유형(MessengerService.NOTICES 의 키). 기본은 빈 집합 = 전부 보냄. */
+    /**
+     * 메신저(자기방)로 보내지 않기로 한 플랫폼 알림 유형(저장된 그대로). 기본은 빈 집합 = 전부 보냄.
+     * 예전 설치에 남은 없어진 유형(summary·mention)이 섞여 있을 수 있으나 읽는 쪽은 유형별 contains 만 보므로 무해하다.
+     */
     public Set<String> getMessengerNotifyOff() {
         String v = cached(KEY_NOTIFY_OFF);
         return v == null ? new LinkedHashSet<>() : parse(v);
     }
 
-    public void setMessengerNotify(String kind, boolean on) {
+    /** 알림 유형 하나를 켜거나 끈다. 저장할 때 {@code known}(현재 유형 키)에 없는 예전 유형은 버린다. */
+    public void setMessengerNotify(String kind, boolean on, Set<String> known) {
         Set<String> off = getMessengerNotifyOff();
+        off.retainAll(known);
         if (on) {
             off.remove(kind);
         } else {
             off.add(kind);
         }
         store(KEY_NOTIFY_OFF, String.join(",", off));
-    }
-
-    /** 수집 대상(자기방 외 추가) 방 키 집합. DB 값이 없으면 빈 집합. */
-    public Set<String> getCollectRoomKeys() {
-        String v = cached(KEY_COLLECT_ROOMS);
-        return v == null ? new LinkedHashSet<>() : parse(v);
-    }
-
-    public void setCollectRoomKeys(List<String> keys) {
-        store(KEY_COLLECT_ROOMS, join(keys));
     }
 
     private String join(List<String> keys) {

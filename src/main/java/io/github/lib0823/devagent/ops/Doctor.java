@@ -4,7 +4,6 @@ import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.boot.Bootstrap;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.config.PreviewProperties;
-import io.github.lib0823.devagent.docs.KnowledgeSource;
 import io.github.lib0823.devagent.gitlab.GitLabClient;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.messenger.MessengerService;
@@ -39,13 +38,12 @@ public class Doctor {
     private final GitLabClient gitlabClient;
     private final SettingService settings;
     private final PreviewProperties preview;
-    private final KnowledgeSource knowledge;
 
     private volatile List<Map<String, Object>> cache;
     private volatile long cachedAt;
 
     public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, GitLabProperties gitlab, GitLabClient gitlabClient,
-                  SettingService settings, PreviewProperties preview, KnowledgeSource knowledge) {
+                  SettingService settings, PreviewProperties preview) {
         this.jdbc = jdbc;
         this.agent = agent;
         this.messenger = messenger;
@@ -53,7 +51,6 @@ public class Doctor {
         this.gitlabClient = gitlabClient;
         this.settings = settings;
         this.preview = preview;
-        this.knowledge = knowledge;
     }
 
     public List<Map<String, Object>> checks(boolean refresh) {
@@ -75,7 +72,6 @@ public class Doctor {
             out.add(gitBash());
         }
         out.add(previewCheck());
-        out.add(knowledgeCheck());
         cache = out;
         cachedAt = System.currentTimeMillis();
         return out;
@@ -135,7 +131,7 @@ public class Doctor {
         PortHealth h = messenger.health();
         if ("none".equals(h.provider())) {
             return check("messenger", "메신저", "warn", "연결 안 함 — 화면에서만 확인·알림",
-                    "메신저 어댑터(MessengerPort 구현)를 추가하고 .env 의 PLATFORM_MESSENGER 에 그 이름을 넣으면 @AI 명령·자기방 알림을 쓸 수 있습니다.");
+                    "메신저 어댑터(MessengerPort 구현)를 추가하고 .env 의 PLATFORM_MESSENGER 에 그 이름을 넣으면 이슈·질문 명령과 자기방 알림을 쓸 수 있습니다.");
         }
         String st = PortHealth.OK.equals(h.status()) ? "ok" : PortHealth.DOWN.equals(h.status()) ? "fail" : "warn";
         return check("messenger", "메신저(" + h.provider() + ")", st, h.summary(), "ok".equals(st) ? null : "메신저 계정·주소 설정과 네트워크를 확인하세요.");
@@ -192,13 +188,6 @@ public class Doctor {
         return tools ? check("preview", "로컬 프리뷰(화면 검증)", "ok", "도구 설치됨(" + preview.catalinaHome() + ")", null)
                 : check("preview", "로컬 프리뷰(화면 검증)", "warn", "도구(JDK 21·Maven·Tomcat)가 설치돼 있지 않습니다",
                 "화면 검증은 Windows 에서만 지원합니다(scripts/setup-preview.ps1). 쓰지 않으면 PREVIEW_ENABLED=false 로 끕니다.");
-    }
-
-    private Map<String, Object> knowledgeCheck() {
-        PortHealth h = knowledge.health();
-        String st = PortHealth.OK.equals(h.status()) ? "ok" : "warn";
-        return check("knowledge", "지식(RAG · " + h.provider() + ")", st, h.summary(),
-                "ok".equals(st) ? null : "사내 문서 사이트(DOCS_SEARCH_INDEX_URL)에 닿는지 확인하세요. 없어도 다른 기능은 동작합니다(DOCS_ENABLED=false 로 끌 수 있음).");
     }
 
     private Map<String, Object> tool(String key, String name, List<String> cmd, String missing, String hint) {

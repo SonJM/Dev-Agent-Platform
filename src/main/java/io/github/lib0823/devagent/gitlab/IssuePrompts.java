@@ -29,13 +29,10 @@ public class IssuePrompts {
                 + refs.referenceNote(s.getId());
     }
 
-    public String analyzePrompt(GitLabClient.Issue is, List<String> notes, String docContext) {
+    public String analyzePrompt(GitLabClient.Issue is, List<String> notes) {
         StringBuilder sb = new StringBuilder();
         sb.append("아래 GitLab 이슈를 이 저장소에서 확인하고 수정 설계안을 작성하세요. 이 단계에서는 코드를 수정하지 마세요(읽기 전용).\n");
         sb.append("저장소 루트의 CLAUDE.md / README / 컨벤션 문서가 있으면 먼저 읽고 그 규칙을 따르세요.\n\n");
-        if (docContext != null) {
-            sb.append(docContext).append('\n');
-        }
         sb.append("--- 이슈 #").append(is.iid()).append(" ---\n");
         sb.append("제목: ").append(is.title()).append('\n');
         sb.append("작성자: ").append(is.author()).append("  라벨: ").append(is.labels()).append('\n');
