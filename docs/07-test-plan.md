@@ -1,7 +1,7 @@
 # 07. 테스트 계획서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.7 · 2026-11-24 · 상태: Draft
+> 버전 0.8 · 2026-11-25 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md), [05. API 명세서](./05-api-specification.md), [06. 기능 정의서](./06-functional-specification.md)
 
 ---
