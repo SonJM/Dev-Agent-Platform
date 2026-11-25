@@ -104,6 +104,7 @@ LLM 호출은 전부 **Claude Code CLI(headless)** 다. 코딩은 저장소 work
 ## 이 환경에서 확인된 함정 (다시 겪지 말 것)
 
 - 봇 메시지 접두어(`[이슈]`, `[질의]`, `[봇]` …)가 붙은 글은 어댑터가 "자기가 보낸 글"로 걸러야 한다(`MessengerPort.receiveSelf` 규약 — 코어는 접두어로 거르지 않는다). 새 접두어를 추가해도 코어는 바꿀 것이 없다.
+- **도구 금지는 `ClaudeCliAgent.disallowedTools` 한 곳**(T-023): 금지가 허용보다 우선이라 플랫폼 관리가 아닌 세션은 `*-tools` 설정에 curl 을 넣어도 막힌다(로컬 API 는 플랫폼 관리 세션만). 검증 리뷰어는 Edit/Write 류 금지, 모든 세션은 `.env` 읽기 금지.
 - Claude Code `--allowedTools` Bash 패턴에 **URL(`http://…:8777`)을 넣으면 ':' 때문에 매칭이 깨져 거부**된다 → `Bash(curl -s -G:*)` 처럼 접두만.
 - Windows 에서 Claude 의 Bash→curl **인자에 한글을 넣으면 서버가 깨진 바이트를 받는다** → 검색어는 heredoc 으로 stdin(`--data-urlencode "q@-"`). 응답의 한글은 정상.
 - Claude Code WebFetch 는 localhost 를 거부하고 세션에 따라 도구 자체가 없을 수 있다 → 로컬 API 는 curl.

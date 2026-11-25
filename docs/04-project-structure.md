@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.10 · 2026-11-25 · 상태: Draft
+> 버전 0.12 · 2026-11-25 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -78,6 +78,7 @@ flowchart LR
 - 주석·메시지·문서는 한국어, 식별자는 영어. 기존 파일의 스타일을 따른다.
 - 새 설정: `config/*Properties` + `application.yml` + `.env.example` + `resources/dist/env.template` + README 표를 함께 고친다. **기본값 없는 필수 자리표시자(`${X}`)를 만들지 않는다.** 새 설정이 비밀값(비밀번호·토큰·키)이면 그 환경변수 이름을 `platform/ChildEnv.SECRET_KEYS`에도 더한다(`ChildEnvTest`가 `application.yml`의 password·secret·token 속성만 대조하므로 그 밖의 이름은 사람이 챙긴다).
 - 자식 프로세스: `new ProcessBuilder(…)`는 `ChildEnv.clean(…)`을 거친 뒤 띄우고, 앱이 일부러 넣는 환경값은 정리 뒤에 넣는다(T-021, `ChildEnvTest`가 소스 검색으로 지킨다).
+- 에이전트 도구 금지: `--disallowedTools`는 `ClaudeCliAgent.disallowedTools`에서만 조립한다(단위 테스트가 단계·출처별 항목을 지킨다, T-023). 상태를 바꾸는 로컬 API를 새로 만들면 플랫폼 관리 세션이 curl로 불러도 되는지 보고, 안 되면 `MAINTAIN_DENIED_APIS`에 경로를 더한다. 허용 도구(`*-tools` 설정)에 넣어도 금지가 이긴다.
 - DB 스키마 변경: 매퍼 `ensureTable()`과 `db/schema.sql` 둘 다.
 - 테스트: JUnit 5, `src/test/java`, Spring 컨텍스트 없는 단위 테스트. 새 기능은 테스트를 먼저 쓴다. 빈을 추가·변경했으면 기동 후 `/api/system/status` 응답을 확인한다(배선 오류는 단위 테스트로 잡히지 않는다).
 - 프런트(4단계까지): `static/ui.css`·`ui.js` 사용, 수정 뒤 `node --check`. Java/JS 소스의 문자열 리터럴은 스크립트가 아닌 편집 도구로 넣는다.
@@ -177,3 +178,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-25 | 0.9 | T-009 검수 반영: §8 띄우기 값에서 `PREVIEW_ENABLED`·`CLAUDE_WARM*` 삭제, `-Duser.home` 목적을 홈 분리로(심 없음), §9 Linux 기동 동작 정정 |
 | 2026-11-25 | 0.10 | OI-29 결정 ①: §9 실행 런타임에 unit JDK 21 고정(검증 빌드 JDK 근거), 틀·절차서 반영은 T-022 |
 | 2026-11-25 | 0.11 | T-021 완료: §4 새 비밀 설정 → `ChildEnv.SECRET_KEYS`, 자식 프로세스 규약. §9 자식 프로세스 환경 |
+| 2026-11-25 | 0.12 | T-023 완료: §4 에이전트 도구 금지 조립 위치와 새 상태 변경 API의 금지 목록 확인 |

@@ -195,6 +195,61 @@ public class ClaudeCliAgent implements CodingAgent {
         return r;
     }
 
+    /**
+     * 플랫폼 관리 세션이 curl 로 부르면 안 되는 상태 변경 로컬 API 경로(스킬 등록·삭제·시스템 상태 조회는 제외).
+     * `api/maintain` 은 조회 GET 까지 막지만 관리 세션이 자기 상태를 볼 일은 없다.
+     * 부분 문자열 비교라 `//`·`/./`·문자열 조합으로 우회할 수 있다 — 실질적 차단은 요청 토큰(OI-22 ②) 몫.
+     */
+    private static final List<String> MAINTAIN_DENIED_APIS = List.of(
+            "api/maintain", "api/system/restart", "api/system/shutdown", "api/system/import",
+            "api/issues-reply", "api/issues-create", "api/issues-command");
+    /**
+     * 내용을 화면에 찍는 명령 — .env 를 인자로 받으면 막는다. Read(…/.env) 금지도 Claude Code 가 인식하는 파일 명령에 적용되지만
+     * 명시적으로 한 번 더 둔다. 파일명을 적지 않는 `grep -r`, 따옴표(`".env"`), glob(`.env*`)은 걸리지 않는다.
+     */
+    private static final List<String> ENV_READ_COMMANDS = List.of("cat", "head", "tail", "less", "more", "grep", "sort");
+    private static final List<String> EDIT_TOOLS = List.of("Edit", "Write", "MultiEdit", "NotebookEdit");
+
+    /**
+     * 세션이 쓸 수 없는 도구(--disallowedTools) 목록을 단계·출처별로 한 곳에서 만든다(금지가 허용보다 우선).
+     * 셸의 다른 우회(스크립트 언어 등)까지 막지는 못한다 — 프롬프트 금지와 함께 쓴다.
+     */
+    static List<String> disallowedTools(Stage stage, boolean maintain, boolean subagents, boolean teams) {
+        List<String> d = new ArrayList<>();
+        d.add("PowerShell");                          // Bash 권한 패턴을 우회하는 도구(실측: allowedTools 에 없어도 실행됨)
+        d.add("Read(./.env)");                        // 비밀값 파일: 읽기 도구(Grep·Glob 도 Read 규칙을 따른다)
+        d.add("Read(**/.env)");
+        d.add("Read(//**/.env)");                     // 절대 경로(앱 홈 등 작업 디렉터리 밖)
+        for (String c : ENV_READ_COMMANDS) {
+            d.add("Bash(" + c + " *.env)");           // .env.example·env.template 은 걸리지 않는다
+            d.add("Bash(" + c + " *.env *)");
+        }
+        if (stage == Stage.VERIFY) {
+            d.addAll(EDIT_TOOLS);                     // 독립 리뷰어는 파일을 고치지 못한다(Bash 쓰기는 프롬프트로만)
+        }
+        if (maintain) {
+            d.add("Bash(git push:*)");                // 푸시는 화면 버튼의 몫
+            for (String api : MAINTAIN_DENIED_APIS) {
+                d.add("Bash(curl *" + api + "*)");    // 상태 변경 API 는 curl 로 못 부른다
+            }
+        } else {
+            d.add("Bash(curl:*)");                    // 로컬 API 호출 금지(.env 로 허용해도 금지가 우선)
+            d.add("Bash(wget:*)");
+        }
+        if (!subagents) {
+            // 서브 에이전트(Agent/Task)는 allowedTools 에 없어도 돌아가며 토큰을 병렬로 태운다(scheduler#1 에서 15개 실측)
+            d.add("Agent");
+            d.add("Task");
+        }
+        if (!teams) {
+            // 팀 에이전트(실험 기능)는 env 플래그 0 으로 끄고, 혹시 남는 팀 메시지 도구도 금지
+            d.add("SendMessage");
+            d.add("TeamCreate");
+            d.add("TeamDelete");
+        }
+        return List.copyOf(d);
+    }
+
     private Result runOnce(Path cwd, String sessionId, boolean resume, List<String> allowedTools,
                            String systemAppend, String prompt, Listener listener, Stage stage,
                            String model, String effort, Overrides ov) {
@@ -209,25 +264,9 @@ public class ClaudeCliAgent implements CodingAgent {
         cmd.add("--verbose");
         cmd.add("--strict-mcp-config");
         cmd.add("--disable-slash-commands");
-        cmd.add("--disallowedTools");                 // Bash 권한 패턴을 우회하는 PowerShell 도구는 막는다(실측: allowedTools 에 없어도 실행됨)
-        cmd.add("PowerShell");
-        if (maintain) {
-            cmd.add("Bash(git push:*)");
-            cmd.add("Read(./.env)");                  // 비밀값 파일은 읽기 도구로도 열지 못하게(셸 우회까지 막지는 못한다 — 프롬프트로도 금지)
-        }
-        boolean subagents = settings.getAgentSubagents();
-        boolean teams = settings.getAgentTeams();
-        if (!subagents) {
-            // 서브 에이전트(Agent/Task)는 allowedTools 에 없어도 돌아가며 토큰을 병렬로 태운다(scheduler#1 에서 15개 실측) → 끄면 도구 금지
-            cmd.add("Agent");
-            cmd.add("Task");
-        }
-        if (!teams) {
-            // 팀 에이전트(실험 기능)는 아래 env 플래그 0 으로 끄고, 혹시 남는 팀 메시지 도구도 금지
-            cmd.add("SendMessage");
-            cmd.add("TeamCreate");
-            cmd.add("TeamDelete");
-        }
+        boolean teams = settings.getAgentTeams();   // 금지 목록과 자식 env 플래그가 같은 값을 쓰도록 한 번만 읽는다
+        cmd.add("--disallowedTools");
+        cmd.addAll(disallowedTools(stage, maintain, settings.getAgentSubagents(), teams));
         cmd.add("--permission-mode");
         cmd.add("acceptEdits");
         if (resume) {

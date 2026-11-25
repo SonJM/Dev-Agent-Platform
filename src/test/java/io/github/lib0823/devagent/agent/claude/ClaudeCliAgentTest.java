@@ -58,4 +58,66 @@ class ClaudeCliAgentTest {
         assertTrue(d.length() < 240, d);
         assertTrue(d.endsWith("…"), d);
     }
+
+    // ── T-023: --disallowedTools 조립 ─────────────────────────────
+
+    private static java.util.List<String> deny(Stage stage, boolean maintain) {
+        return ClaudeCliAgent.disallowedTools(stage, maintain, true, true);
+    }
+
+    @Test
+    void tc023VerifyStageDeniesEditTools() {
+        java.util.List<String> d = deny(Stage.VERIFY, false);
+        assertTrue(d.containsAll(java.util.List.of("Edit", "Write", "MultiEdit", "NotebookEdit")), d.toString());
+        assertTrue(!deny(Stage.FIX, false).contains("Edit"));
+        assertTrue(!deny(Stage.ANALYZE, false).contains("Write"));
+    }
+
+    @Test
+    void tc023NonMaintainSessionsDenyCurlAndWget() {
+        for (Stage s : Stage.values()) {
+            java.util.List<String> d = deny(s, false);
+            assertTrue(d.contains("Bash(curl:*)"), s + " " + d);
+            assertTrue(d.contains("Bash(wget:*)"), s + " " + d);
+        }
+    }
+
+    @Test
+    void tc023MaintainDoesNotDenyAllCurlButDeniesStateChangingApis() {
+        java.util.List<String> d = deny(Stage.FIX, true);
+        assertTrue(!d.contains("Bash(curl:*)"));
+        assertTrue(!d.contains("Bash(wget:*)"));
+        for (String api : java.util.List.of("api/maintain", "api/system/restart", "api/system/shutdown",
+                "api/system/import", "api/issues-reply", "api/issues-create", "api/issues-command")) {
+            assertTrue(d.contains("Bash(curl *" + api + "*)"), api + " " + d);
+        }
+        // 스킬 등록·삭제와 상태 조회는 막히지 않는다
+        assertTrue(d.stream().noneMatch(p -> p.contains("api/skills") || p.contains("api/system/status")), d.toString());
+    }
+
+    @Test
+    void tc023AllSessionsDenyEnvFileReadsButNotExamples() {
+        for (Stage s : Stage.values()) {
+            for (boolean maintain : new boolean[]{false, true}) {
+                java.util.List<String> d = deny(s, maintain);
+                assertTrue(d.contains("Read(./.env)"), d.toString());
+                assertTrue(d.contains("Read(**/.env)"), d.toString());
+                assertTrue(d.contains("Read(//**/.env)"), d.toString());
+                assertTrue(d.contains("Bash(cat *.env)"), d.toString());
+                assertTrue(d.contains("Bash(grep *.env *)"), d.toString());
+                assertTrue(d.stream().noneMatch(p -> p.contains("example") || p.contains("template")), d.toString());
+            }
+        }
+    }
+
+    @Test
+    void tc023ExistingDenialsArePreserved() {
+        java.util.List<String> d = deny(Stage.FIX, true);
+        assertTrue(d.contains("PowerShell"));
+        assertTrue(d.contains("Bash(git push:*)"));
+        assertTrue(!deny(Stage.FIX, false).contains("Bash(git push:*)"));
+        assertTrue(!d.contains("Agent"));
+        java.util.List<String> off = ClaudeCliAgent.disallowedTools(Stage.FIX, false, false, false);
+        assertTrue(off.containsAll(java.util.List.of("Agent", "Task", "SendMessage", "TeamCreate", "TeamDelete")));
+    }
 }

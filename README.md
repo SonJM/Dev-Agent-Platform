@@ -269,6 +269,7 @@
 | 수정 | 위 + Edit/Write, 허용 명령 접두어만(`gradlew`, `mvn`, `npm test` …, `gitlab.agent.fix-tools`) |
 
 git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 권한 패턴을 우회하므로 금지(`--disallowedTools`).
+금지 목록(`ClaudeCliAgent.disallowedTools`)은 허용 목록보다 우선합니다: 검증 리뷰어는 Edit/Write 류 금지, 플랫폼 관리가 아닌 세션은 `curl`·`wget` 금지(`*-tools` 설정에 넣어도 막힘), 모든 세션은 `.env` 읽기 금지(`.env.example` 은 가능), 플랫폼 관리 세션은 상태 변경 로컬 API 호출 금지.
 
 ### 안전장치
 

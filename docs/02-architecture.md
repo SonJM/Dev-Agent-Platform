@@ -1,7 +1,7 @@
 # 02. 아키텍처 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.8 · 2026-11-25 · 상태: Draft
+> 버전 0.10 · 2026-11-25 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md)
 
 현재 구조의 상세는 `CLAUDE.md`·`README.md`가 기준이다. 이 문서는 **목표 구조와 바뀌는 부분의 결정**만 적는다.
@@ -323,8 +323,10 @@ flowchart TB
 - Host 헤더 검사는 하지 않는다: 앱은 루프백에만 있고(서버에는 브라우저가 없다), tailnet 쪽은 serve가 MagicDNS 이름의 인증서로 TLS를 끝내므로 다른 이름으로는 연결이 성립하지 않는다.
   - **재검토 중(OI-21)**: 이 근거는 서버에서만 성립한다. 앱과 브라우저가 같은 호스트에 있는 경우(개발 PC, 소스 실행)에는 DNS rebinding으로 다른 사이트가 `GET` 응답(세션 diff·이벤트·리서치 문서·이슈 목록·로그·구성 묶음)을 읽을 수 있다(T-002 보안 검토 M-1, 기존 문제).
 - 에이전트 세션의 로컬 API 호출(OI-22): Origin 확인은 브라우저를 통한 요청만 막는다. 에이전트 CLI가 허용 도구 `curl`로 Origin 없이 상태 변경 API(`/api/maintain/push`, `/api/issues-reply` 등)를 부르는 것은 막지 못한다 — 프롬프트 인젝션 시 `git push` 금지·사람 확인 단계를 우회할 수 있다(T-002 보안 검토 M-2, 기존 문제).
+  - **도구 금지로 줄임(OI-22 ①·OI-30 ①, T-023, 2.0.2)**: 모든 세션의 `--disallowedTools`는 `ClaudeCliAgent.disallowedTools(stage, maintain, subagents, teams)` 한 곳에서 만든다(금지가 허용보다 우선 — `.env`로 허용 도구에 넣어도 막힌다). 공통: `PowerShell`, `.env` 읽기(`Read(./.env)`·`Read(**/.env)`·`Read(//**/.env)` + 파일 출력 명령 `cat`·`head`·`tail`·`less`·`more`·`grep`·`sort` × `.env` 인자, `.env.example`·`env.template`은 통과). 검증 리뷰어(VERIFY): `Edit`·`Write`·`MultiEdit`·`NotebookEdit`. 플랫폼 관리가 아닌 세션(이슈 분석·수정, 리서치, 검증): `Bash(curl:*)`·`Bash(wget:*)`. 플랫폼 관리 세션: `Bash(git push:*)` + 상태 변경 API(`api/maintain`, `api/system/restart`·`shutdown`·`import`, `api/issues-reply`·`issues-create`·`issues-command`)가 든 curl(`Bash(curl *<경로>*)`) — 스킬 등록·삭제와 상태 조회는 허용. 패턴 문법(중간 `*`, `//` 절대 경로)은 Claude Code 권한 문서 기준이며 CLI 실측은 하지 않았다.
+  - 남는 위험: 같은 OS 계정의 셸 우회(스크립트 언어·다른 HTTP 도구·`awk` 등), 파일명 없는 `grep -r`·따옴표(`".env"`)·glob(`.env*`)으로 `.env` 읽기, 관리 세션 금지 패턴의 부분 문자열 우회(`//`·`/./`·문자열 조합), 관리 세션의 나머지 상태 변경 POST(설정·작업 시작 — OI-33), Bash로 파일을 쓰는 검증 리뷰어(프롬프트 금지에 의존), 읽기 전용이어야 하는 분석·리서치 세션의 편집 도구(OI-34). 실질적 차단은 요청 토큰(OI-22 ②)이 필요하다.
 - 자식 프로세스 환경(OI-27, T-021): 앱이 띄우는 자식(Claude CLI 세션, 검증 빌드, git, 도구 버전 확인)은 모두 `platform/ChildEnv.clean`을 거쳐 앱 비밀 환경변수(`ChildEnv.SECRET_KEYS` — DB 접속값, `SPRING_DATASOURCE_*`, 저장소 토큰)를 물려받지 않는다. 앱이 일부러 넣는 값(git 인증 헤더, 사용자 정의 MCP의 `${ENV}` 값)은 정리 뒤에 넣는다. 사용자 정의 MCP의 자리표시자는 대문자 환경변수 이름(`[A-Z][A-Z0-9_]*`)만 받고 `SECRET_KEYS`의 이름은 저장·실행 때 모두 거부한다(Spring 속성명·앱 비밀이 MCP 헤더·URL로 나가는 경로 차단, 구성 묶음 import도 같은 검증).
-  - 남는 위험: 같은 OS 계정이므로 `.env` 파일 직접 읽기(도구 금지로 줄이는 작업은 T-023), 개발 PC 내장 DB의 127.0.0.1 trust 인증(서버는 공유 PostgreSQL `scram-sha-256`이라 해당 없음)은 이 정리로 막지 못한다. 구성 묶음의 stdio MCP는 가져오면 임의 명령을 실행하는 구성이다(화면 경고 — OI-32).
+  - 남는 위험: 같은 OS 계정이므로 `.env` 파일 직접 읽기(T-023 도구 금지로 줄였으나 셸 우회는 남음 — 위 OI-22 항목), 개발 PC 내장 DB의 127.0.0.1 trust 인증(서버는 공유 PostgreSQL `scram-sha-256`이라 해당 없음)은 이 정리로 막지 못한다. 구성 묶음의 stdio MCP는 가져오면 임의 명령을 실행하는 구성이다(화면 경고 — OI-32).
 - 서버의 로컬 프로세스는 신뢰한다(지금과 같은 전제).
 - 비밀값: `.env`(권한 600)와 환경변수로만. GitHub 토큰·Telegram 봇 토큰은 로그·응답·구성 묶음에 싣지 않는다.
 - 에이전트 권한: CLI는 서비스 계정의 권한으로 허용 도구만 실행한다. 서버 제어 도구는 추가하지 않는다(OI-01).
@@ -345,3 +347,4 @@ flowchart TB
 | 2026-11-25 | 0.7 | T-017 완료: D-3 동작을 실제 구성(`ExecStart` 감싸기 → `ExecStartPre=+` root 조회 + `EnvironmentFile`)으로 정정 |
 | 2026-11-25 | 0.8 | T-007 검수 반영: §2.3 메신저에 `MessengerPort` 최종 메서드·제거 목록·자기 글 거름 규약, 명령 라우터·수신 루프의 `command/` 패키지 이동과 의존 방향 |
 | 2026-11-25 | 0.9 | T-021 완료: §6에 자식 프로세스 환경 정리(`ChildEnv`), MCP 자리표시자 이름 제한, 남는 위험(`.env` 파일·내장 DB trust·묶음 stdio MCP) |
+| 2026-11-25 | 0.10 | T-023 완료: §6에 세션별 도구 금지(`disallowedTools` — VERIFY 편집 도구, 비관리 세션 curl·wget, 관리 세션 상태 변경 API curl, 전 세션 `.env` 읽기)와 남는 위험(OI-33·34) |
