@@ -229,6 +229,20 @@ a.nitem:hover { background: var(--surface2); }
 .top .ver:empty { display: none; }
 /* 상단바가 좁아지면 탭 이름이 두 줄로 꺾이지 않게 단축키 표시부터 숨긴다 */
 .nav a { white-space: nowrap; }
+/* T-020 좁은 폭(휴대폰): 1행 = 로고·부가·종/렌치/테마, 2행 = 탭 5개(아이콘만, 폭 균등). 601px 이상은 기존 모양 그대로. */
+@media (max-width: 600px) {
+  .top { flex-wrap: wrap; row-gap: 6px; gap: 8px; padding: 8px 12px; }
+  .brand { order: 1; min-height: 44px; }
+  .top .right { order: 2; gap: 4px; }
+  .nav { order: 3; flex: 1 0 100%; display: flex; overflow-x: auto; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: 1 0 44px; justify-content: center; height: 44px; padding: 0 8px; }
+  .nav a .nl, .nav a .k, .strip, .top .ver, .battery .lbl { display: none; }
+  .top .icon-btn { width: 44px; height: 44px; }
+  .battery { height: 44px; min-width: 44px; justify-content: center; margin-right: 0; padding: 0 8px; }
+  .notice-wrap { position: static; }
+  .notice-panel { left: 10px; right: 10px; top: 100%; width: auto; max-width: none; }
+}
 @media (max-width: 1420px) { .nav a .k { display: none; } }
 
 /* ---------- 선택 상자(UI: selectOpen) — 닫힌 모양은 select.in, 펼친 목록은 .selpop(검색 포함). 브라우저 기본 목록은 쓰지 않는다 ---------- */
