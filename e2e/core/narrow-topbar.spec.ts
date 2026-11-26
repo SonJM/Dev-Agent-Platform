@@ -19,7 +19,7 @@ async function scrollWidth(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth);
 }
 
-test('TC-024 390px: 다섯 화면 가로 넘침 없음, 탭 아이콘 이동, 종 버튼 알림함', { tag: ['@task:T-020'] }, async ({ page }, testInfo) => {
+test('TC-024 390px: 다섯 화면 가로 넘침 없음, 탭 아이콘 이동, 종 버튼 알림함', { tag: ['@core'] }, async ({ page }, testInfo) => {
   const errors = collectConsoleErrors(page);
   await page.setViewportSize({ width: NARROW, height: 844 });
 
@@ -78,7 +78,7 @@ test('TC-024 390px: 다섯 화면 가로 넘침 없음, 탭 아이콘 이동, �
 });
 
 for (const width of [768, 1440]) {
-  test(`TC-024 ${width}px: 상단바 기존 모양 유지(탭 이름 보임, 한 줄)`, { tag: ['@task:T-020'] }, async ({ page }, testInfo) => {
+  test(`TC-024 ${width}px: 상단바 기존 모양 유지(탭 이름 보임, 한 줄)`, { tag: ['@core'] }, async ({ page }, testInfo) => {
     const errors = collectConsoleErrors(page);
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/home.html');

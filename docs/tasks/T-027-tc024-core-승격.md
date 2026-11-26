@@ -3,7 +3,7 @@
 ```
 id: T-027
 담당: qa (qa)
-상태: 대기
+상태: 완료
 depends: [T-020]
 병렬: 불가
 충돌: -
@@ -57,9 +57,13 @@ grep -rl "TC-024" e2e/core | grep -q .
 ```
 
 ## 검증 증거
-개발 에이전트가 작성.
+- 일시: 2026-11-26 14:30
+- 명령: qa-run.sh --grep @core (e2e/scripts/start-app.sh 포트 8778), test ! -e e2e/tasks/T-020.spec.ts
+- 결과: 13 passed, skipped 0, 38.0초, QA PASS
+- 변경 설명서: [results/T-027-tc024-core-승격-qa.md](./results/T-027-tc024-core-승격-qa.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-26 | 대기 | PM 작성(T-020 qa 묶음 제안 채택 — 07 §8 TC-024 승격). T-020 커밋 뒤 착수 |
+| 2026-11-26 | 완료 | PM 검수: 지시서 메타·완료 조건·검증 명령 변경 없음. 검증 명령 재실행 통과(`T-020.spec.ts` 없음, `e2e/core`에 TC-024). HEAD의 `T-020.spec.ts`와 `narrow-topbar.spec.ts` diff는 태그 2줄뿐(단언 동일). `report.json` expected 13·unexpected 0·skipped 0·flaky 0이 보고서와 일치, 로컬 경로 없음, `app.log`·`trace.zip` 추적 제외. 변경 파일이 보고서와 맞음. 07 §8에 TC-024 행 추가 |
