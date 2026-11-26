@@ -3,7 +3,7 @@
 ```
 id: T-010
 담당: backend-dev (backend-dev)
-상태: 대기
+상태: 완료
 depends: [T-009, T-021, T-023, T-024]
 병렬: 불가
 충돌: [T-011]
@@ -106,7 +106,10 @@ grep -n "대상 저장소 빌드 도구" deploy/README.md
 ```
 
 ## 검증 증거
-개발 에이전트가 작성.
+- 일시: 2026-11-25 (보안 리뷰 재작업 후)
+- 명령: ./gradlew test bootJar; grep 검증 4종(api/v4 0건, GITHUB_TOKEN, write_repository 0건, 빌드 도구 절); 8778 앱 기동 1회 후 종료
+- 결과: 211 테스트 통과·실패 0, bootJar 성공, grep 4종 기대대로, 8778 기동 후 Doctor github 항목 정상 응답, 8778·54329 리슨 0
+- 변경 설명서: [results/T-010-github-연동.md](./results/T-010-github-연동.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
@@ -117,3 +120,5 @@ grep -n "대상 저장소 빌드 도구" deploy/README.md
 | 2026-11-25 | 대기 | PM 수정: `depends`에 T-023(OI-30·OI-22 결정 — 외부 이슈 본문이 입력이 되기 전에 리뷰어 편집 도구·에이전트 curl 금지). 대상 프로젝트 검증 빌드의 JDK는 서버 unit JDK 21 고정(OI-29 ①, T-022) 전제 |
 | 2026-11-25 | 대기 | PM 수정: OI-10 결정으로 브랜치 범위 확정(01 FR-304), `depends`에 T-024(OI-33·OI-34 결정 — 분석·리서치 세션 편집 도구 금지, 관리 세션 권한 확대 경로 금지). 남은 선결: OI-09·OI-15 |
 | 2026-11-25 | 대기 | PM 보완(OI-09 ①·OI-15 ① 반영, 코드 대조): 비밀 키 목록·MCP 자리표시자·설정 예시 권한 주석, git 인증 헤더 호스트 한정, Doctor 만료 점검(임계 14일, PM 결정), `deploy/README.md` 빌드 도구 절 틀, 조직 저장소 범위 밖. 관련 코드 경로 행 번호를 HEAD `7663f4d` 기준으로 갱신, 완료 조건·검증 명령 추가. 착수 가능 |
+| 2026-11-25 | 검수 요청 | PM 검수 통과(qa 확인 대기): 지시서 메타·완료 조건·검증 명령 HEAD와 같음. 검증 명령 재실행 — `gradlew test bootJar` 211건 실패 0·bootJar 성공, grep 4종 기대대로(GitLab 호출 0, `GITHUB_TOKEN` 있음, `write_repository` 0, 빌드 도구 §12). 설명서 그림·설명·파일 지도가 `git status`와 일치, 로컬 경로·계정 없음. 보안 리뷰 HIGH·MEDIUM·LOW 반영 확인(`GitRunnerHardeningTest`가 이 PC의 실제 git으로 훅 미실행 확인). 지시서 밖 추가(`agent.html` 브랜치 링크 `/tree/`)는 직접 회귀 방지로 인정. 제안 처리: 본문 변경 방어 → OI-36, 목록 API 한계 → OI-37, 스캔 비동기 → OI-38. `Resolves #n` 유지는 FR-305 가정대로. 다음: qa 확인 |
+| 2026-11-26 | 완료 | qa 확인 **QA PASS 8/8**([qa 보고서](./results/T-010-github-연동-qa.md) — `@core` 7 + TC-015 설치 점검 GitHub 항목(토큰 없음 경로), 실제 GitHub 미호출). `## 검증` 마지막 줄 `QA PASS`, `report.json` stats expected 8·unexpected 0·skipped 0·flaky 0으로 표와 일치. 02 §6·04 §9에 `github.trusted-authors-only`·git 하드닝 반영, 07 TC-015~017 통과. qa 제안: ① `start-app.sh` 기본값에 넣지 않음(04 §8) ② 화면·Doctor의 GitLab 문구는 T-011(Doctor 힌트·환경변수)·T-012(화면) 검색 범위에 이미 포함 ③ 실제 GitHub 동작(401·404·rate limit·만료 임박·Draft PR·코멘트)은 사용자 서버 확인(설명서 「사용자가 서버에서 확인할 것」, BOARD 3단계). 버전 2.1.0(메인 세션, 04 §5) |

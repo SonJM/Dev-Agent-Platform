@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import static io.github.lib0823.devagent.gitlab.IssueTexts.*;
 
 /**
- * 이슈 에이전트 대상 프로젝트: 목록(DB 설정)·추가·삭제, 경로 해석(마지막 세그먼트 허용), GitLab 프로젝트 조회 캐시.
+ * 이슈 에이전트 대상 프로젝트: 목록(DB 설정)·추가·삭제, 경로 해석(마지막 세그먼트 허용), GitHub 저장소 조회 캐시.
  * {@link IssueAgentService} 에서 분리.
  */
 @Component
@@ -28,18 +28,18 @@ public class IssueProjects {
     }
 
     private final GitLabProperties props;
-    private final GitLabClient gitlab;
+    private final GitHubClient github;
     private final SettingService settings;
     private final IssueSessionMapper sessions;
 
-    public IssueProjects(GitLabProperties props, GitLabClient gitlab, SettingService settings, IssueSessionMapper sessions) {
+    public IssueProjects(GitLabProperties props, GitHubClient github, SettingService settings, IssueSessionMapper sessions) {
         this.props = props;
-        this.gitlab = gitlab;
+        this.github = github;
         this.settings = settings;
         this.sessions = sessions;
     }
 
-    private final Map<String, GitLabClient.Project> projectCache = new ConcurrentHashMap<>();
+    private final Map<String, GitHubClient.Project> projectCache = new ConcurrentHashMap<>();
 
     public String resolveProject(String path) {
         if (projects() == null) {
@@ -58,8 +58,8 @@ public class IssueProjects {
         return null;
     }
 
-    public GitLabClient.Project project(String path) {
-        return projectCache.computeIfAbsent(path, gitlab::project);
+    public GitHubClient.Project project(String path) {
+        return projectCache.computeIfAbsent(path, github::project);
     }
 
     /** 대상 프로젝트 목록(DB 우선, 없으면 GITLAB_PROJECTS). 관리 페이지/메신저 명령으로 추가·삭제되며 다음 스캔부터 반영. */
@@ -74,7 +74,7 @@ public class IssueProjects {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("path", path);
             try {
-                GitLabClient.Project p = project(path);
+                GitHubClient.Project p = project(path);
                 m.put("id", p.id());
                 m.put("webUrl", p.webUrl());
                 m.put("defaultBranch", p.defaultBranch());
@@ -86,17 +86,17 @@ public class IssueProjects {
         return out;
     }
 
-    /** 대상 프로젝트 추가: GitLab 에서 조회해 실제 경로(path_with_namespace)로 정규화해 저장. 반환: 결과 메시지. */
+    /** 대상 프로젝트 추가: GitHub 에서 조회해 실제 경로(full_name)로 정규화해 저장. 반환: 결과 메시지. */
     public String addProject(String path) {
         String p = path == null ? "" : path.strip().replaceAll("^/+|/+$", "");
         if (p.isEmpty() || !p.contains("/")) {
-            return "프로젝트 경로는 group/repo 형식이어야 합니다.";
+            return "프로젝트 경로는 owner/repo 형식이어야 합니다.";
         }
-        GitLabClient.Project gp;
+        GitHubClient.Project gp;
         try {
-            gp = gitlab.project(p);
+            gp = github.project(p);
         } catch (RuntimeException e) {
-            return "GitLab 에서 '" + p + "' 를 찾지 못했습니다: " + e.getMessage();
+            return "GitHub 에서 '" + p + "' 를 찾지 못했습니다: " + e.getMessage();
         }
         List<String> cur = projects();
         if (cur.stream().anyMatch(c -> c.equalsIgnoreCase(gp.path()))) {

@@ -39,7 +39,7 @@ public class ResearchJob {
     private boolean verify;           // 2차 검증(독립 검증자 → 지적 반영) 수행 여부
     private String verifyState;       // null(안 함) / PASS / FIXED(지적 반영해 수정) / FAIL(지적은 있으나 수정 실패) / SKIPPED(검증 실행 실패)
     private String verifyMd;          // 검증자 보고서
-    private String kind = KIND_DOC;   // 결과 형식: doc(조사 문서) / issue(GitLab 이슈 초안 — 화면에서 「이슈로 등록」)
+    private String kind = KIND_DOC;   // 결과 형식: doc(조사 문서) / issue(GitHub 이슈 초안 — 화면에서 「이슈로 등록」)
     private String attachments;       // 첨부 이미지 이름(쉼표 구분: 1.png,2.jpg) — 파일은 작업 디렉터리 research-attach/<id>/
     private OffsetDateTime createdAt;
     private OffsetDateTime startedAt;

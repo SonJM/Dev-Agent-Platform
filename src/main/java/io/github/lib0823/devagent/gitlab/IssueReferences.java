@@ -20,13 +20,13 @@ public class IssueReferences {
 
     private static final Logger log = LoggerFactory.getLogger(IssueReferences.class);
 
-    private final GitLabClient gitlab;
+    private final GitHubClient github;
     private final GitRunner git;
     private final IssueEventBus events;
     private final IssueProjects projects;
 
-    public IssueReferences(GitLabClient gitlab, GitRunner git, IssueEventBus events, IssueProjects projects) {
-        this.gitlab = gitlab;
+    public IssueReferences(GitHubClient github, GitRunner git, IssueEventBus events, IssueProjects projects) {
+        this.github = github;
         this.git = git;
         this.events = events;
         this.projects = projects;
@@ -35,7 +35,7 @@ public class IssueReferences {
     /** 세션별 참고 저장소(읽기 전용) worktree — 이슈 본문 "참고 저장소" 로 지정된 다른 프로젝트. 프롬프트 안내 + 실행 후 변경 검사용 */
     private final Map<Long, List<ReferenceRepo>> references = new ConcurrentHashMap<>();
 
-    /** 이슈 본문에서 지정한 참고 저장소: GitLab 경로 + 브랜치 + 로컬 worktree. */
+    /** 이슈 본문에서 지정한 참고 저장소: GitHub 경로 + 브랜치 + 로컬 worktree. */
     record ReferenceRepo(String path, String branch, Path dir) {
     }
 
@@ -47,7 +47,7 @@ public class IssueReferences {
         final long id = s.getId();
         try {
             if (description == null) {
-                description = gitlab.issue(s.getProjectId(), s.getIssueIid()).description();
+                description = github.issue(s.getProjectPath(), s.getIssueIid()).description();
             }
         } catch (RuntimeException e) {
             log.debug("참고 저장소 확인용 이슈 조회 실패(무시): {}", e.toString());
@@ -55,16 +55,22 @@ public class IssueReferences {
         }
         List<String[]> wanted = parseReferenceRepos(description);
         List<ReferenceRepo> refs = new ArrayList<>();
+        List<String> targets = projects.projects();
+        List<String> ignored = new ArrayList<>();
         for (String[] w : wanted) {
             String path = w[0];
             if (path.equalsIgnoreCase(s.getProjectPath())) {
                 continue;
             }
-            GitLabClient.Project p;
+            if (!isTarget(targets, path)) {
+                ignored.add(path);                              // 이슈 본문은 신뢰할 수 없는 입력 — 대상 프로젝트가 아니면 받아 오지 않는다
+                continue;
+            }
+            GitHubClient.Project p;
             try {
-                p = projects.project(path);                    // 본문의 `config/job/` 같은 디렉터리 표기도 걸리므로 GitLab 에 없으면 조용히 건너뛴다
+                p = projects.project(path);                    // 본문의 `config/job/` 같은 디렉터리 표기도 걸리므로 GitHub 에 없으면 조용히 건너뛴다
             } catch (RuntimeException e) {
-                log.debug("참고 저장소 후보 {} 는 GitLab 프로젝트가 아님(무시): {}", path, e.toString());
+                log.debug("참고 저장소 후보 {} 는 GitHub 저장소가 아님(무시): {}", path, e.toString());
                 continue;
             }
             try {
@@ -76,11 +82,22 @@ public class IssueReferences {
                 events.emit(id, IssueEvent.ERROR, "참고 저장소 준비 실패(무시하고 진행): " + path + " — " + abbreviate(e.getMessage(), 200));
             }
         }
+        if (!ignored.isEmpty()) {
+            events.emit(id, IssueEvent.INFO, "참고 저장소 후보가 대상 프로젝트가 아니라 무시했습니다: " + abbreviate(String.join(", ", ignored), 200));
+        }
         if (refs.isEmpty()) {
             references.remove(id);
         } else {
             references.put(id, refs);
         }
+    }
+
+    /** 참고 저장소가 대상 프로젝트 목록(설정)에 있는지(대소문자 무시). 목록 밖 저장소는 clone 하지 않는다. */
+    static boolean isTarget(List<String> targets, String path) {
+        if (targets == null || path == null) {
+            return false;
+        }
+        return targets.stream().anyMatch(t -> t != null && t.strip().equalsIgnoreCase(path.strip()));
     }
 
     /** 시스템 프롬프트에 붙일 참고 저장소 안내(없으면 빈 문자열). */

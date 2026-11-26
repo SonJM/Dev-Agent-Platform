@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +58,15 @@ class McpPlaceholderSecurityTest {
     void rejectsNonEnvStyleNames() {
         assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-A: ${my.prop}", null)));
         assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-A: ${lower_case}", null)));
+    }
+
+    @Test
+    void rejectsGithubTokenPlaceholder() {
+        assertNotNull(McpConfigService.validate(http("http://x/mcp", "Authorization: Bearer ${GITHUB_TOKEN}", null)));
+        assertNotNull(McpConfigService.validate(http("http://x/mcp?t=${GITHUB_TOKEN}", null, null)));
+        assertNotNull(McpConfigService.validate(stdio("node", "srv.js\n${GITHUB_TOKEN}")));
+        String msg = McpConfigService.validate(http("http://x/mcp", "X-Leak: ${GITHUB_TOKEN}", null));
+        assertTrue(msg.contains("GitHub 토큰"));
     }
 
     @Test

@@ -20,11 +20,11 @@ class VerifyServiceTest {
     Path wt;
 
     private static VerifyService svc(String commands) {
-        GitLabProperties props = new GitLabProperties(true, "https://gitlab.example", "t", List.of("grp/repo"), "ai-fix",
+        GitLabProperties props = new GitLabProperties(true, List.of("own/repo"), "ai-fix",
                 1000, 1000, "work", "bot", "bot@x", true, true, true, 0L,
                 new GitLabProperties.Agent("opus", "high", 1000, 10, List.of("Read"), List.of("Read"), "", 3000, 0, 0, 0),
                 new GitLabProperties.Verify(true, 2, true, "", "medium", 60000, commands, List.of("Read"), 0),
-                new GitLabProperties.Convention("develop", "main", "develop", List.of(), List.of(), "#?(\\d{5,7})"), 2);
+                new GitLabProperties.Convention(List.of()), 2);
         return new VerifyService(props);
     }
 

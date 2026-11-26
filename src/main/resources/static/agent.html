@@ -622,7 +622,7 @@ function renderDetail() {
   $('dTitle').textContent = s.issueTitle || '(제목 없음)';
   const links = [];
   if (s.issueUrl) links.push(`<a class="lbtn" href="${esc(s.issueUrl)}" target="_blank">${I.ext}이슈</a>`);
-  if (s.branchName && s.issueUrl) links.push(`<a class="lbtn" href="${esc(s.issueUrl.replace(/\/-\/issues\/\d+.*$/,''))}/-/tree/${esc(s.branchName)}" target="_blank">${I.branch}<code>${esc(s.branchName)}</code></a>`);
+  if (s.branchName && s.issueUrl) links.push(`<a class="lbtn" href="${esc(s.issueUrl.replace(/\/issues\/\d+.*$/,''))}/tree/${esc(s.branchName)}" target="_blank">${I.branch}<code>${esc(s.branchName)}</code></a>`);
   if (!s.branchName && s.workType && s.workId) links.push(`<span class="lbtn" title="컨벤션 브랜치 계획: {유형}/{일감번호} ← 기준 브랜치">${I.branch}<code>${esc(s.workType)}/${esc(s.workId)}</code>${s.baseBranch?` ← ${esc(s.baseBranch)}`:''}</span>`);
   if (s.mrUrl) links.push(`<a class="lbtn" href="${esc(s.mrUrl)}" target="_blank">${I.ext}Merge Request</a>`);
   if (s.commitSha) links.push(`<span class="lbtn">커밋 <code>${esc(s.commitSha)}</code></span>`);

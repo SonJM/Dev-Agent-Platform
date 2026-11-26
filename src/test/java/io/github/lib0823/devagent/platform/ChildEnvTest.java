@@ -38,7 +38,7 @@ class ChildEnvTest {
     @Test
     void secretKeysCoverAppConfigSecrets() {
         assertTrue(ChildEnv.SECRET_KEYS.containsAll(List.of(
-                "DB_URL", "DB_USERNAME", "DB_PASSWORD", "GITLAB_TOKEN",
+                "DB_URL", "DB_USERNAME", "DB_PASSWORD", "GITHUB_TOKEN", "GITLAB_TOKEN",
                 "SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD")));
     }
 

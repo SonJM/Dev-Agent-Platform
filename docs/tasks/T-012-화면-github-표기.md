@@ -4,7 +4,7 @@
 id: T-012
 담당: frontend-dev (frontend-dev)
 상태: 대기
-depends: [T-011, T-020, T-025]
+depends: [T-011, T-025, T-026]
 병렬: 불가
 충돌: [T-011]
 관련 제안: -
@@ -39,6 +39,8 @@ Phase 3. 단계 수준 지시서. 기존 정적 HTML을 고친다(SPA 아님).
 - 문구 "GitLab" → "GitHub", "MR" → "PR", 표기 `owner/repo#n`, 이슈·PR 링크.
 - 응답 필드 `issueIid` → `issueNumber`, `mrUrl` → `prUrl`, `projectId` 사용 제거.
 - 빈 상태 안내 문구(대상 저장소 없음, 토큰 없음)를 GitHub에 맞춘다.
+- 대상 프로젝트 입력의 자리 표시 「추가: group/repo (GitLab 경로)」 → `owner/repo`(T-010 qa 제안 — 검증 명령 검색에 걸린다). 설치 점검 힌트의 환경변수 이름은 서버 문구라 T-011 범위다.
+- qa 확인은 T-011의 응답 필드 개명까지 함께 본다(T-011은 `QA 확인: 아니오`). 커밋은 T-011과 한 묶음(메인 세션).
 
 ## 범위 밖
 - 백엔드, 새 화면·디자인 변경, SPA
@@ -66,3 +68,4 @@ grep -rnE "GitLab|gitlab|issueIid|mrUrl|projectId" src/main/resources/static ; t
 | 2026-11-24 | 대기 | PM 작성(단계 수준) |
 | 2026-11-25 | 대기 | PM 수정: `depends`에 T-020(같은 `ui.js` — 좁은 폭 상단바 보정을 먼저, OI-26) |
 | 2026-11-25 | 대기 | PM 수정: `depends`에 T-025(같은 `platform.html`·`admin.js` — 묶음 가져오기 확인을 먼저, OI-32) |
+| 2026-11-26 | 대기 | PM 수정: 순서 교체 — `depends`에서 T-020을 빼고(T-020이 T-012 뒤로, 서버 반영을 기다리지 않게) T-026(TC-025 `@core` 승격)을 넣음. 범위에 「GitLab 경로」 자리 표시, T-011과 qa·커밋 묶음 |

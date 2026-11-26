@@ -31,11 +31,11 @@ import java.util.stream.Collectors;
 import static io.github.lib0823.devagent.gitlab.IssueTexts.*;
 
 /**
- * GitLab 이슈 수정 에이전트 — 상태기계 + 메신저 대화.
+ * GitHub 이슈 수정 에이전트 — 상태기계 + 메신저 대화.
  * <pre>
  * 이슈 스캔(라벨) → NEW 큐 → [ANALYZING] 소스 준비 + 원인분석/설계 → 자기방 전송 → DESIGN_WAIT
  *   ↳ 답변 "진행" → [FIXING] 코드 수정 → 변경 요약 전송 → REVIEW_WAIT
- *   ↳ 답변 "진행" → [PUSHING] ai/ 브랜치 커밋·푸시 → 이슈 코멘트·Draft MR → DONE
+ *   ↳ 답변 "진행" → [PUSHING] 컨벤션 브랜치 커밋·푸시 → 이슈 코멘트·Draft PR → DONE
  *   ↳ 그 외 답변 = 피드백 → 같은 Claude 세션에 이어서 재설계/재수정
  *   ↳ "중단" → ABORTED (작업트리 원복)
  * </pre>
@@ -50,11 +50,11 @@ public class IssueAgentService {
 
     private static final String SELF_REPLY_GUIDE = "자기방 답변은 「진행」「중단」「diff」「상태」「검증」(리뷰 대기에서 수정 없이 검증만 다시) 또는 「피드백: …」 만 인정합니다. 그 외 메시지는 무시합니다(상세 피드백은 대시보드에서).";
 
-    private static final Pattern REF = Pattern.compile("([A-Za-z0-9_.\\-/]+)?#(\\d+)");
-    private static final Pattern URL_REF = Pattern.compile("https?://[^\\s]+?/([A-Za-z0-9_.\\-/]+?)/-/issues/(\\d+)");
+    static final Pattern REF = Pattern.compile("([A-Za-z0-9_.\\-/]+)?#(\\d+)");
+    static final Pattern URL_REF = Pattern.compile("https?://[^/\\s]+/([A-Za-z0-9_.\\-]+/[A-Za-z0-9_.\\-]+)/issues/(\\d+)");
 
     private final GitLabProperties props;
-    private final GitLabClient gitlab;
+    private final GitHubClient github;
     private final GitRunner git;
     private final CodingAgent agent;
     private final IssueSessionMapper sessions;
@@ -103,7 +103,7 @@ public class IssueAgentService {
      */
     private final Map<Long, Long> waitGenerations = new ConcurrentHashMap<>();
 
-    public IssueAgentService(GitLabProperties props, GitLabClient gitlab, GitRunner git,
+    public IssueAgentService(GitLabProperties props, GitHubClient github, GitRunner git,
                              CodingAgent agent, IssueSessionMapper sessions,
                              MessengerService client, AlertService alert, SettingService settings, IssueEventBus events, VerifyService verifier,
                              IssueReferences refs, IssueProjects projectReg, IssueNotifier notifier, IssuePrompts prompts,
@@ -123,7 +123,7 @@ public class IssueAgentService {
             return t;
         });
         this.props = props;
-        this.gitlab = gitlab;
+        this.github = github;
         this.git = git;
         this.agent = agent;
         this.sessions = sessions;
@@ -138,7 +138,7 @@ public class IssueAgentService {
     void init() {
         projectReg.setOnAdded(() -> submit(this::scan));   // 대상 프로젝트가 추가되면 바로 스캔
         if (!props.enabled()) {
-            log.info("GitLab 이슈 에이전트 비활성(gitlab.enabled=false)");
+            log.info("GitHub 이슈 에이전트 비활성(gitlab.enabled=false)");
             return;
         }
         sessions.ensureTable();
@@ -163,7 +163,7 @@ public class IssueAgentService {
             events.emit(preparing.getId(), IssueEvent.INFO, "봇 재기동 — 선분석 중단, 큐로 복귀");
             transition(preparing, IssueSession.NEW);
         }
-        log.info("GitLab 이슈 에이전트 활성 — projects={} label={} prefetch={}", projectReg.projects(), props.label(), props.prefetch());
+        log.info("GitHub 이슈 에이전트 활성 — projects={} label={} prefetch={}", projectReg.projects(), props.label(), props.prefetch());
     }
 
     @PreDestroy
@@ -183,15 +183,26 @@ public class IssueAgentService {
         if (!props.enabled() || projectReg.projects() == null) {
             return 0;
         }
+        if (!hasScanLabel(props.label())) {
+            log.warn("스캔 라벨(GITLAB_LABEL)이 비어 있어 이슈를 처리하지 않습니다 — 설치 점검(Doctor)에서 고치는 방법을 확인하세요");
+            return 0;
+        }
         int added = 0;
         for (String path : projectReg.projects()) {
             if (path == null || path.isBlank()) {
                 continue;
             }
             try {
-                GitLabClient.Project p = projectReg.project(path.strip());
-                for (GitLabClient.Issue is : gitlab.openIssues(p.id(), props.label())) {
+                GitHubClient.Project p = projectReg.project(path.strip());
+                for (GitHubClient.Issue is : github.openIssues(p.path(), props.label())) {
                     if (sessions.findByIssue(p.path(), is.iid()) != null) {
+                        continue;
+                    }
+                    String why = untrustedReason(is);
+                    if (why != null) {
+                        if (untrustedLogged.add(p.path() + "#" + is.iid())) {        // 2분마다 같은 줄이 반복되지 않게 이슈당 한 번
+                            log.warn("이슈 {}#{} 는 처리하지 않습니다: {}", p.path(), is.iid(), why);
+                        }
                         continue;
                     }
                     IssueSession s = newSession(p, is);
@@ -202,7 +213,7 @@ public class IssueAgentService {
                     }
                 }
             } catch (RuntimeException e) {
-                log.warn("GitLab 이슈 스캔 실패 project={}: {}", path, e.toString());
+                log.warn("GitHub 이슈 스캔 실패 project={}: {}", path, e.toString());
             }
         }
         if (added > 0) {
@@ -210,6 +221,21 @@ public class IssueAgentService {
         }
         startNextIfIdle();
         return added;
+    }
+
+    /** 신뢰할 수 없는 작성자라 건너뛴 이슈(이슈당 한 번만 로그). */
+    private final java.util.Set<String> untrustedLogged = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * 이슈 본문 작성자가 저장소 쓰기 관계(OWNER/MEMBER/COLLABORATOR)가 아니면 사유를, 처리해도 되면 null 을 돌려준다.
+     * 이슈 본문은 에이전트 프롬프트로 들어가는 외부 입력이라 기본으로 확인한다(github.trusted-authors-only=false 로 끌 수 있음).
+     */
+    private String untrustedReason(GitHubClient.Issue is) {
+        if (!github.requiresTrustedAuthor() || GitHubClient.isTrustedAssociation(is.authorAssociation())) {
+            return null;
+        }
+        return "작성자 " + is.author() + " 의 저장소 관계(" + (is.authorAssociation().isBlank() ? "알 수 없음" : is.authorAssociation())
+                + ")가 OWNER/MEMBER/COLLABORATOR 가 아닙니다(github.trusted-authors-only)";
     }
 
     /** 메신저 명령 라우터가 받은 확인 답변 후보의 처리 결과. */
@@ -226,7 +252,7 @@ public class IssueAgentService {
 
     /**
      * 메신저 명령 라우터가 넘긴 글을 확인 답변으로 전달한다(도착하는 순간 — 대시보드 입력과 같은 {@code handleReply} 진입점).
-     * 대기 세션이 1건이면 그 세션으로, 2건 이상이면 글 앞에 세션 참조(#1, shop#1, group/repo#1)가 있어야 한다.
+     * 대기 세션이 1건이면 그 세션으로, 2건 이상이면 글 앞에 세션 참조(#1, shop#1, owner/repo#1)가 있어야 한다.
      * 답변으로 인정하는 것은 명령(진행/승인/중단/diff/상태/검증)과 「피드백: …」 뿐이다 — 스티커·잡담이 설계 피드백으로 소비돼
      * 재설계가 돌았던 부작용(2026-11-10) 방지. 무시·참조 누락 안내는 대기 단계당 1회 여기서 보낸다.
      */
@@ -410,9 +436,9 @@ public class IssueAgentService {
             return out;
         }
         try {
-            GitLabClient.Project p = projectReg.project(resolved);
+            GitHubClient.Project p = projectReg.project(resolved);
             List<Map<String, Object>> list = new ArrayList<>();
-            for (GitLabClient.Issue is : gitlab.recentOpenIssues(p.id(), 50)) {
+            for (GitHubClient.Issue is : github.recentOpenIssues(p.path(), 50)) {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("iid", is.iid());
                 m.put("title", is.title());
@@ -432,14 +458,14 @@ public class IssueAgentService {
             out.put("label", props.label());
             out.put("issues", list);
         } catch (RuntimeException e) {
-            log.warn("GitLab 이슈 목록 조회 실패 project={}: {}", resolved, e.toString());
+            log.warn("GitHub 이슈 목록 조회 실패 project={}: {}", resolved, e.toString());
             out.put("result", "이슈 목록 조회 실패: " + e.getMessage());
         }
         return out;
     }
 
     /**
-     * 플랫폼 화면에서 GitLab 이슈를 등록한다. 대상 프로젝트에 등록된 저장소만 받는다.
+     * 플랫폼 화면에서 GitHub 이슈를 등록한다. 대상 프로젝트에 등록된 저장소만 받는다.
      * start 면 스캔 라벨을 붙여 만들고 곧바로 큐에 넣는다(스캔 주기를 기다리지 않음). 반환: ok/result/url/ref.
      */
     public Map<String, Object> createIssue(String project, String title, String description, boolean start) {
@@ -460,8 +486,8 @@ public class IssueAgentService {
             return out;
         }
         try {
-            GitLabClient.Project p = projectReg.project(resolved);
-            GitLabClient.Issue is = gitlab.createIssue(p.id(), t, description == null ? "" : description.strip(), start ? props.label() : null);
+            GitHubClient.Project p = projectReg.project(resolved);
+            GitHubClient.Issue is = github.createIssue(p.path(), t, description == null ? "" : description.strip(), start ? props.label() : null);
             String ref = p.path() + "#" + is.iid();
             out.put("ok", true);
             out.put("ref", ref);
@@ -469,7 +495,7 @@ public class IssueAgentService {
             out.put("result", start ? "이슈를 등록했습니다. " + startManual(ref)
                     : ref + " 이슈를 등록했습니다(라벨 없음 — 에이전트는 시작하지 않습니다).");
         } catch (RuntimeException e) {
-            log.warn("GitLab 이슈 등록 실패 project={}: {}", resolved, e.toString());
+            log.warn("GitHub 이슈 등록 실패 project={}: {}", resolved, e.toString());
             out.put("result", "이슈 등록 실패: " + e.getMessage());
         }
         return out;
@@ -479,7 +505,7 @@ public class IssueAgentService {
 
     /**
      * {@code 이슈 <하위명령>} 처리. 반환 문자열은 호출측이 그대로 전송.
-     * 하위명령: 상태 | 중단 | 스캔 | 목록 | &lt;group/repo#iid | repo#iid | 이슈 URL&gt;
+     * 하위명령: 상태 | 중단 | 스캔 | 목록 | &lt;owner/repo#iid | repo#iid | 이슈 URL&gt;
      */
     public String command(String rest) {
         if (!props.enabled()) {
@@ -503,7 +529,7 @@ public class IssueAgentService {
         }
         if (key.equals("프로젝트") || key.equals("projects")) {
             return "대상 프로젝트(" + projectReg.projects().size() + "개): " + String.join(", ", projectReg.projects())
-                    + "\n추가: 이슈 프로젝트 추가 group/repo · 삭제: 이슈 프로젝트 삭제 group/repo";
+                    + "\n추가: 이슈 프로젝트 추가 owner/repo · 삭제: 이슈 프로젝트 삭제 owner/repo";
         }
         if (r.startsWith("프로젝트 ")) {
             String[] parts = r.substring(5).strip().split("\\s+", 2);
@@ -539,9 +565,9 @@ public class IssueAgentService {
                 이슈 에이전트 명령:
                 • 이슈 상태 — 진행 중 세션/큐 현황
                 • 이슈 목록 — 최근 세션 10건
-                • 이슈 <group/repo#123 | repo#123 | 이슈 URL> — 해당 이슈 수동 시작
+                • 이슈 <owner/repo#123 | repo#123 | 이슈 URL> — 해당 이슈 수동 시작
                 • 이슈 스캔 — 라벨 이슈 즉시 스캔
-                • 이슈 프로젝트 [추가|삭제 group/repo] — 대상 프로젝트 보기/추가/삭제
+                • 이슈 프로젝트 [추가|삭제 owner/repo] — 대상 프로젝트 보기/추가/삭제
                 • 이슈 중단 — 진행 중 세션 중단
                 확인 대기 중 자기방 답변: 진행 / 중단 / diff / 상태 / 피드백: (문장) — 그 외 메시지는 무시(대시보드에선 접두어 없이 피드백)""";
     }
@@ -558,15 +584,19 @@ public class IssueAgentService {
             path = m.group(1);
             iid = Long.parseLong(m.group(2));
         } else {
-            return "이슈를 인식하지 못했습니다. 형식: group/repo#123 또는 이슈 URL\n" + help();
+            return "이슈를 인식하지 못했습니다. 형식: owner/repo#123 또는 이슈 URL\n" + help();
         }
         String resolved = projectReg.resolveProject(path);
         if (resolved == null) {
-            return "대상 프로젝트에서 '" + path + "' 를 찾지 못했습니다: " + projectReg.projects() + "\n추가: 이슈 프로젝트 추가 group/repo (또는 관리 페이지)";
+            return "대상 프로젝트에서 '" + path + "' 를 찾지 못했습니다: " + projectReg.projects() + "\n추가: 이슈 프로젝트 추가 owner/repo (또는 관리 페이지)";
         }
         try {
-            GitLabClient.Project p = projectReg.project(resolved);
-            GitLabClient.Issue is = gitlab.issue(p.id(), iid);
+            GitHubClient.Project p = projectReg.project(resolved);
+            GitHubClient.Issue is = github.issue(p.path(), iid);
+            String why = untrustedReason(is);
+            if (why != null) {
+                return p.path() + "#" + iid + " 는 처리하지 않습니다: " + why;
+            }
             IssueSession existing = sessions.findByIssue(p.path(), iid);
             if (existing != null) {
                 if (existing.isActive()) {
@@ -635,7 +665,7 @@ public class IssueAgentService {
         for (IssueSession s : list) {
             sb.append("\n• ").append(s.ref()).append(" [").append(s.getState()).append("] ").append(s.getIssueTitle());
             if (s.getMrUrl() != null && !s.getMrUrl().isBlank()) {
-                sb.append("\n   MR: ").append(s.getMrUrl());
+                sb.append("\n   PR: ").append(s.getMrUrl());
             }
         }
         return sb.toString();
@@ -795,22 +825,20 @@ public class IssueAgentService {
     /** 분석 공통: 세션 worktree 준비 → 이슈/코멘트 수집 → Claude 분석. */
     private CodingAgent.Result analyzeCore(IssueSession s, String label) {
         final long id = s.getId();
-        GitLabClient.Project p = projectReg.project(s.getProjectPath());
-        GitLabClient.Issue is = gitlab.issue(p.id(), s.getIssueIid());
-        // 컨벤션: 라벨로 hotfix 가 확정되면 main, 아니면 develop(없으면 기본 브랜치) 기준으로 작업트리를 만든다.
-        // 유형은 분석 결과("## 작업 유형")로 바뀔 수 있고, hotfix 로 바뀌면 수정 시작 때 main 기준으로 다시 받는다.
-        String labelType = labelWorkType(is.labels());
-        s.setWorkId(workIdOf(is.title(), s.getIssueIid(), conv().workIdPattern()));
-        if (labelType != null) {
-            s.setWorkType(labelType);
+        GitHubClient.Project p = projectReg.project(s.getProjectPath());
+        GitHubClient.Issue is = github.issue(p.path(), s.getIssueIid());
+        String untrusted = untrustedReason(is);
+        if (untrusted != null) {
+            throw new IllegalStateException("신뢰할 수 없는 작성자의 이슈라 분석하지 않습니다: " + untrusted);
         }
-        String base = baseBranchFor(p, "hotfix".equals(labelType) ? "hotfix" : null);
+        // 컨벤션: 작업 유형과 관계없이 항상 저장소 기본 브랜치 기준으로 작업트리를 만든다(브랜치 {유형}/{이슈번호}, PR 대상도 기본 브랜치).
+        String base = p.defaultBranch();
         s.setBaseBranch(base);
         sessions.update(s);
-        events.emit(id, IssueEvent.GIT, "소스 준비: fetch → origin/" + base + " 기준 세션 worktree 생성 (일감 " + s.getWorkId() + ")");
+        events.emit(id, IssueEvent.GIT, "소스 준비: fetch → origin/" + base + " 기준 세션 worktree 생성 (이슈 #" + s.getIssueIid() + ")");
         git.prepare(p.path(), p.httpUrl(), base, s.getIssueIid());
         refs.ensureReferences(s, is.description());
-        List<String> notes = safeNotes(p.id(), s.getIssueIid());
+        List<String> notes = safeNotes(p.path(), s.getIssueIid());
 
         s.setClaudeSessionId(UUID.randomUUID().toString());
         sessions.update(s);                           // 실행 중에도 DB 의 세션 id 로 runInfo(실행 중 모델)를 찾을 수 있게 바로 저장
@@ -818,68 +846,25 @@ public class IssueAgentService {
         if (r.error()) {
             throw new IllegalStateException(label + " 실패: " + abbreviate(r.text(), 300));
         }
-        applyWorkType(s, r.text(), labelType);
+        applyWorkType(s, r.text(), null);
         return r;
     }
 
-    /** 분석/재설계 결과의 "## 작업 유형" 으로 유형을 정한다. 라벨로 hotfix 가 확정된 경우는 라벨이 우선. */
-    private void applyWorkType(IssueSession s, String design, String labelType) {
-        String type = labelType != null ? labelType : parseWorkType(design, conv().prefixesOr());
+    /** 분석/재설계 결과의 "## 작업 유형" 으로 유형을 정한다. 사용자가 피드백으로 지정한 유형(forcedType)이 있으면 그것이 우선. */
+    private void applyWorkType(IssueSession s, String design, String forcedType) {
+        String type = forcedType != null ? forcedType : parseWorkType(design, conv().prefixesOr());
         if (type == null) {
             type = s.getWorkType() != null ? s.getWorkType() : "fix";
         }
         s.setWorkType(type);
         sessions.update(s);
-        events.emit(s.getId(), IssueEvent.INFO, "작업 유형 " + type + " → 브랜치 " + git.branchName(type, s.getWorkId())
-                + " (" + baseBranchFor(projectReg.project(s.getProjectPath()), type) + " 기준, MR → " + mrTargetFor(projectReg.project(s.getProjectPath())) + ")");
+        events.emit(s.getId(), IssueEvent.INFO, "작업 유형 " + type + " → 브랜치 " + git.branchName(type, s.getIssueIid())
+                + " (" + projectReg.project(s.getProjectPath()).defaultBranch() + " 기준, PR → 같은 브랜치)");
     }
 
     private GitLabProperties.Convention conv() {
         GitLabProperties.Convention c = props.convention();
-        return c != null ? c : new GitLabProperties.Convention("develop", "main", "develop", List.of(), List.of(), "#?(\\d{5,7})");
-    }
-
-    /** 이슈 라벨에 hotfix 라벨이 있으면 "hotfix", 아니면 null. */
-    private String labelWorkType(List<String> labels) {
-        if (labels == null || conv().hotfixLabels() == null) {
-            return null;
-        }
-        for (String l : labels) {
-            for (String h : conv().hotfixLabels()) {
-                if (l != null && l.strip().equalsIgnoreCase(h.strip())) {
-                    return "hotfix";
-                }
-            }
-        }
-        return null;
-    }
-
-    /** 작업 유형에 따른 분기 기준 브랜치: hotfix → hotfix-base(main), 그 외 → base-branch(develop). 원격에 없으면 기본 브랜치. */
-    private String baseBranchFor(GitLabClient.Project p, String workType) {
-        String want = "hotfix".equals(workType) ? conv().hotfixBase() : conv().baseBranch();
-        return remoteBranch(p, want);
-    }
-
-    private String mrTargetFor(GitLabClient.Project p) {
-        return remoteBranch(p, conv().mrTarget());
-    }
-
-    private final Map<String, Boolean> branchExistsCache = new ConcurrentHashMap<>();
-
-    /** 원격에 있으면 그 이름, 없으면 프로젝트 기본 브랜치(결과는 캐시). */
-    private String remoteBranch(GitLabClient.Project p, String name) {
-        if (name == null || name.isBlank() || name.equals(p.defaultBranch())) {
-            return p.defaultBranch();
-        }
-        boolean exists = branchExistsCache.computeIfAbsent(p.id() + ":" + name, k -> {
-            try {
-                return gitlab.branchExists(p.id(), name);
-            } catch (RuntimeException e) {
-                log.debug("브랜치 존재 확인 실패 {} {}: {}", p.path(), name, e.toString());
-                return false;
-            }
-        });
-        return exists ? name : p.defaultBranch();
+        return c != null ? c : new GitLabProperties.Convention(List.of());
     }
 
     private String designMessage(IssueSession s, String design) {
@@ -889,11 +874,10 @@ public class IssueAgentService {
 
     /** 승인 때 확인할 브랜치 계획 한 줄(컨벤션). */
     private String branchPlan(IssueSession s) {
-        GitLabClient.Project p = projectReg.project(s.getProjectPath());
+        GitHubClient.Project p = projectReg.project(s.getProjectPath());
         String type = s.getWorkType() == null ? "fix" : s.getWorkType();
-        return "## 브랜치 계획\n" + git.branchName(type, s.getWorkId()) + " ← " + baseBranchFor(p, type) + " 기준, MR → " + mrTargetFor(p)
-                + ("hotfix".equals(type) ? " (긴급: main 에서 분기, 배포 후 develop 병합)" : "")
-                + "\n유형을 바꾸려면 피드백으로 '작업 유형: hotfix' 처럼 알려 주세요.";
+        return "## 브랜치 계획\n" + git.branchName(type, s.getIssueIid()) + " ← " + p.defaultBranch() + " 기준, PR → " + p.defaultBranch()
+                + "\n유형을 바꾸려면 피드백으로 '작업 유형: refactor' 처럼 알려 주세요.";
     }
 
     private String dashboardUrl(IssueSession s) {
@@ -1031,20 +1015,11 @@ public class IssueAgentService {
             throw new IllegalStateException("설계 수정 실패: " + abbreviate(r.text(), 300));
         }
         s.setDesignText(r.text());
-        // 사용자가 피드백에서 "작업 유형: hotfix" 처럼 직접 지정하면 그것이 우선, 아니면 라벨 → 설계안 순
+        // 사용자가 피드백에서 "작업 유형: refactor" 처럼 직접 지정하면 그것이 우선, 아니면 설계안
         String forced = parseWorkType("## 작업 유형\n" + feedbackTypeLine(feedback), conv().prefixesOr());
-        applyWorkType(s, r.text(), forced != null ? forced : labelWorkTypeOf(s));
+        applyWorkType(s, r.text(), forced);
         toWait(s, IssueSession.DESIGN_WAIT);
         notifier.sendSelf(PFX + "설계안(수정 " + s.getFeedbackRounds() + ") " + s.ref() + "\n\n" + r.text() + "\n\n" + branchPlan(s) + "\n\n" + askDesign());
-    }
-
-    /** 세션 이슈의 라벨로 hotfix 여부 재확인(재설계 때). 조회 실패면 null. */
-    private String labelWorkTypeOf(IssueSession s) {
-        try {
-            return labelWorkType(gitlab.issue(s.getProjectId(), s.getIssueIid()).labels());
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     private void fix(IssueSession s, String feedback) {
@@ -1064,9 +1039,9 @@ public class IssueAgentService {
         Path dir = dirOf(s);
         String rebased = null;
         if (first) {
-            // 컨벤션 기준 브랜치가 분석 때와 달라졌으면(예: 설계에서 hotfix 로 판정 → main) 작업트리를 그 기준으로 다시 받는다
-            GitLabClient.Project p = projectReg.project(s.getProjectPath());
-            String want = baseBranchFor(p, s.getWorkType());
+            // 기준 브랜치(저장소 기본 브랜치)가 분석 때와 달라졌으면(저장소의 기본 브랜치 변경 등) 작업트리를 그 기준으로 다시 받는다
+            GitHubClient.Project p = projectReg.project(s.getProjectPath());
+            String want = p.defaultBranch();
             if (s.getBaseBranch() == null || !want.equals(s.getBaseBranch())) {
                 events.emit(s.getId(), IssueEvent.GIT, "기준 브랜치 변경 " + s.getBaseBranch() + " → " + want + " (작업 유형 " + s.getWorkType() + "): 작업트리 재생성");
                 git.prepare(p.path(), p.httpUrl(), want, s.getIssueIid());
@@ -1223,7 +1198,7 @@ public class IssueAgentService {
         if (verifier.cfg().reviewer()) {
             String desc = "";
             try {
-                desc = gitlab.issue(s.getProjectId(), s.getIssueIid()).description();
+                desc = github.issue(s.getProjectPath(), s.getIssueIid()).description();
             } catch (RuntimeException e) {
                 log.debug("이슈 본문 재조회 실패(무시): {}", e.toString());
             }
@@ -1309,14 +1284,10 @@ public class IssueAgentService {
             return;
         }
         transition(s, IssueSession.PUSHING);
-        GitLabClient.Project p = projectReg.project(s.getProjectPath());
+        GitHubClient.Project p = projectReg.project(s.getProjectPath());
         String workType = s.getWorkType() == null ? "fix" : s.getWorkType();
-        if (s.getWorkId() == null) {
-            s.setWorkId(workIdOf(s.getIssueTitle(), s.getIssueIid(), conv().workIdPattern()));
-        }
-        String branch = git.branchName(workType, s.getWorkId());        // 컨벤션: {유형}/{일감번호}
-        // 컨벤션 도입 전에 분석된 세션(base_branch 없음)은 기본 브랜치 기준 작업트리이므로 MR 도 기본 브랜치로(기준 불일치 방지)
-        String mrTarget = s.getBaseBranch() == null ? p.defaultBranch() : mrTargetFor(p);
+        String branch = git.branchName(workType, s.getIssueIid());        // 컨벤션: {유형}/{이슈번호}
+        String prBase = p.defaultBranch();                                // PR 대상 = 기본 브랜치(작업트리 기준과 같다)
         if (s.getBaseBranch() == null) {
             s.setBaseBranch(p.defaultBranch());
         }
@@ -1324,11 +1295,8 @@ public class IssueAgentService {
         String commitMsg = commitMessage(s);
         String sha;
         try {
-            if (git.remoteBranchExists(dir, branch)) {   // 사람이 같은 일감 브랜치를 이미 쓰고 있거나 재실행: 덮지 않고 -ai(-r시각) 로 구분
-                String alt = branch + "-ai";
-                branch = git.remoteBranchExists(dir, alt)
-                        ? alt + "-r" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MMddHHmm")) : alt;
-            }
+            // 사람이 같은 이슈 브랜치를 이미 쓰고 있거나 재실행: 덮지 않고 -ai(-r시각) 로 구분
+            branch = uniqueBranch(branch, b -> git.remoteBranchExists(dir, b), java.time.LocalDateTime.now());
             events.emit(s.getId(), IssueEvent.GIT, "브랜치 " + branch + " 생성 · 커밋 · 푸시", commitMsg);
             sha = git.commitAndPush(dir, branch, commitMsg);
         } catch (RuntimeException e) {
@@ -1344,7 +1312,7 @@ public class IssueAgentService {
         sessions.update(s);
         events.emit(s.getId(), IssueEvent.GIT, "푸시 완료 " + sha + " → origin/" + branch);
 
-        String branchUrl = p.webUrl() + "/-/tree/" + branch;
+        String branchUrl = p.webUrl() + "/tree/" + branch;
         String summary = section(s.getChangeSummary(), "변경 요약");
         String mrUrl = null;
         StringBuilder extra = new StringBuilder();
@@ -1352,29 +1320,29 @@ public class IssueAgentService {
             try {
                 String title = "Draft: " + firstLine(commitMsg);
                 String verify = section(s.getChangeSummary(), "검증 결과");
-                String desc = "Closes #" + s.getIssueIid()
-                        + "\n일감: " + s.getWorkId() + " · 브랜치 `" + branch + "` (" + s.getBaseBranch() + " 기준) → `" + mrTarget + "`"
-                        + ("hotfix".equals(workType) ? "\n**Hotfix**: main 에서 분기한 긴급 수정 — 브랜치 산출물로 즉시 배포 후 develop 에 병합(컨벤션)" : "")
+                // FR-305 가정: PR 본문에는 이슈를 닫는 참조를 쓰지 않는다(이슈 번호 언급만). 닫기는 커밋 메시지의 Resolves 가 기본 브랜치 병합 때 한다.
+                String desc = "이슈: #" + s.getIssueIid()
+                        + "\n브랜치 `" + branch + "` (" + s.getBaseBranch() + " 기준) → `" + prBase + "`"
                         + "\n\n## 변경 요약\n" + summary
                         + (verify.isBlank() || verify.equals(s.getChangeSummary().strip()) ? "" : "\n\n## 검증 결과\n" + verify)
-                        + "\n\n---\n_" + agentName() + " 이슈 에이전트가 생성한 MR입니다. 리뷰 후 Draft 를 해제하세요._";
-                mrUrl = gitlab.createMergeRequest(p.id(), branch, mrTarget, title, desc);
+                        + "\n\n---\n_" + agentName() + " 이슈 에이전트가 생성한 PR입니다. 리뷰 후 Draft 를 해제하세요._";
+                mrUrl = github.createPullRequest(p.path(), branch, prBase, title, desc);
                 s.setMrUrl(mrUrl);
                 sessions.update(s);
-                events.emit(s.getId(), IssueEvent.GITLAB, "Draft MR 생성: " + mrUrl);
+                events.emit(s.getId(), IssueEvent.GITLAB, "Draft PR 생성: " + mrUrl);
             } catch (RuntimeException e) {
-                events.emit(s.getId(), IssueEvent.ERROR, "MR 생성 실패: " + abbreviate(e.getMessage(), 200));
-                log.warn("MR 생성 실패 {}: {}", s.ref(), e.toString());
-                extra.append("\n⚠️ MR 생성 실패: ").append(e.getMessage());
+                events.emit(s.getId(), IssueEvent.ERROR, "PR 생성 실패: " + abbreviate(e.getMessage(), 200));
+                log.warn("PR 생성 실패 {}: {}", s.ref(), e.toString());
+                extra.append("\n⚠️ PR 생성 실패: ").append(e.getMessage());
             }
         }
         if (props.commentOnIssue()) {
             try {
                 String body = ":robot: 수정 브랜치를 푸시했습니다: `" + branch + "` (" + sha + ")\n\n"
                         + "## 변경 요약\n" + summary
-                        + (mrUrl != null && !mrUrl.isBlank() ? "\n\nMR: " + mrUrl : "\n\n브랜치: " + branchUrl)
+                        + (mrUrl != null && !mrUrl.isBlank() ? "\n\nPR: " + mrUrl : "\n\n브랜치: " + branchUrl)
                         + "\n\n_" + agentName() + " 이슈 에이전트_";
-                gitlab.comment(p.id(), s.getIssueIid(), body);
+                github.comment(p.path(), s.getIssueIid(), body);
                 events.emit(s.getId(), IssueEvent.GITLAB, "이슈 #" + s.getIssueIid() + " 에 코멘트 남김");
             } catch (RuntimeException e) {
                 events.emit(s.getId(), IssueEvent.ERROR, "이슈 코멘트 실패: " + abbreviate(e.getMessage(), 200));
@@ -1386,7 +1354,7 @@ public class IssueAgentService {
         git.cleanup(s.getProjectPath(), s.getIssueIid());
         notifier.sendSelf(PFX + "완료 " + s.ref() + " — " + s.getIssueTitle()
                 + "\n브랜치: " + branch + " (" + sha + ")\n" + branchUrl
-                + (mrUrl != null && !mrUrl.isBlank() ? "\nMR: " + mrUrl : "")
+                + (mrUrl != null && !mrUrl.isBlank() ? "\nPR: " + mrUrl : "")
                 + extra);
         startNextIfIdle();
     }
@@ -1592,7 +1560,7 @@ public class IssueAgentService {
             return false;
         }
         events.emit(s.getId(), IssueEvent.ERROR, "수정 단계 중단: " + reason + " — 작업트리 변경을 보존하고 리뷰 대기로 넘깁니다", stat);
-        // 이전 라운드의 진짜 요약(## 변경 요약/## 커밋 메시지)이 있으면 지우지 않는다 — 안내문이 커밋 제목·MR 본문으로 올라간 사고(11-13 MR !2)
+        // 이전 라운드의 진짜 요약(## 변경 요약/## 커밋 메시지)이 있으면 지우지 않는다 — 안내문이 커밋 제목·PR 본문으로 올라간 사고(11-13 MR !2)
         String note = "## 중단 안내\n⏱ " + reason + "\n세션이 중간에 끊겨 이번 라운드의 보고가 없습니다. 아래 diff --stat 과 대시보드 diff 로 확인하세요.\n"
                 + "이어서 하려면 「피드백: 이어서 진행」(같은 세션을 재개해 남은 작업을 계속), 이대로 올리려면 「진행」(푸시 전에 변경 요약을 다시 생성합니다).";
         String prev = s.getChangeSummary();
@@ -1660,7 +1628,7 @@ public class IssueAgentService {
         if (msg.isBlank() || msg.length() < 8) {
             msg = commitTypeFor(s.getWorkType()) + ": " + abbreviate(s.getIssueTitle(), 60) + " (#" + s.getIssueIid() + ")\n\nResolves #" + s.getIssueIid();
         } else if (!closesIssue(msg, s.getIssueIid())) {
-            // 이슈는 GitLab 정책으로 닫는다: 이 커밋이 기본 브랜치(main)에 도달하면 닫는 키워드가 이슈를 닫는다(develop MR 설명의 Closes 는 main 까지 따라가지 않음)
+            // 이슈는 GitHub 정책으로 닫는다: 이 커밋이 기본 브랜치에 병합되면 닫는 키워드(Resolves)가 이슈를 닫는다(PR 본문에는 닫기 참조를 두지 않는다)
             msg = msg + "\n\nResolves #" + s.getIssueIid();
         }
         // 첫 줄을 컨벤션 타입 접두어로 정규화(모델이 빠뜨렸을 때)
@@ -1670,16 +1638,16 @@ public class IssueAgentService {
         return conventionalTitle(head, s.getWorkType()) + rest;
     }
 
-    /** MR 본문·이슈 코멘트 서명에 쓰는 에이전트 이름 — 커밋 author(`gitlab.git-user-name`)와 같게. */
+    /** PR 본문·이슈 코멘트 서명에 쓰는 에이전트 이름 — 커밋 author(`gitlab.git-user-name`)와 같게. */
     private String agentName() {
         String n = props.gitUserName();
         return n == null || n.isBlank() ? "dev-agent" : n.strip();
     }
 
-    private IssueSession newSession(GitLabClient.Project p, GitLabClient.Issue is) {
+    private IssueSession newSession(GitHubClient.Project p, GitHubClient.Issue is) {
         IssueSession s = new IssueSession();
         s.setProjectPath(p.path());
-        s.setProjectId(p.id());
+        // project_id 는 더 쓰지 않는다(0 으로 둔다) — 컬럼 삭제는 T-011
         s.setIssueIid(is.iid());
         s.setIssueTitle(is.title());
         s.setIssueUrl(is.webUrl());
@@ -1688,9 +1656,9 @@ public class IssueAgentService {
         return s;
     }
 
-    private List<String> safeNotes(long projectId, long iid) {
+    private List<String> safeNotes(String projectPath, long iid) {
         try {
-            return gitlab.issueNotes(projectId, iid, 30);
+            return github.issueNotes(projectPath, iid, 30);
         } catch (RuntimeException e) {
             log.debug("이슈 노트 조회 실패(무시): {}", e.toString());
             return new ArrayList<>();

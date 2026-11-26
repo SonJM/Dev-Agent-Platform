@@ -175,8 +175,8 @@
 
 아래 브랜치 규칙을 따릅니다(`gitlab.convention`).
 
-- 브랜치 `{feature|fix|refactor|doc|hotfix}/{일감번호}` — 유형은 분석 결과의 `## 작업 유형` 과 라벨(`hotfix`/`긴급` → hotfix 확정), 일감번호는 이슈 제목의 `#123456`(`GITLAB_WORK_ID_PATTERN`, 없으면 `issue-<iid>`).
-- 일반 작업은 `develop` 기준·MR → develop, hotfix 는 `main` 기준(MR 은 컨벤션대로 develop, 설명에 main 분기 표기). 설계 중 유형이 바뀌면 수정 시작 때 작업트리를 다시 받습니다.
+- 브랜치 `{feature|fix|refactor|doc|hotfix}/{이슈번호}`(예 `fix/12`) — 유형은 분석 결과의 `## 작업 유형`(피드백 `작업 유형: …` 로 변경 가능). 이슈 번호가 곧 브랜치 번호입니다.
+- 모든 유형이 저장소 기본 브랜치에서 분기해 기본 브랜치로 Draft PR 을 올립니다(hotfix 도 같음). 같은 이름이 원격에 있으면 `-ai`, 또 있으면 `-ai-r<MMddHHmm>`. 기본 브랜치 직접 푸시·강제 푸시는 없습니다.
 - 커밋 첫 줄 `feat|fix|docs|style|refactor|test|chore: 제목`, MR 제목 `Draft: <커밋 제목>`. 같은 이름의 원격 브랜치가 있으면 `-ai`, 또 있으면 `-ai-r<MMddHHmm>`. 강제 푸시 없음. 커밋 작성자는 `GITLAB_GIT_USER_NAME/EMAIL`(기본 dev-agent).
 
 ### 동시 처리 · 실행 상한
@@ -281,7 +281,7 @@ git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 
 
 ### 준비
 
-GitLab PAT(scope `api`, `write_repository`) → `.env` 에 `GITLAB_ENABLED=true`, `GITLAB_URL`, `GITLAB_TOKEN`, `GITLAB_PROJECTS`(초기값) → 재시작 → 이슈에 `ai-fix` 라벨. 대상 프로젝트는 이후 관리 페이지 칩이나 `이슈 프로젝트 추가|삭제 group/repo` 로 바꾸며 DB 에 저장됩니다(재시작 불필요). 메신저 어댑터가 연결돼 있으면 자기 대화로 보낸 명령과 답변이 바로 전달됩니다. 저장소는 `work/`(gitignore)에 clone 됩니다.
+GitHub fine-grained PAT(저장소 선택 "Only select repositories"로 대상 저장소만 · 권한 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기 · 만료 90일 안팎 · 개인 계정 저장소만) → `.env` 에 `GITLAB_ENABLED=true`, `GITHUB_TOKEN`, `GITLAB_PROJECTS`(초기값, `owner/repo`) → 재시작 → 이슈에 `ai-fix` 라벨. 토큰 만료·접근 불가는 플랫폼 탭 "설치 점검"의 GitHub 항목이 미리 알립니다(만료 14일 전부터 경고). 대상 프로젝트는 이후 관리 페이지 칩이나 `이슈 프로젝트 추가 owner/repo` 로 바꿉니다.
 
 ---
 
@@ -327,10 +327,12 @@ java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .en
 | 키 | 설명 |
 |---|---|
 | `MCP_ENABLED` / `MCP_AGENT_ENABLED` | 사용자 정의 MCP 기능 · 에이전트 실행에 MCP 도구 붙이기 |
-| `GITLAB_ENABLED` / `GITLAB_URL` / `GITLAB_TOKEN` / `GITLAB_PROJECTS` / `GITLAB_LABEL` | 이슈 에이전트 · GitLab · PAT · 대상 프로젝트 초기값(DB 우선) · 라벨(ai-fix) |
+| `GITLAB_ENABLED` / `GITLAB_PROJECTS` / `GITLAB_LABEL` | 이슈 에이전트 · 대상 저장소 초기값 `owner/repo`(DB 우선) · 라벨(ai-fix) |
+| `GITHUB_TOKEN` / `GITHUB_API_URL` | GitHub fine-grained PAT(비어도 기동, 설치 점검이 알림 — 자식 프로세스에는 전달되지 않음) · API 주소(기본 `https://api.github.com`, https 만 — 시험용 localhost http 는 경고) |
+| `GITHUB_TRUSTED_AUTHORS_ONLY` | 기본 `true`: 이슈 본문·코멘트 작성자가 저장소 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트에 반영(그 밖은 건너뛰고 로그). 라벨(`GITLAB_LABEL`)이 비면 스캔하지 않는다(설치 점검 fail) |
 | `GITLAB_SCAN_INTERVAL_MS` / `GITLAB_CONCURRENCY` / `GITLAB_PREFETCH` / `GITLAB_WAIT_REMIND_MS` | 스캔 2분 · 동시 2건 · 선분석 · 대기 리마인더 4h |
 | `GITLAB_GIT_USER_NAME` / `GITLAB_GIT_USER_EMAIL` / `GITLAB_COMMENT_ON_ISSUE` / `GITLAB_CREATE_MR` | 커밋 작성자(MR·코멘트 서명 동일) · 이슈 코멘트 · Draft MR |
-| `GITLAB_BASE_BRANCH` / `GITLAB_HOTFIX_BASE` / `GITLAB_MR_TARGET` / `GITLAB_BRANCH_PREFIXES` / `GITLAB_HOTFIX_LABELS` / `GITLAB_WORK_ID_PATTERN` | 브랜치 컨벤션(develop / main / develop / 접두어 / hotfix 라벨 / 일감번호 정규식) |
+| `GITLAB_BRANCH_PREFIXES` | 브랜치 접두어(작업 유형, 기본 feature,fix,refactor,doc,hotfix) |
 | `GITLAB_AGENT_MODEL` / `GITLAB_AGENT_EFFORT` / `GITLAB_AGENT_FIX_TOOLS` / `GITLAB_AGENT_TEST_HINT` | 코딩용 모델·노력 초기값(관리 페이지 값이 우선) · 수정 단계 허용 명령 · 검증 명령 안내 |
 | `GITLAB_AGENT_TIMEOUT_MS` / `GITLAB_AGENT_MAX_TURNS` / `GITLAB_AGENT_FIX_TIMEOUT_MS` / `GITLAB_AGENT_FIX_MAX_TURNS` / `GITLAB_AGENT_IDLE_TIMEOUT_MS` | 분석 60분/80턴 · 개발 4시간/600턴 · 무응답 20분 |
 | `GITLAB_VERIFY_ENABLED` / `GITLAB_VERIFY_MAX_RETRIES` / `GITLAB_VERIFY_REVIEWER` / `GITLAB_VERIFY_MODEL` / `GITLAB_VERIFY_EFFORT` / `GITLAB_VERIFY_COMMANDS` / `GITLAB_VERIFY_REVIEWER_TIMEOUT_MS` | 검증 단계 · 자동 재수정 2회 · 독립 리뷰어 · 리뷰어 모델/노력 · 프로젝트별 검사 명령 · 리뷰어 상한 60분 |
@@ -360,7 +362,7 @@ src/main/java/io/github/lib0823/devagent/
   mcp/        McpConfigService(mcp-servers.json·허용 도구·사용자 정의 서버) · McpServer(Mapper)
   gitlab/     IssueAgentService(상태기계·대화·동시 처리) · IssueTexts(순수 함수) · IssueReferences(참고 저장소) · IssueProjects(대상 프로젝트)
               · IssueNotifier(자기방 알림) · IssuePrompts(프롬프트)
-              · VerifyService(봇 검사·리뷰어 프롬프트) · GitRunner(worktree·참고 저장소·컨벤션 브랜치·푸시 가드) · GitLabClient
+              · VerifyService(봇 검사·리뷰어 프롬프트) · GitRunner(worktree·참고 저장소·컨벤션 브랜치·푸시 가드) · GitHubClient
               · IssueSession/IssueEvent(Mapper) · IssueEventBus(DB 기록 + SSE)
   research/   ResearchService(질의 워크플로우: 읽기 전용 worktree · 세션 --resume · 단일 워커) · ResearchJob(Mapper)
   maintain/   MaintainService(플랫폼 관리: 소스 저장소에서 도는 세션 · 대화 --resume · 저장소 상태 · 푸시) · MaintainTurn(Mapper) · MaintainPrompts

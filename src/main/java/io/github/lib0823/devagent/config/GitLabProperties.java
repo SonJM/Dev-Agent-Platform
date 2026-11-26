@@ -5,17 +5,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.List;
 
 /**
- * GitLab 이슈 수정 에이전트 설정 (prefix: gitlab).
+ * 이슈 수정 에이전트 설정 (prefix: gitlab — 키 개명은 T-011).
  * <p>
  * 라벨이 붙은 열린 이슈를 폴링해 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인)
- * → ai/ 브랜치 커밋·푸시 → 이슈 코멘트·MR 생성.
+ * → 컨벤션 브랜치 커밋·푸시 → 이슈 코멘트·Draft PR 생성.
  */
 @ConfigurationProperties(prefix = "gitlab")
 public record GitLabProperties(
         boolean enabled,
-        String url,                    // 예: https://gitlab.example.co.kr
-        String token,                  // PAT (scope: api, write_repository)
-        List<String> projects,         // "group/repo" 경로 목록
+        List<String> projects,         // "owner/repo" 경로 목록(GitHub 접속 설정은 github.* — GitHubProperties)
         String label,                  // 이 라벨이 붙은 열린 이슈만 자동 처리 (예: ai-fix)
         long scanIntervalMs,           // 이슈 스캔 주기
         long replyPollIntervalMs,      // 자기방 답변 폴링 주기
@@ -23,7 +21,7 @@ public record GitLabProperties(
         String gitUserName,            // 커밋 author
         String gitUserEmail,
         boolean commentOnIssue,        // 푸시 후 이슈에 코멘트
-        boolean createMr,              // 푸시 후 Draft MR 생성
+        boolean createMr,              // 푸시 후 Draft PR 생성
         boolean prefetch,              // 현재 건이 사용자 확인 대기 중일 때 다음 이슈를 미리 분석(READY)
         long waitRemindMs,             // 확인 대기가 이 시간 넘게 이어지면 자기방 리마인더(0=끔)
         Agent agent,
@@ -32,22 +30,16 @@ public record GitLabProperties(
         int concurrency                // 동시에 진행할 이슈 세션 수(기본 2). 프리뷰 Tomcat 은 1개를 순서대로 공유
 ) {
 
-    /**
-     * 사내 브랜치/커밋 컨벤션(Document: ko/convention/convention/branch_convention).
-     * 브랜치 {접두어}/{일감번호}[-작업내용], 일반 작업은 develop 에서 분기해 develop 으로 MR, hotfix 는 main 에서 분기(MR 은 develop).
-     * 커밋 첫 줄은 feat|fix|docs|style|refactor|test|chore: 제목.
-     */
     public int concurrencyOr() {
         return concurrency <= 0 ? 1 : Math.min(concurrency, 8);
     }
 
+    /**
+     * 브랜치/커밋 컨벤션. 브랜치 {작업 유형}/{이슈번호}, 항상 저장소 기본 브랜치에서 분기해 기본 브랜치로 PR.
+     * 커밋 첫 줄은 feat|fix|docs|style|refactor|test|chore: 제목.
+     */
     public record Convention(
-            String baseBranch,             // 일반 작업 분기 기준(원격에 없으면 프로젝트 기본 브랜치)
-            String hotfixBase,             // hotfix 분기 기준
-            String mrTarget,               // MR 대상 브랜치(원격에 없으면 기본 브랜치)
-            List<String> prefixes,         // 허용 브랜치 접두어 = 작업 유형(feature, fix, refactor, doc, hotfix)
-            List<String> hotfixLabels,     // 이 라벨이 붙은 이슈는 hotfix 로 취급
-            String workIdPattern           // 이슈 제목에서 일감번호(EasyRedmine)를 뽑는 정규식(그룹 1)
+            List<String> prefixes          // 허용 브랜치 접두어 = 작업 유형(feature, fix, refactor, doc, hotfix)
     ) {
         public List<String> prefixesOr() {
             return prefixes == null || prefixes.isEmpty() ? List.of("feature", "fix", "refactor", "doc", "hotfix") : prefixes;
@@ -101,8 +93,4 @@ public record GitLabProperties(
         }
     }
 
-    public String projectUrl(String path) {
-        String base = url == null ? "" : url.replaceAll("/+$", "");
-        return base + "/" + path;
-    }
 }

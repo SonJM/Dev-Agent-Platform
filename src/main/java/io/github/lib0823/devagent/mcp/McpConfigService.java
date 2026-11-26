@@ -210,7 +210,7 @@ public class McpConfigService {
         String all = s.getUrl() + "\n" + s.getHeaders() + "\n" + s.getArgs() + "\n" + s.getCommand();
         for (String p : placeholderNames(all)) {
             if (!isAllowedPlaceholder(p)) {
-                return "자리표시자 '${" + p + "}' 는 쓸 수 없습니다. 대문자·숫자·밑줄 이름의 환경변수만 쓸 수 있고, 앱 자신의 비밀(DB·GitLab 토큰 등)은 참조할 수 없습니다.";
+                return "자리표시자 '${" + p + "}' 는 쓸 수 없습니다. 대문자·숫자·밑줄 이름의 환경변수만 쓸 수 있고, 앱 자신의 비밀(DB·GitHub 토큰 등)은 참조할 수 없습니다.";
             }
         }
         return null;

@@ -5,7 +5,7 @@ import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.config.ResearchProperties;
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.gitlab.GitLabClient;
+import io.github.lib0823.devagent.gitlab.GitHubClient;
 import io.github.lib0823.devagent.gitlab.GitRunner;
 import io.github.lib0823.devagent.gitlab.IssueEvent;
 import io.github.lib0823.devagent.gitlab.IssueEventBus;
@@ -61,7 +61,7 @@ public class ResearchService {
     private final ResearchJobMapper jobs;
     private final CodingAgent agent;
     private final GitRunner git;
-    private final GitLabClient gitlab;
+    private final GitHubClient github;
     private final IssueEventBus events;
     private final SettingService settings;
     private final UsageService usage;
@@ -77,11 +77,11 @@ public class ResearchService {
     });
     private final AtomicReference<Long> runningId = new AtomicReference<>();
     private final Set<Long> abortRequested = ConcurrentHashMap.newKeySet();
-    private final Map<String, GitLabClient.Project> projectCache = new ConcurrentHashMap<>();
+    private final Map<String, GitHubClient.Project> projectCache = new ConcurrentHashMap<>();
     private volatile boolean limitLogged;
 
     public ResearchService(ResearchProperties props, GitLabProperties gitlabProps, ResearchJobMapper jobs, CodingAgent agent,
-                           GitRunner git, GitLabClient gitlab, IssueEventBus events, SettingService settings, UsageService usage,
+                           GitRunner git, GitHubClient github, IssueEventBus events, SettingService settings, UsageService usage,
                            MessengerService client, NotificationService notifications, ResearchAttachments attachments,
                            @Value("${server.port:8777}") int adminPort) {
         this.notifications = notifications;
@@ -91,7 +91,7 @@ public class ResearchService {
         this.jobs = jobs;
         this.agent = agent;
         this.git = git;
-        this.gitlab = gitlab;
+        this.github = github;
         this.events = events;
         this.settings = settings;
         this.usage = usage;
@@ -242,8 +242,8 @@ public class ResearchService {
         if (ps.isEmpty()) {
             throw new IllegalArgumentException("프로젝트를 지정하세요.");
         }
-        GitLabClient.Project p = projectCache.computeIfAbsent(ps.get(0), gitlab::project);
-        List<String> names = new ArrayList<>(gitlab.branches(p.id(), search));
+        GitHubClient.Project p = projectCache.computeIfAbsent(ps.get(0), github::project);
+        List<String> names = new ArrayList<>(github.branches(p.path(), search));
         if ((search == null || search.isBlank()) && names.remove(p.defaultBranch())) {
             names.add(0, p.defaultBranch());              // 기본 브랜치를 맨 앞에
         }
@@ -262,7 +262,7 @@ public class ResearchService {
      * 대상 프로젝트 정규화: 관리 페이지의 대상 프로젝트 중에서만, 경로 전체 또는 마지막 세그먼트(batch)로 지정 가능.
      * 항목 뒤에 {@code @branch} 를 붙이면 그 브랜치를 조사한다(없으면 기본 브랜치). 반환 항목은 "경로" 또는 "경로@브랜치".
      *
-     * @param checkBranch 브랜치가 원격에 있는지 GitLab 에 확인할지(접수 때 true)
+     * @param checkBranch 브랜치가 원격에 있는지 GitHub 에 확인할지(접수 때 true)
      */
     List<String> normalizeProjects(List<String> wanted, boolean checkBranch) {
         List<String> allowed = settings.getGitLabProjects();
@@ -296,10 +296,10 @@ public class ResearchService {
                 throw new IllegalArgumentException("'" + key + "' 는 대상 프로젝트가 아닙니다. 관리 페이지 '대상 프로젝트' 에 먼저 등록하세요: " + allowed);
             }
             if (branch != null && checkBranch) {
-                GitLabClient.Project p = projectCache.computeIfAbsent(hit, gitlab::project);
+                GitHubClient.Project p = projectCache.computeIfAbsent(hit, github::project);
                 if (branch.equals(p.defaultBranch())) {
                     branch = null;                        // 기본 브랜치는 표기를 생략해 하나로 맞춘다
-                } else if (!gitlab.branchExists(p.id(), branch)) {
+                } else if (!github.branchExists(p.path(), branch)) {
                     throw new IllegalArgumentException("'" + hit + "' 에 '" + branch + "' 브랜치가 없습니다.");
                 }
             }
@@ -431,7 +431,7 @@ public class ResearchService {
         try {
             for (String entry : j.projectList()) {
                 String[] pe = splitEntry(entry);          // 경로 + (선택) 브랜치. 브랜치가 없으면 기본 브랜치
-                GitLabClient.Project p = projectCache.computeIfAbsent(pe[0], gitlab::project);
+                GitHubClient.Project p = projectCache.computeIfAbsent(pe[0], github::project);
                 String branch = pe[1] != null ? pe[1] : p.defaultBranch();
                 Path dir = git.prepareReference(p.path(), p.httpUrl(), branch);
                 refs.add(new Ref(p.path(), branch, dir));
@@ -790,7 +790,7 @@ public class ResearchService {
 
     private String systemPrompt(List<Ref> refs) {
         StringBuilder sb = new StringBuilder();
-        sb.append("당신은 사내 GitLab 프로젝트의 소스를 읽고 질문에 답하는 시니어 개발자·분석가입니다. ")
+        sb.append("당신은 GitHub 저장소의 소스를 읽고 질문에 답하는 시니어 개발자·분석가입니다. ")
                 .append("이 세션은 조사·정리 전용입니다: 파일을 수정·생성하지 말고(Edit/Write 금지), 빌드·테스트·설치 명령도 돌리지 마세요. ")
                 .append("현재 작업 디렉터리는 '").append(refs.get(0).path()).append("' 의 ").append(refs.get(0).branch())
                 .append(" 브랜치 읽기 전용 작업트리입니다.");

@@ -1,5 +1,6 @@
 package io.github.lib0823.devagent.gitlab;
 
+import io.github.lib0823.devagent.config.GitHubProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import org.junit.jupiter.api.Test;
 
@@ -14,11 +15,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IssueAgentHelpersTest {
 
     private static GitLabProperties props() {
-        return new GitLabProperties(true, "https://gitlab.example", "t", List.of("grp/repo"), "ai-fix",
+        return new GitLabProperties(true, List.of("own/repo"), "ai-fix",
                 1000, 1000, "work", "bot", "bot@x", true, true, true, 0L,
                 new GitLabProperties.Agent("opus", "high", 1000, 10, List.of("Read"), List.of("Read"), "", 3000, 0, 0, 0),
                 new GitLabProperties.Verify(true, 2, true, "", "medium", 1000, "", List.of("Read"), 0),
-                new GitLabProperties.Convention("develop", "main", "develop", List.of("feature", "fix", "refactor", "doc", "hotfix"), List.of("hotfix", "긴급"), "#?(\\d{5,7})"), 2);
+                new GitLabProperties.Convention(List.of("feature", "fix", "refactor", "doc", "hotfix")), 2);
     }
 
     @Test
@@ -29,18 +30,21 @@ class IssueAgentHelpersTest {
         assertEquals(t.strip(), IssueTexts.section(t, "없는 절"));
     }
 
+    /** TC-017: 작업 유형·이슈 번호로 브랜치 이름 생성, 기본 브랜치 푸시 거부. */
     @Test
-    void branchNameFollowsConvention() {
-        GitRunner git = new GitRunner(props());
-        assertEquals("fix/123456", git.branchName("fix", "123456"));
-        assertEquals("hotfix/123456", git.branchName("hotfix", "123456"));
-        assertEquals("feature/issue-7", git.branchName("feature", "issue-7"));
-        assertEquals("fix/123456", git.branchName("bogus", "123456"));           // 허용되지 않은 유형은 fix
-        assertEquals("fix/issue", git.branchName("fix", ""));
-        assertTrue(git.isPushable("fix/123456"));
-        assertTrue(git.isPushable("hotfix/123456-ai"));
+    void tc017_branchNameIsTypeSlashIssueNumber() {
+        GitRunner git = new GitRunner(props(), new GitHubProperties("t", null));
+        assertEquals("fix/12", git.branchName("fix", 12));
+        assertEquals("feature/7", git.branchName("feature", 7));
+        assertEquals("hotfix/12", git.branchName("hotfix", 12));              // hotfix 도 같은 규칙(기본 브랜치 기준)
+        assertEquals("fix/12", git.branchName("bogus", 12));                   // 허용되지 않은 유형은 fix
+        assertEquals("fix/12", git.branchName(null, 12));
+        assertTrue(git.isPushable("fix/12"));
+        assertTrue(git.isPushable("hotfix/12-ai"));
+        assertTrue(git.isPushable("fix/12-ai-r11251030"));
         assertFalse(git.isPushable("develop"));
         assertFalse(git.isPushable("main"));
+        assertFalse(git.isPushable("master"));
         assertFalse(git.isPushable("fix/"));
         assertFalse(git.isPushable("ai/issue-7"));
     }
@@ -48,10 +52,6 @@ class IssueAgentHelpersTest {
     @Test
     void workIdAndTypeParsing() {
         String pat = "#?(\\d{5,7})";
-        assertEquals("123456", IssueTexts.workIdOf("#123456 - [고객사] 기준정보가 '-'로 표시됨", 1, pat));
-        assertEquals("123457", IssueTexts.workIdOf("123457 limits 적용", 9, pat));
-        assertEquals("issue-7", IssueTexts.workIdOf("[docs] RabbitMQ Java Client 업데이트", 7, pat));
-        assertEquals("issue-3", IssueTexts.workIdOf("#12 짧은 번호는 무시", 3, pat));
         List<String> allowed = List.of("feature", "fix", "refactor", "doc", "hotfix");
         assertEquals("fix", IssueTexts.parseWorkType("## 작업 유형\nfix — 표시 버그\n## 원인\n…", allowed));
         assertEquals("hotfix", IssueTexts.parseWorkType("## 작업 유형\n**hotfix** (운영 장애)\n## 원인\n…", allowed));
@@ -85,7 +85,7 @@ class IssueAgentHelpersTest {
 
     @Test
     void sessionDirIsSiblingWorktreeOfBaseClone() {
-        GitRunner git = new GitRunner(props());
+        GitRunner git = new GitRunner(props(), new GitHubProperties("t", null));
         var base = git.repoDir("grp/sub/repo");
         var dir = git.sessionDir("grp/sub/repo", 12);
         assertEquals(base.getParent(), dir.getParent().getParent());
@@ -95,14 +95,14 @@ class IssueAgentHelpersTest {
 
     @Test
     void pushRefusesNonPrefixedBranch() {
-        GitRunner git = new GitRunner(props());
+        GitRunner git = new GitRunner(props(), new GitHubProperties("t", null));
         assertThrows(IllegalStateException.class,
                 () -> git.commitAndPush(java.nio.file.Path.of("."), "main", "msg"));
     }
 
     @Test
     void repoDirIsSanitized() {
-        GitRunner git = new GitRunner(props());
+        GitRunner git = new GitRunner(props(), new GitHubProperties("t", null));
         assertEquals("grp__repo", git.repoDir("grp/repo").getFileName().toString());
     }
 

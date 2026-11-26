@@ -84,7 +84,7 @@ $EDITOR <APP_HOME>/.env                            # 자리표시자를 모두 �
 ```
 
 - **줄바꿈은 LF 로 저장한다.** Windows 편집기에서 CRLF 로 저장해 올리면 값 끝에 CR 이 붙는 키가 생긴다(`DEV_AGENT_RUN_MODE` 는 견디지만 다른 값은 아닐 수 있다). 확인: `file <APP_HOME>/.env` 에 `CRLF` 가 나오면 `sed -i 's/\r$//' <APP_HOME>/.env`.
-- 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_USERNAME`·`DB_PASSWORD`, `GITLAB_WORK_DIR`(앱 홈 **밖**), GitLab 항목.
+- 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_USERNAME`·`DB_PASSWORD`, `GITLAB_WORK_DIR`(앱 홈 **밖**), GitHub 항목(`GITHUB_TOKEN`·`GITLAB_ENABLED`·`GITLAB_PROJECTS`).
 - **`.env` 에 `DB_URL` 을 적지 않는다.** `resolve-db.sh` 가 조회한 주소로 `DB_URL` 을 만든다. `.env` 에 `DB_URL=` 줄이 있으면 `resolve-db.sh` 가 거부한다(주석 처리한 줄은 무방).
 - `MAINTAIN_ENABLED=false` 를 유지한다(플랫폼 관리 사용 여부는 OI-14 미정).
 - `.env` 는 비밀값이 들어 있으니 git·메신저·로그에 올리지 않는다.
@@ -258,3 +258,18 @@ sudo systemctl start dev-agent
 | 「종료」 뒤에 다시 뜸 | unit 의 `Restart=` 값 | `Restart=always` 면 `on-failure` 로 |
 | `tailscale serve` 가 HTTPS 를 켜라고 함 / 인증서 오류 | `tailscale serve status` | §7 의 HTTPS Certificates 활성화 |
 | serve 주소로 열리지 않음 | `tailscale serve status`, 기기가 같은 tailnet 인지, ACL | 앱이 `127.0.0.1:8777` 에서 응답하는지 먼저 확인 |
+
+## 12. 대상 저장소 빌드 도구 (OI-15 ①)
+
+검증 빌드(`VerifyService`)가 대상 저장소를 서버에서 직접 빌드한다. 저장소마다 쓰는 도구가 달라 아래 틀로 준비한다.
+
+1. 대상 저장소가 쓰는 도구만 설치한다. JDK 는 unit 의 JDK 21 을 쓰고, Maven·Gradle·Node 등은 저장소에 따라 더한다.
+2. 서비스 계정(`<SERVICE_USER>`)의 로그인 셸에서 저장소마다 한 번 빌드해 의존성 캐시를 채운다. 검증 빌드가 `mvn -o` 오프라인이라 캐시가 없으면 FAIL 한다.
+3. 확인 명령(서비스 계정 셸에서):
+   - 도구 버전: `java -version`, `mvn -v` / `gradle -v` / `node --version` 중 해당하는 것
+   - 캐시를 채운 뒤 오프라인 빌드가 통과하는지: `cd <APP_WORK_DIR>/<owner__repo> && mvn -o -q compile` (Gradle 저장소는 해당 검증 명령)
+4. 저장소별 도구 목록 (대상 저장소를 정할 때 채운다):
+
+| 저장소 | 도구 | 캐시 채움 | 오프라인 빌드 확인 |
+|---|---|---|---|
+| `<owner/repo>` | 미정 — 첫 대상 저장소를 정할 때 | 미정 | 미정 |

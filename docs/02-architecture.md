@@ -1,7 +1,7 @@
 # 02. 아키텍처 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.11 · 2026-11-25 · 상태: Draft
+> 버전 0.12 · 2026-11-26 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md)
 
 현재 구조의 상세는 `CLAUDE.md`·`README.md`가 기준이다. 이 문서는 **목표 구조와 바뀌는 부분의 결정**만 적는다.
@@ -328,6 +328,10 @@ flowchart TB
   - 남는 위험: 같은 OS 계정의 셸 우회(스크립트 언어·다른 HTTP 도구·`awk` 등), 파일명 없는 `grep -r`·따옴표(`".env"`)·glob(`.env*`)으로 `.env` 읽기, 관리 세션 금지 패턴의 부분 문자열 우회(`//`·`/./`·문자열 조합), 관리 세션의 금지 목록 밖 상태 변경 POST(`messenger-notify`·`platform/test`·`research*`·`routines*`·세션 중단 등 — OI-33 ②·③을 고르지 않아 남김), Bash로 파일을 쓰는 읽기 전용 세션(분석·리서치·검증 — 프롬프트 금지에 의존). 실질적 차단은 요청 토큰(OI-22 ②)이 필요하다.
 - 자식 프로세스 환경(OI-27, T-021): 앱이 띄우는 자식(Claude CLI 세션, 검증 빌드, git, 도구 버전 확인)은 모두 `platform/ChildEnv.clean`을 거쳐 앱 비밀 환경변수(`ChildEnv.SECRET_KEYS` — DB 접속값, `SPRING_DATASOURCE_*`, 저장소 토큰)를 물려받지 않는다. 앱이 일부러 넣는 값(git 인증 헤더, 사용자 정의 MCP의 `${ENV}` 값)은 정리 뒤에 넣는다. 사용자 정의 MCP의 자리표시자는 대문자 환경변수 이름(`[A-Z][A-Z0-9_]*`)만 받고 `SECRET_KEYS`의 이름은 저장·실행 때 모두 거부한다(Spring 속성명·앱 비밀이 MCP 헤더·URL로 나가는 경로 차단, 구성 묶음 import도 같은 검증).
   - 남는 위험: 같은 OS 계정이므로 `.env` 파일 직접 읽기(T-023 도구 금지로 줄였으나 셸 우회는 남음 — 위 OI-22 항목), 개발 PC 내장 DB의 127.0.0.1 trust 인증(서버는 공유 PostgreSQL `scram-sha-256`이라 해당 없음)은 이 정리로 막지 못한다. 구성 묶음의 stdio MCP는 가져오면 임의 명령을 실행하는 구성이다(화면 경고 — OI-32).
+- 외부 이슈 입력과 대상 저장소(T-010, 2.1.0): GitHub 이슈 본문·코멘트는 에이전트 프롬프트에 들어가는 외부 입력이다.
+  - 신뢰 작성자 한정: `github.trusted-authors-only`(환경변수 `GITHUB_TRUSTED_AUTHORS_ONLY`, 기본 켜짐)면 `author_association`이 OWNER·MEMBER·COLLABORATOR인 글만 받는다 — 본문 작성자가 아니면 스캔은 건너뛰고(이슈당 로그 1회), 수동 시작은 사유를 답하고, 분석 단계는 방어적으로 실패한다. 코멘트도 같은 기준으로 거른다(`GitHubClient.issueNotes`).
+  - git 하드닝(`GitRunner`): 모든 호출에 `core.hooksPath=/dev/null`·`core.fsmonitor=false`·`core.sshCommand=false`·`credential.helper=`(빈 값)을 `-c`로 덮고, diff·show는 `--no-ext-diff --no-textconv`. 대상 저장소의 훅·외부 diff 도구가 앱 계정으로 실행되지 않는다. 토큰 환경변수는 원격 명령(clone·fetch·push·ls-remote)에만 주고, 인증 헤더는 GitHub 호스트로 한정한다. 세션·참고 worktree를 만지기 전에 `.git` 파일이 기준 clone의 `worktrees/<이름>`을 가리키고 역참조가 같은지 확인한다.
+  - 남는 위험: 라벨을 붙인 뒤 본문이 바뀌는 경우는 막지 않는다 — 본문을 고칠 수 있는 사람(작성자·쓰기 권한자)이 신뢰 범위 안이므로 신뢰 작성자 한정으로 충분하다고 본다(`OI-36` 결정 ②, 2026-11-26 사용자). 신뢰 작성자 본인의 계정이 탈취되면 막지 못한다. 쓰기 권한은 Doctor가 확인하지 못한다(첫 Draft PR이 곧 확인).
 - 서버의 로컬 프로세스는 신뢰한다(지금과 같은 전제).
 - 비밀값: `.env`(권한 600)와 환경변수로만. GitHub 토큰·Telegram 봇 토큰은 로그·응답·구성 묶음에 싣지 않는다.
 - 에이전트 권한: CLI는 서비스 계정의 권한으로 허용 도구만 실행한다. 서버 제어 도구는 추가하지 않는다(OI-01).
@@ -350,3 +354,4 @@ flowchart TB
 | 2026-11-25 | 0.9 | T-021 완료: §6에 자식 프로세스 환경 정리(`ChildEnv`), MCP 자리표시자 이름 제한, 남는 위험(`.env` 파일·내장 DB trust·묶음 stdio MCP) |
 | 2026-11-25 | 0.10 | T-023 완료: §6에 세션별 도구 금지(`disallowedTools` — VERIFY 편집 도구, 비관리 세션 curl·wget, 관리 세션 상태 변경 API curl, 전 세션 `.env` 읽기)와 남는 위험(OI-33·34) |
 | 2026-11-25 | 0.11 | T-024 완료: §6 편집 도구 금지를 FIX·관리 세션 외 전부로, 관리 세션 금지 경로에 권한 확대 설정 API 5개, 남는 위험 정리. OI-09 결정: D-6에 토큰 범위(대상 저장소만·권한·만료 90일·조직 저장소 제외) |
+| 2026-11-26 | 0.12 | T-010 완료(2.1.0): §6에 외부 이슈 입력의 신뢰 작성자 한정(`github.trusted-authors-only`)과 git 하드닝, 남는 위험(OI-36 결정 ②) |

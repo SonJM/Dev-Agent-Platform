@@ -2,9 +2,10 @@ package io.github.lib0823.devagent.ops;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.boot.Bootstrap;
+import io.github.lib0823.devagent.config.GitHubProperties;
 import io.github.lib0823.devagent.config.GitLabProperties;
 import io.github.lib0823.devagent.platform.ChildEnv;
-import io.github.lib0823.devagent.gitlab.GitLabClient;
+import io.github.lib0823.devagent.gitlab.GitHubClient;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.platform.Os;
@@ -35,19 +36,21 @@ public class Doctor {
     private final CodingAgent agent;
     private final MessengerService messenger;
     private final GitLabProperties gitlab;
-    private final GitLabClient gitlabClient;
+    private final GitHubProperties github;
+    private final GitHubClient githubClient;
     private final SettingService settings;
 
     private volatile List<Map<String, Object>> cache;
     private volatile long cachedAt;
 
-    public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, GitLabProperties gitlab, GitLabClient gitlabClient,
-                  SettingService settings) {
+    public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, GitLabProperties gitlab, GitHubProperties github,
+                  GitHubClient githubClient, SettingService settings) {
         this.jdbc = jdbc;
         this.agent = agent;
         this.messenger = messenger;
         this.gitlab = gitlab;
-        this.gitlabClient = gitlabClient;
+        this.github = github;
+        this.githubClient = githubClient;
         this.settings = settings;
     }
 
@@ -63,7 +66,7 @@ public class Doctor {
         out.add(claudeLogin());
         out.add(tool("git", "Git", List.of("git", "--version"), "fail", (Os.isWindows() ? "저장소 clone·worktree·푸시에 필요합니다. Git 을 설치하세요." : "저장소 clone·worktree·푸시에 필요합니다. 패키지 관리자로 git 을 설치하세요(예: apt install git).")));
         out.add(messengerCheck());
-        out.add(gitlabCheck());
+        out.add(githubCheck());
         out.add(workDir());
         out.add(tool("node", "Node.js", List.of("node", "--version"), "warn", "JS 문법 검사(node --check)와 npx 기반 MCP 서버에 필요합니다. 없으면 그 검사만 생략됩니다."));
         if (Os.isWindows()) {
@@ -134,24 +137,8 @@ public class Doctor {
         return check("messenger", "메신저(" + h.provider() + ")", st, h.summary(), "ok".equals(st) ? null : "메신저 계정·주소 설정과 네트워크를 확인하세요.");
     }
 
-    private Map<String, Object> gitlabCheck() {
-        if (!gitlab.enabled()) {
-            return check("gitlab", "GitLab", "warn", "꺼짐 — 이슈 에이전트·질의를 쓸 수 없습니다",
-                    ".env 에 GITLAB_ENABLED=true, GITLAB_URL, GITLAB_TOKEN(개인 액세스 토큰: api·write_repository)을 넣고 재시작하세요.");
-        }
-        if (blank(gitlab.url()) || blank(gitlab.token())) {
-            return check("gitlab", "GitLab", "fail", "주소 또는 토큰이 비어 있습니다", ".env 의 GITLAB_URL, GITLAB_TOKEN 을 채우세요.");
-        }
-        List<String> projects = settings.getGitLabProjects();
-        if (projects.isEmpty()) {
-            return check("gitlab", "GitLab", "warn", gitlab.url() + " · 대상 프로젝트 없음", "플랫폼 탭 \"대상 프로젝트\"에서 group/repo 를 추가하세요.");
-        }
-        try {
-            gitlabClient.project(projects.get(0));
-            return check("gitlab", "GitLab", "ok", gitlab.url() + " · 대상 프로젝트 " + projects.size() + "개 · 토큰 확인됨", null);
-        } catch (RuntimeException e) {
-            return check("gitlab", "GitLab", "fail", projects.get(0) + " 조회 실패: " + rootMessage(e), "토큰 권한·만료와 GITLAB_URL 을 확인하세요.");
-        }
+    private Map<String, Object> githubCheck() {
+        return GitHubCheck.run(gitlab, github, githubClient, settings.getGitLabProjects(), java.time.Instant.now());
     }
 
     /** 작업 디렉터리가 CLAUDE.md 를 가진 디렉터리 아래면 에이전트 세션이 그 지침을 읽어 들인다(토큰 낭비·규칙 혼입). */
@@ -205,7 +192,7 @@ public class Doctor {
         }
     }
 
-    private static Map<String, Object> check(String key, String name, String status, String detail, String hint) {
+    static Map<String, Object> check(String key, String name, String status, String detail, String hint) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("key", key);
         m.put("name", name);

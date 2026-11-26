@@ -61,24 +61,22 @@ mcp:
   enabled: ${MCP_ENABLED:true}               # 사용자 정의 MCP 기능 전체(테이블 준비·설정 파일 생성)
   agent-enabled: ${MCP_AGENT_ENABLED:true}   # 이슈 에이전트(분석/수정) 실행에 붙일지
 
+# GitHub 연동(이슈·PR·git 인증). 토큰은 fine-grained PAT(개인 계정의 대상 저장소만) — 서버 .env 의 GITHUB_TOKEN 에만 둔다. 비어도 기동된다(설치 점검이 알려 줌)
+github:
+  token: ${GITHUB_TOKEN:}
+  api-url: ${GITHUB_API_URL:https://api.github.com}   # https 만 허용(시험용 localhost·127.0.0.1 http 는 허용하되 설치 점검이 경고)
+  trusted-authors-only: ${GITHUB_TRUSTED_AUTHORS_ONLY:true}   # 이슈 본문·코멘트 작성자가 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트 반영
+
 gitlab:
   enabled: ${GITLAB_ENABLED:false}
-  url: ${GITLAB_URL:}
-  token: ${GITLAB_TOKEN:}
-  projects: ${GITLAB_PROJECTS:}             # 쉼표구분 "group/repo"
+  projects: ${GITLAB_PROJECTS:}             # 쉼표구분 "owner/repo"
   label: ${GITLAB_LABEL:ai-fix}             # 이 라벨이 붙은 열린 이슈만 자동 처리 (비우면 열린 이슈 전부 — 비권장)
   scan-interval-ms: ${GITLAB_SCAN_INTERVAL_MS:120000}      # 2분(프로젝트당 GitLab 호출 1회, 라벨 붙인 뒤 최대 2분 안에 큐 등록)
   reply-poll-interval-ms: ${GITLAB_REPLY_POLL_MS:5000}     # 자기방 답변 폴링
   work-dir: ${GITLAB_WORK_DIR:work}         # 저장소 clone 루트 (git 제외)
-  # 브랜치/커밋 컨벤션 — 사내 Document "Git Branch Strategy"(ko/convention/convention/branch_convention) 기준.
-  # 브랜치 {유형}/{일감번호}: 일반 작업은 develop 에서 분기해 develop 으로 MR, hotfix 는 main 에서 분기(MR 은 develop). 커밋 첫 줄 feat|fix|docs|...: 제목
+  # 브랜치/커밋 컨벤션: 브랜치 {유형}/{이슈번호}(예 fix/12), 모든 유형이 저장소 기본 브랜치에서 분기해 기본 브랜치로 Draft PR. 커밋 첫 줄 feat|fix|docs|...: 제목
   convention:
-    base-branch: ${GITLAB_BASE_BRANCH:develop}
-    hotfix-base: ${GITLAB_HOTFIX_BASE:main}
-    mr-target: ${GITLAB_MR_TARGET:develop}
     prefixes: ${GITLAB_BRANCH_PREFIXES:feature,fix,refactor,doc,hotfix}
-    hotfix-labels: ${GITLAB_HOTFIX_LABELS:hotfix,긴급,urgent}
-    work-id-pattern: "${GITLAB_WORK_ID_PATTERN:#?(\\d{5,7})}"   # 이슈 제목 "#123456 - …" 에서 일감번호. 없으면 issue-<GitLab iid>
   git-user-name: ${GITLAB_GIT_USER_NAME:dev-agent}
   git-user-email: ${GITLAB_GIT_USER_EMAIL:dev-agent@example.com}
   comment-on-issue: ${GITLAB_COMMENT_ON_ISSUE:true}

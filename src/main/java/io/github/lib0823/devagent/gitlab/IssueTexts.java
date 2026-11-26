@@ -12,7 +12,13 @@ import java.util.regex.Pattern;
  * 이슈 에이전트의 순수 함수 모음(상태·의존성 없음): 자기방 답변 해석, 작업 유형·일감번호·커밋 제목 규칙,
  * 보고서 절 추출, 참고 저장소 표기 해석, 문자열 도우미. {@link IssueAgentService} 와 협력 객체들이 static import 로 쓴다.
  */
-final class IssueTexts {
+public final class IssueTexts {
+
+    /** 스캔 라벨이 설정돼 있는지. 비면 열린 이슈 전부가 대상이 되므로 스캔하지 않는다. */
+    static boolean hasScanLabel(String label) {
+        return label != null && !label.isBlank();
+    }
+
 
     private IssueTexts() {
     }
@@ -47,7 +53,7 @@ final class IssueTexts {
     }
 
     /**
-     * 메시지 앞의 세션 참조를 떼어 낸다: "#1 진행", "shop#1 피드백: …", "acme/shop/shop#1 중단".
+     * 메시지 앞의 세션 참조를 떼어 낸다: "#1 진행", "shop#1 피드백: …", "acme/shop#1 중단".
      * 반환 [세션id, 나머지]. 참조가 없거나 대기 세션과 안 맞으면 null.
      */
     static String[] splitSessionRef(String text, List<IssueSession> waiting) {
@@ -133,19 +139,16 @@ final class IssueTexts {
         return null;
     }
 
-    /** 이슈 제목에서 일감번호(정규식 그룹 1). 없으면 issue-<iid>. */
-    static String workIdOf(String title, long iid, String pattern) {
-        if (title != null && pattern != null && !pattern.isBlank()) {
-            try {
-                Matcher m = Pattern.compile(pattern).matcher(title);
-                if (m.find()) {
-                    return m.groupCount() >= 1 && m.group(1) != null ? m.group(1) : m.group();
-                }
-            } catch (RuntimeException e) {
-                log.warn("work-id-pattern 오류 '{}': {}", pattern, e.toString());
-            }
+    /**
+     * 푸시할 브랜치 이름 결정: 원격에 같은 이름이 있으면(사람이 쓰는 중이거나 재실행) 덮지 않고 {@code -ai}, 그것도 있으면
+     * {@code -ai-r<MMddHHmm>} 으로 구분한다.
+     */
+    static String uniqueBranch(String branch, java.util.function.Predicate<String> remoteExists, java.time.LocalDateTime now) {
+        if (!remoteExists.test(branch)) {
+            return branch;
         }
-        return "issue-" + iid;
+        String alt = branch + "-ai";
+        return remoteExists.test(alt) ? alt + "-r" + now.format(java.time.format.DateTimeFormatter.ofPattern("MMddHHmm")) : alt;
     }
 
     /** 커밋 첫 줄을 컨벤션(feat|fix|docs|style|refactor|test|chore: 제목)으로. 타입이 없으면 작업 유형에서 유추해 붙인다. */
@@ -165,7 +168,7 @@ final class IssueTexts {
     }
 
     /**
-     * 커밋 메시지에 이 이슈를 닫는 GitLab 키워드(Closes/Fixes/Resolves/Implements #n)가 있는지.
+     * 커밋 메시지에 이 이슈를 닫는 GitHub 키워드(Closes/Fixes/Resolves/Implements #n)가 있는지.
      * 번호만 언급했거나("Refs #1") 다른 번호의 앞부분과 겹치는 경우("#12" 안의 "#1")는 닫는 것으로 치지 않는다.
      */
     static boolean closesIssue(String message, long iid) {
@@ -191,8 +194,8 @@ final class IssueTexts {
     }
 
     /**
-     * 이슈 본문의 "참고 저장소" 절에서 {@code group/repo} (+ 브랜치) 를 뽑는다. 브랜치 표기는 {@code `group/repo` **main**},
-     * {@code group/repo@main}, {@code group/repo main 브랜치} 를 받고, 없으면 null(프로젝트 기본 브랜치).
+     * 이슈 본문의 "참고 저장소" 절에서 {@code owner/repo} (+ 브랜치) 를 뽑는다. 브랜치 표기는 {@code `owner/repo` **main**},
+     * {@code owner/repo@main}, {@code owner/repo main 브랜치} 를 받고, 없으면 null(프로젝트 기본 브랜치).
      * 절 제목은 "참고 저장소" 또는 "reference repo" 를 포함한 마크다운 헤더이고, 다음 헤더 전까지를 본다.
      */
     static List<String[]> parseReferenceRepos(String description) {

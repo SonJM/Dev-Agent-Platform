@@ -21,7 +21,7 @@ public class IssuePrompts {
     }
 
     public String systemPrompt(IssueSession s) {
-        return "당신은 사내 GitLab 프로젝트 '" + s.getProjectPath() + "' 의 이슈를 처리하는 시니어 개발자입니다. "
+        return "당신은 GitHub 저장소 '" + s.getProjectPath() + "' 의 이슈를 처리하는 시니어 개발자입니다. "
                 + "현재 작업 디렉터리는 이 저장소의 origin/" + (s.getBaseBranch() == null ? s.getDefaultBranch() : s.getBaseBranch()) + " 기준 작업트리입니다. "
                 + "한국어로 답하되 코드 식별자/파일명은 원문을 유지하세요. 출력은 사내 메신저로 그대로 전달되므로 "
                 + "간결하게 쓰고 마크다운 표는 쓰지 마세요(헤더는 '## ' 만 사용). "
@@ -29,9 +29,9 @@ public class IssuePrompts {
                 + refs.referenceNote(s.getId());
     }
 
-    public String analyzePrompt(GitLabClient.Issue is, List<String> notes) {
+    public String analyzePrompt(GitHubClient.Issue is, List<String> notes) {
         StringBuilder sb = new StringBuilder();
-        sb.append("아래 GitLab 이슈를 이 저장소에서 확인하고 수정 설계안을 작성하세요. 이 단계에서는 코드를 수정하지 마세요(읽기 전용).\n");
+        sb.append("아래 GitHub 이슈를 이 저장소에서 확인하고 수정 설계안을 작성하세요. 이 단계에서는 코드를 수정하지 마세요(읽기 전용).\n");
         sb.append("저장소 루트의 CLAUDE.md / README / 컨벤션 문서가 있으면 먼저 읽고 그 규칙을 따르세요.\n\n");
         sb.append("--- 이슈 #").append(is.iid()).append(" ---\n");
         sb.append("제목: ").append(is.title()).append('\n');
@@ -48,8 +48,8 @@ public class IssuePrompts {
 
                 --- 출력 형식 (이 형식 그대로, 전체 2000자 이내) ---
                 ## 작업 유형
-                (feature | fix | refactor | doc | hotfix 중 하나만 첫 단어로, 뒤에 한 줄 이유. 사내 컨벤션: 브랜치 {유형}/{일감번호},
-                 일반 작업은 develop 에서 분기해 develop 으로 MR. hotfix 는 운영 장애로 즉시 배포가 필요한 경우에만 — main 에서 분기)
+                (feature | fix | refactor | doc | hotfix 중 하나만 첫 단어로, 뒤에 한 줄 이유. 컨벤션: 브랜치 {유형}/{이슈번호},
+                 모든 유형이 저장소 기본 브랜치에서 분기해 기본 브랜치로 PR. hotfix 는 운영 장애로 즉시 배포가 필요한 경우에만)
                 ## 원인
                 (재현 경로와 근본 원인. 관련 파일:라인 명시)
                 ## 수정 설계
