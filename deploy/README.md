@@ -134,7 +134,7 @@ journalctl -u dev-agent -f                            # 실시간 로그(Ctrl+C 
 tail -f <APP_HOME>/logs/dev-agent.log                 # 앱 로그
 ```
 
-- unit 의 핵심: `User`(비루트)·`WorkingDirectory`·`PATH`·`JAVA_HOME`·`DEV_AGENT_RUN_MODE=systemd`·`ExecStartPre=+`(root 로 DB 주소 조회)·`EnvironmentFile`(조회 결과 `DB_URL`)·`ExecStart`(java 직접 실행)·`Restart=on-failure`(종료 코드 0 은 다시 안 띄우고 10 은 다시 띄움)·`StartLimitBurst=5`(3분 안에 5회 실패하면 멈춤)·`After=docker.service`. `RestartPreventExitStatus` 는 쓰지 않는다 — `ExecStartPre` 의 종료 코드에는 적용되지 않는다(서버 systemd 255 에서 확인).
+- unit 의 핵심: `User`(비루트)·`WorkingDirectory`·`PATH`·`JAVA_HOME`·`DEV_AGENT_RUN_MODE=systemd`·`ExecStartPre=+`(root 로 DB 주소 조회)·`EnvironmentFile=-…`(조회 결과 `DB_URL`. 앞의 `-` 를 빼면 systemd 가 `ExecStartPre` 전에도 이 파일을 읽어 첫 시작이 `Failed to load environment files` 로 실패한다)·`ExecStart`(java 직접 실행)·`Restart=on-failure`(종료 코드 0 은 다시 안 띄우고 10 은 다시 띄움)·`StartLimitBurst=5`(3분 안에 5회 실패하면 멈춤)·`After=docker.service`. `RestartPreventExitStatus` 는 쓰지 않는다 — `ExecStartPre` 의 종료 코드에는 적용되지 않는다(서버 systemd 255 에서 확인).
 - **보안: `resolve-db.sh` 는 root 로 실행된다.** 서비스 계정이 이 파일(또는 그 디렉터리)을 고칠 수 있으면 서비스 계정이 root 권한을 얻는 통로가 된다. 그래서 위처럼 root 소유로 설치하고, 앱 홈(서비스 계정 소유)에 두지 않는다. 갱신할 때도 `sudo install` 로 덮는다. 같은 이유로 DB 컨테이너·DB 이름은 `Environment=` 가 아니라 `ExecStartPre` 인자로 주어 java 와 그 자식 프로세스(에이전트·대상 프로젝트 빌드)의 환경에 남기지 않는다. 단 `DB_URL` 은 `EnvironmentFile` 로 java 환경에 들어간다.
 - `java -jar` 직접 실행은 `DEV_AGENT_HOME` 을 보지 않고 작업 디렉터리를 홈으로 쓴다. 그래서 `WorkingDirectory` 가 `<APP_HOME>` 이어야 `.env` 를 읽는다.
 - `resolve-db.sh` 는 `docker` 를 PATH 에서 찾는다(unit 의 PATH 에 `/usr/bin` 이 있다. docker 가 다른 위치면 `<TOOLS_PATH>` 에 더한다). 컨테이너가 있는데 실행 중이 아니거나 주소가 비어 있으면 `DB_WAIT_SEC`(기본 60초) 동안 다시 시도하고, 못 얻으면 java 를 띄우지 않고 종료 코드 3 으로 실패해 `Restart=on-failure` 가 다시 시도한다. 컨테이너가 없거나(`No such object`) docker 권한이 없으면 종료 코드 2 로 바로 실패한다. 이 경우도 `Restart=on-failure` 가 5초 간격으로 다시 시도하지만 매번 즉시 실패하므로 약 25초(5회) 뒤 `StartLimitBurst` 로 멈춘다(`systemctl status` 가 `start-limit-hit`). 사유(docker 의 마지막 오류 포함)는 `journalctl -u dev-agent` 에 `resolve-db:` 한 줄로 남는다.
@@ -266,7 +266,7 @@ sudo systemctl start dev-agent
 | `resolve-db: 서버에서는 .env 에 DB_URL 을 두지 않는다`(종료 코드 2) | `<APP_HOME>/.env` 의 `DB_URL` 줄 | 줄을 지우거나 `#` 로 주석 처리 |
 | `resolve-db: 인자 5개 필요` / `…형식 오류` / `docker 실행 파일을 PATH 에서 찾지 못했다`(종료 코드 2) | unit 의 `ExecStartPre` 줄과 `PATH` | §6 의 자리표시자 치환 확인 |
 | `password authentication failed` | `.env` 의 `DB_USERNAME`·`DB_PASSWORD`, 값 끝 공백·CR | §4 LF 저장 확인 |
-| 앱이 내장 DB(54329)로 뜸 | unit 에 `ExecStartPre=+…resolve-db.sh` 와 `EnvironmentFile=/run/dev-agent/db.env` 가 있는지 | 둘 중 하나가 빠지면 `DB_URL` 이 없어 내장 DB 로 뜬다. unit 을 §6 대로 고친다 |
+| 앱이 내장 DB(54329)로 뜸 | unit 에 `ExecStartPre=+…resolve-db.sh` 와 `EnvironmentFile=-/run/dev-agent/db.env` 가 있는지 | 둘 중 하나가 빠지면 `DB_URL` 이 없어 내장 DB 로 뜬다. unit 을 §6 대로 고친다 |
 | 화면은 열리는데 저장·등록이 403 | `.env` 의 `ACCESS_ALLOWED_ORIGINS` 값, 재기동 여부 | §8 의 Host·Origin 확인으로 실제 Origin 에 맞춘다 |
 | `claude: command not found` / 에이전트가 도구를 못 찾음 | unit 의 `PATH`, `CLAUDE_EXE_COMMAND` | §1 의 경로를 `PATH` 에 더하고 `daemon-reload` + `restart` |
 | 「재시작」을 눌렀더니 거부/안 뜸 | `curl -s http://127.0.0.1:8777/api/system/status` 의 `runMode` 가 `systemd` 인가 | `direct` 면 unit 의 `DEV_AGENT_RUN_MODE=systemd` 누락 |

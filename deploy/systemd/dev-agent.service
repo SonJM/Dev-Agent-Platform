@@ -53,7 +53,10 @@ RuntimeDirectoryMode=0750
 # '+' = root 권한으로 실행(User= 무시). 스크립트는 서비스 계정이 고칠 수 없는 root 소유 경로에 둔다(README §6).
 # 인자: 컨테이너 · DB 이름 · 포트 · 네트워크(없으면 -) · .env 절대 경로(WorkingDirectory 에 기대지 않는다)
 ExecStartPre=+/usr/local/libexec/dev-agent/resolve-db.sh <DB_CONTAINER> <DB_NAME> 5432 <DB_NETWORK> <APP_HOME>/.env
-EnvironmentFile=/run/dev-agent/db.env
+# 앞의 '-' 가 필수: systemd 는 ExecStartPre 를 띄우기 전에도 EnvironmentFile 을 읽는데 이 파일은 바로 그 ExecStartPre 가 만든다.
+# '-' 가 없으면 첫 시작이 "Failed to load environment files" 로 실패한다(서버 첫 반영 2026-11-26 실측). ExecStart 직전에 다시 읽으므로
+# java 는 DB_URL 을 받고, 조회가 실패하면 ExecStartPre 실패로 java 자체가 실행되지 않는다.
+EnvironmentFile=-/run/dev-agent/db.env
 # java -jar 직접 실행은 DEV_AGENT_HOME 을 보지 않고 작업 디렉터리를 홈으로 쓴다 → WorkingDirectory 가 필수.
 # 설정(.env)은 앱이 <APP_HOME>/.env 를 직접 읽는다. 위 EnvironmentFile 은 DB_URL 하나만 준다.
 ExecStart=<JAVA_HOME>/bin/java -Djava.awt.headless=true -XX:+UseSerialGC -Xmx512m -jar <APP_HOME>/dev-agent.jar
