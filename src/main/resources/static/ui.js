@@ -409,11 +409,11 @@ window.UI = (() => {
     el.innerHTML = `
       <a class="brand" href="/home.html" title="Dev Agent"><div class="logo">${I.logo}</div><div><div class="t">Dev Agent</div><div class="s" id="brandSub">${esc(subtitle || '에이전트 플랫폼')}</div></div></a>
       <nav class="nav">
-        <a href="/home.html" class="${active==='home'?'on':''}">${I.home}홈 <span class="k">Alt+1</span></a>
-        <a href="/agent.html" class="${active==='agent'?'on':''}">${I.agent}에이전트 <span class="k">Alt+2</span></a>
-        <a href="/research.html" class="${active==='research'?'on':''}">${I.search}리서치 <span class="k">Alt+3</span></a>
-        <a href="/messenger.html" class="${active==='messenger'?'on':''}">${I.rooms}메신저 <span class="k">Alt+4</span></a>
-        <a href="/platform.html" class="${active==='platform'?'on':''}">${I.branch}플랫폼 <span class="k">Alt+5</span></a>
+        <a href="/home.html" title="홈" aria-label="홈" class="${active==='home'?'on':''}">${I.home}<span class="nl">홈</span> <span class="k">Alt+1</span></a>
+        <a href="/agent.html" title="에이전트" aria-label="에이전트" class="${active==='agent'?'on':''}">${I.agent}<span class="nl">에이전트</span> <span class="k">Alt+2</span></a>
+        <a href="/research.html" title="리서치" aria-label="리서치" class="${active==='research'?'on':''}">${I.search}<span class="nl">리서치</span> <span class="k">Alt+3</span></a>
+        <a href="/messenger.html" title="메신저" aria-label="메신저" class="${active==='messenger'?'on':''}">${I.rooms}<span class="nl">메신저</span> <span class="k">Alt+4</span></a>
+        <a href="/platform.html" title="플랫폼" aria-label="플랫폼" class="${active==='platform'?'on':''}">${I.branch}<span class="nl">플랫폼</span> <span class="k">Alt+5</span></a>
       </nav>
       <div class="strip" id="strip">
         <a class="chip" id="agentChip" href="/agent.html" title="에이전트 대시보드로 이동"><span class="dot"></span><span>에이전트 상태 확인 중…</span></a>

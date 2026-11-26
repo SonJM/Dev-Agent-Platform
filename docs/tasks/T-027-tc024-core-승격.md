@@ -1,0 +1,69 @@
+# T-027. TC-024 핵심 묶음 승격(좁은 폭 상단바)
+
+```
+id: T-027
+담당: qa (qa)
+상태: 완료
+depends: [T-020]
+병렬: 불가
+충돌: -
+관련 제안: -
+Redmine 일감: 없음
+Figma 반영: 아니오
+유형: 유지
+QA 확인: 아니오
+DB 접속: 없음
+대상: -
+대상 저장소: -
+클러스터 접속: 없음
+수집 자료: -
+작성: 2026-11-26
+```
+
+## 목적
+390px 상단바 보정(T-020)이 이후 모든 qa 확인에서 함께 확인되어, 같은 `ui.js`·`ui.css`를 고치는 후속 작업(T-014 SPA 등)에서 모바일 가로 넘침이 되살아나면 바로 드러난다.
+
+## 근거
+- 결정: [07 §8](../07-test-plan.md) 승격 후보 TC-024 — "승격한다, qa `유형: 유지`"(2026-11-26 PM, T-020 qa 묶음 제안)
+- TC: `TC-024` ([07 §4](../07-test-plan.md)), `FR-502`
+- 원본: [T-020 qa 보고서](./results/T-020-좁은-폭-상단바-qa.md), `e2e/tasks/T-020.spec.ts`
+
+## 관련 코드 경로
+- `e2e/tasks/T-020.spec.ts` → `e2e/core/`(새 이름은 다른 core 파일 관례대로)
+
+## 범위
+1. `T-020.spec.ts`의 TC-024 테스트 3개(390px 다섯 화면·탭 이동·알림함, 768px, 1440px)를 `e2e/core/`로 옮기고 태그를 `@core`로 바꾼다. 단언의 뜻은 바꾸지 않는다.
+2. `e2e/tasks/`에 `T-020.spec.ts`가 남지 않는다.
+3. `@core` 묶음 전체(9 TC)를 표준 실행으로 한 번 돌린다. 실행 시간 상한(10분) 안이어야 한다.
+
+## 범위 밖
+- 앱 코드, 04·07 수정(07 §8은 PM이 검수 때 갱신)
+- 다른 TC 추가·수정, 768px 페이지 넘침 확인(OI-40)
+
+## 완료 조건
+- [ ] `e2e/core/`에 TC-024 테스트 3개가 있고 `@core` 태그, 범위 1의 단언이 모두 들어 있다
+- [ ] `e2e/tasks/`에 `T-020.spec.ts` 없음
+- [ ] `@core` 실행 13개 테스트 통과·skipped 0(TC-006~010, TC-023, TC-013, TC-025, TC-024), 전체 실행 시간 상한(10분) 안
+- [ ] 보고서(`docs/tasks/results/T-027-tc024-core-승격-qa.md`)에 옮긴 단언 대조표(원본 위치 → 새 위치)와 `qa-baseline.md` 한 행. 경로 표기는 07 §9(로그 경로는 `<tmp>`)
+
+## 변경 설명서
+qa 보고서로 갈음: `docs/tasks/results/T-027-tc024-core-승격-qa.md`
+
+## 검증 명령
+```bash
+# qa 표준 실행(qa-run.sh)으로 --grep @core. PM은 다시 실행하지 않고 보고서의 판정과 report.json을 대조한다
+test ! -e e2e/tasks/T-020.spec.ts
+grep -rl "TC-024" e2e/core | grep -q .
+```
+
+## 검증 증거
+- 일시: 2026-11-26 14:30
+- 명령: qa-run.sh --grep @core (e2e/scripts/start-app.sh 포트 8778), test ! -e e2e/tasks/T-020.spec.ts
+- 결과: 13 passed, skipped 0, 38.0초, QA PASS
+- 변경 설명서: [results/T-027-tc024-core-승격-qa.md](./results/T-027-tc024-core-승격-qa.md)
+
+## 이력
+| 일자 | 상태 | 내용 |
+|---|---|---|
+| 2026-11-26 | 대기 | PM 작성(T-020 qa 묶음 제안 채택 — 07 §8 TC-024 승격). T-020 커밋 뒤 착수 |
+| 2026-11-26 | 완료 | PM 검수: 지시서 메타·완료 조건·검증 명령 변경 없음. 검증 명령 재실행 통과(`T-020.spec.ts` 없음, `e2e/core`에 TC-024). HEAD의 `T-020.spec.ts`와 `narrow-topbar.spec.ts` diff는 태그 2줄뿐(단언 동일). `report.json` expected 13·unexpected 0·skipped 0·flaky 0이 보고서와 일치, 로컬 경로 없음, `app.log`·`trace.zip` 추적 제외. 변경 파일이 보고서와 맞음. 07 §8에 TC-024 행 추가 |

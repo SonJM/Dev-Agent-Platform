@@ -2,7 +2,7 @@ package io.github.lib0823.devagent.skill;
 
 import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.admin.SettingService;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,10 +41,10 @@ public class SkillService {
     private final Path dir;
     private volatile List<AgentSkill> cache = List.of();
 
-    public SkillService(AgentSkillMapper mapper, GitLabProperties gitlab, SettingService settings) {
+    public SkillService(AgentSkillMapper mapper, IssueProperties issueProps, SettingService settings) {
         this.mapper = mapper;
         this.settings = settings;
-        this.dir = Path.of(gitlab.workDir() == null || gitlab.workDir().isBlank() ? "work" : gitlab.workDir()).toAbsolutePath().resolve("skills");
+        this.dir = Path.of(issueProps.workDir() == null || issueProps.workDir().isBlank() ? "work" : issueProps.workDir()).toAbsolutePath().resolve("skills");
     }
 
     @PostConstruct

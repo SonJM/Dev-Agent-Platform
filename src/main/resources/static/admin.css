@@ -1,6 +1,6 @@
 /* 홈 · 메신저 · 플랫폼 화면 공통 스타일 (ui.css 위에 얹는다) */
   .wrap { max-width: 1760px; margin: 0 auto; padding: 18px 24px 56px; width: 100%; display: flex; flex-direction: column; gap: 16px; }
-  /* 1440px 이상 3열(방 설정 · 이슈 에이전트 · MCP/문서), 1000~1440px 2열, 그 아래 1열 */
+  /* 1440px 이상 3열(이슈 에이전트 · 설정 · MCP/연동), 1000~1440px 2열, 그 아래 1열 */
   .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
   .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   @media (max-width: 1439px) { .grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); } }
@@ -8,7 +8,6 @@
 
   /* stats */
   .stats.hero { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  .stat.action { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .stat .v .badge { vertical-align: 2px; }
 
   /* agent models */
@@ -17,21 +16,11 @@
   .mrow .ml { font-size: 13px; font-weight: 600; } .mrow .ml small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
   select.in.sel { height: 34px; padding: 0 10px; }
 
-  /* rooms */
-  .rhead { display: grid; grid-template-columns: 1fr 64px 92px; gap: 10px; padding: 6px 10px 8px; font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: .03em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
-  .rhead span:not(:first-child) { text-align: center; }
-  .rlist { max-height: 520px; overflow: auto; margin: 0 -6px; padding: 0 6px; }
-  .rrow { display: grid; grid-template-columns: 1fr 64px 92px; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 10px; }
-  .rrow:hover { background: var(--surface2); }
-  .rrow .nm { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; }
-  .rrow .nm .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rrow .nm .mem { color: var(--muted); font-size: 12px; flex: none; }
-  .rrow .c { display: flex; justify-content: center; }
-  .tbadge { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; background: var(--surface2); border: 1px solid var(--line); color: var(--muted); flex: none; }
-  .tbadge.group { color: var(--warn); background: var(--warnbg); border-color: transparent; }
-  .tbadge.self { color: var(--ok); background: var(--okbg); border-color: transparent; }
-  .tbadge.single { color: var(--info); background: var(--infobg); border-color: transparent; }
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+
+  /* 홈 리서치 행(.rrow 는 home.html 이 정의) */
+  .rrow { border-radius: 10px; }
+  .rrow:hover { background: var(--surface2); }
 
   /* issue agent card */
   .active { border-radius: 12px; padding: 1px; background: var(--line); margin-bottom: 12px; }
@@ -50,14 +39,11 @@
   .sess .ttl { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sess .when { font-size: 11.5px; color: var(--muted); flex: none; }
 
-  /* docs */
-  .hits .item .meta a { font-family: var(--mono); font-size: 11px; }
-  .score { font-family: var(--mono); font-size: 11px; color: var(--text2); background: var(--surface2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
   .plat { padding: 10px 2px; border-bottom: 1px solid var(--line); }
   .plat:last-child { border-bottom: none; }
   .plat .r1 { display: flex; align-items: center; gap: 8px; }
   .plat .r1 b { font-size: 13.5px; }
-  .plat .prov { font-family: var(--mono); font-size: 11.5px; color: var(--text2); background: var(--surface2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
+  .plat .prov, .msgr .prov { font-family: var(--mono); font-size: 11.5px; color: var(--text2); background: var(--surface2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
   .plat .sum { font-size: 12.5px; color: var(--text2); margin-top: 4px; word-break: break-word; }
   .plat .det { font-size: 11.5px; color: var(--muted); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
   .plat .det b { font-weight: 600; color: var(--text2); }
@@ -96,3 +82,22 @@
     .pgrid > .col:nth-child(3) { grid-column: 1 / -1; flex-direction: row; align-items: flex-start; }
     .pgrid > .col:nth-child(3) > .card { flex: 1; }
   }
+
+/* 구성 묶음 가져오기 확인 창(platform.html #bundleDlg, T-025) */
+dialog.bundle-confirm { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border-radius: 16px; border: 1px solid var(--line2); background: var(--surface); color: var(--text); overflow: hidden; box-shadow: 0 24px 60px -16px rgba(0,0,0,.6); }
+dialog.bundle-confirm[open] { display: flex; flex-direction: column; }
+dialog.bundle-confirm::backdrop { background: rgba(0,0,0,.5); }
+dialog.bundle-confirm [hidden] { display: none !important; }
+.bundle-confirm .bc-head { padding: 18px 20px 4px; }
+.bundle-confirm .bc-head h3 { margin: 0 0 4px; font-size: 16px; }
+.bundle-confirm .bc-body { padding: 10px 20px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.bundle-confirm .bc-list { display: flex; flex-direction: column; gap: 8px; }
+.bundle-confirm .bc-it { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; background: var(--surface2); min-width: 0; }
+.bundle-confirm .bc-nm { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.bundle-confirm .bc-cmd { margin: 6px 0 0; font-family: var(--mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; }
+.bundle-confirm .bc-foot { padding: 12px 20px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.bundle-confirm .bc-ack { display: flex; align-items: center; gap: 10px; font-size: 13px; min-height: 44px; cursor: pointer; }
+.bundle-confirm .bc-ack input { width: 20px; height: 20px; flex: none; }
+.bundle-confirm .bc-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.bundle-confirm .bc-btns .btn { min-height: 44px; }
+.bundle-confirm .bc-btns .btn:disabled { opacity: .45; cursor: not-allowed; }

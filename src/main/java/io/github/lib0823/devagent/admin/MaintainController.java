@@ -1,6 +1,5 @@
 package io.github.lib0823.devagent.admin;
 
-import jakarta.servlet.http.HttpServletRequest;
 import io.github.lib0823.devagent.maintain.MaintainService;
 import io.github.lib0823.devagent.maintain.MaintainTurn;
 import org.springframework.http.ResponseEntity;
@@ -49,14 +48,8 @@ public class MaintainController {
     @PostMapping("/api/maintain")
     public Map<String, Object> submit(@RequestParam String question,
                                       @RequestParam(required = false) Long threadId,
-                                      @RequestParam(required = false) String model,
-                                      HttpServletRequest req) {
+                                      @RequestParam(required = false) String model) {
         Map<String, Object> out = new LinkedHashMap<>();
-        if (SystemController.foreign(req)) {
-            out.put("ok", false);
-            out.put("result", "이 화면에서만 요청할 수 있습니다.");
-            return out;
-        }
         try {
             MaintainTurn t = maintain.submit(question, threadId, model);
             out.put("ok", true);
@@ -70,19 +63,13 @@ public class MaintainController {
     }
 
     @PostMapping("/api/maintain/{id}/abort")
-    public Map<String, Object> abort(@PathVariable long id, HttpServletRequest req) {
-        if (SystemController.foreign(req)) {
-            return Map.of("ok", false, "result", "이 화면에서만 요청할 수 있습니다.");
-        }
+    public Map<String, Object> abort(@PathVariable long id) {
         return Map.of("ok", true, "result", maintain.abort(id));
     }
 
     /** 현재 브랜치의 커밋을 origin 으로 올린다(강제 푸시 없음). */
     @PostMapping("/api/maintain/push")
-    public Map<String, Object> push(HttpServletRequest req) {
-        if (SystemController.foreign(req)) {
-            return Map.of("ok", false, "result", "이 화면에서만 요청할 수 있습니다.");
-        }
+    public Map<String, Object> push() {
         return maintain.push();
     }
 }

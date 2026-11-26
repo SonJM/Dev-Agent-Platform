@@ -2,14 +2,14 @@ package io.github.lib0823.devagent.research;
 
 import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.admin.SettingService;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import io.github.lib0823.devagent.config.ResearchProperties;
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.gitlab.GitLabClient;
-import io.github.lib0823.devagent.gitlab.GitRunner;
-import io.github.lib0823.devagent.gitlab.IssueEvent;
-import io.github.lib0823.devagent.gitlab.IssueEventBus;
-import io.github.lib0823.devagent.gitlab.VerifyService;
+import io.github.lib0823.devagent.issue.GitHubClient;
+import io.github.lib0823.devagent.issue.GitRunner;
+import io.github.lib0823.devagent.issue.IssueEvent;
+import io.github.lib0823.devagent.issue.IssueEventBus;
+import io.github.lib0823.devagent.issue.VerifyService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.notify.NotificationService;
 import io.github.lib0823.devagent.llm.UsageService;
@@ -57,11 +57,11 @@ public class ResearchService {
     private static final int MAX_QUESTION = 4000;
 
     private final ResearchProperties props;
-    private final GitLabProperties gitlabProps;
+    private final IssueProperties issueProps;
     private final ResearchJobMapper jobs;
     private final CodingAgent agent;
     private final GitRunner git;
-    private final GitLabClient gitlab;
+    private final GitHubClient github;
     private final IssueEventBus events;
     private final SettingService settings;
     private final UsageService usage;
@@ -77,21 +77,21 @@ public class ResearchService {
     });
     private final AtomicReference<Long> runningId = new AtomicReference<>();
     private final Set<Long> abortRequested = ConcurrentHashMap.newKeySet();
-    private final Map<String, GitLabClient.Project> projectCache = new ConcurrentHashMap<>();
+    private final Map<String, GitHubClient.Project> projectCache = new ConcurrentHashMap<>();
     private volatile boolean limitLogged;
 
-    public ResearchService(ResearchProperties props, GitLabProperties gitlabProps, ResearchJobMapper jobs, CodingAgent agent,
-                           GitRunner git, GitLabClient gitlab, IssueEventBus events, SettingService settings, UsageService usage,
+    public ResearchService(ResearchProperties props, IssueProperties issueProps, ResearchJobMapper jobs, CodingAgent agent,
+                           GitRunner git, GitHubClient github, IssueEventBus events, SettingService settings, UsageService usage,
                            MessengerService client, NotificationService notifications, ResearchAttachments attachments,
                            @Value("${server.port:8777}") int adminPort) {
         this.notifications = notifications;
         this.attachments = attachments;
         this.props = props;
-        this.gitlabProps = gitlabProps;
+        this.issueProps = issueProps;
         this.jobs = jobs;
         this.agent = agent;
         this.git = git;
-        this.gitlab = gitlab;
+        this.github = github;
         this.events = events;
         this.settings = settings;
         this.usage = usage;
@@ -102,7 +102,7 @@ public class ResearchService {
     @PostConstruct
     void init() {
         if (!enabled()) {
-            log.info("질의 워크플로우 비활성(research.enabled=false 또는 gitlab.enabled=false)");
+            log.info("질의 워크플로우 비활성(research.enabled=false 또는 issue.enabled=false)");
             return;
         }
         jobs.ensureTable();
@@ -120,7 +120,7 @@ public class ResearchService {
     }
 
     public boolean enabled() {
-        return props.enabled() && gitlabProps.enabled();
+        return props.enabled() && issueProps.enabled();
     }
 
     /** 질의를 실행 중인가(재시작 가능 여부 판단용). */
@@ -158,7 +158,7 @@ public class ResearchService {
     public ResearchJob submit(String question, List<String> projects, String model, String effort, Long parentId, boolean notify, String requester,
                               Boolean verify, String kind, List<String> staged) {
         if (!enabled()) {
-            throw new IllegalArgumentException("질의 워크플로우가 비활성 상태입니다(research.enabled / gitlab.enabled).");
+            throw new IllegalArgumentException("질의 워크플로우가 비활성 상태입니다(research.enabled / issue.enabled).");
         }
         String q = question == null ? "" : question.strip();
         if (q.isEmpty()) {
@@ -242,8 +242,8 @@ public class ResearchService {
         if (ps.isEmpty()) {
             throw new IllegalArgumentException("프로젝트를 지정하세요.");
         }
-        GitLabClient.Project p = projectCache.computeIfAbsent(ps.get(0), gitlab::project);
-        List<String> names = new ArrayList<>(gitlab.branches(p.id(), search));
+        GitHubClient.Project p = projectCache.computeIfAbsent(ps.get(0), github::project);
+        List<String> names = new ArrayList<>(github.branches(p.path(), search));
         if ((search == null || search.isBlank()) && names.remove(p.defaultBranch())) {
             names.add(0, p.defaultBranch());              // 기본 브랜치를 맨 앞에
         }
@@ -262,10 +262,10 @@ public class ResearchService {
      * 대상 프로젝트 정규화: 관리 페이지의 대상 프로젝트 중에서만, 경로 전체 또는 마지막 세그먼트(batch)로 지정 가능.
      * 항목 뒤에 {@code @branch} 를 붙이면 그 브랜치를 조사한다(없으면 기본 브랜치). 반환 항목은 "경로" 또는 "경로@브랜치".
      *
-     * @param checkBranch 브랜치가 원격에 있는지 GitLab 에 확인할지(접수 때 true)
+     * @param checkBranch 브랜치가 원격에 있는지 GitHub 에 확인할지(접수 때 true)
      */
     List<String> normalizeProjects(List<String> wanted, boolean checkBranch) {
-        List<String> allowed = settings.getGitLabProjects();
+        List<String> allowed = settings.getIssueProjects();
         List<String> out = new ArrayList<>();
         if (wanted == null) {
             return out;
@@ -296,10 +296,10 @@ public class ResearchService {
                 throw new IllegalArgumentException("'" + key + "' 는 대상 프로젝트가 아닙니다. 관리 페이지 '대상 프로젝트' 에 먼저 등록하세요: " + allowed);
             }
             if (branch != null && checkBranch) {
-                GitLabClient.Project p = projectCache.computeIfAbsent(hit, gitlab::project);
+                GitHubClient.Project p = projectCache.computeIfAbsent(hit, github::project);
                 if (branch.equals(p.defaultBranch())) {
                     branch = null;                        // 기본 브랜치는 표기를 생략해 하나로 맞춘다
-                } else if (!gitlab.branchExists(p.id(), branch)) {
+                } else if (!github.branchExists(p.path(), branch)) {
                     throw new IllegalArgumentException("'" + hit + "' 에 '" + branch + "' 브랜치가 없습니다.");
                 }
             }
@@ -431,7 +431,7 @@ public class ResearchService {
         try {
             for (String entry : j.projectList()) {
                 String[] pe = splitEntry(entry);          // 경로 + (선택) 브랜치. 브랜치가 없으면 기본 브랜치
-                GitLabClient.Project p = projectCache.computeIfAbsent(pe[0], gitlab::project);
+                GitHubClient.Project p = projectCache.computeIfAbsent(pe[0], github::project);
                 String branch = pe[1] != null ? pe[1] : p.defaultBranch();
                 Path dir = git.prepareReference(p.path(), p.httpUrl(), branch);
                 refs.add(new Ref(p.path(), branch, dir));
@@ -449,8 +449,8 @@ public class ResearchService {
             CodingAgent.Overrides ov = new CodingAgent.Overrides(j.getModel(), j.getEffort(), props.timeoutOr(), props.maxTurnsOr(), "research");
             events.emit(eid, IssueEvent.CLAUDE, "▶ 질의 " + (resume ? "이어서 " : "") + "시작 (" + j.getModel() + "/" + j.getEffort() + ", 상한 "
                     + props.timeoutOr() / 60_000 + "분/" + props.maxTurnsOr() + "턴)", prompt);
-            CodingAgent.Result r = agent.run(cwd, sid, resume, gitlabProps.agent().analyzeTools(), sys, prompt,
-                    (kind, message, detail) -> events.emit(eid, kind, message, detail), null, CodingAgent.Stage.ANALYZE, false, ov);
+            CodingAgent.Result r = agent.run(cwd, sid, resume, issueProps.agent().analyzeTools(), sys, prompt,
+                    (kind, message, detail) -> events.emit(eid, kind, message, detail), CodingAgent.Stage.ANALYZE, ov);
             guard(refs, eid);
             if (abortRequested.contains(j.getId())) {
                 finish(j, ResearchJob.ABORTED, null, "사용자 중단");
@@ -512,8 +512,8 @@ public class ResearchService {
         try {
             String vprompt = ResearchPrompts.verifierPrompt(j.getQuestion() + attachments.promptNote(j), document);
             events.emit(eid, IssueEvent.CLAUDE, "▶ 2차 검증 시작 (" + m.verifyModel() + "/" + m.verifyEffort() + ", 독립 세션)", vprompt);
-            v = agent.run(cwd, UUID.randomUUID().toString(), false, gitlabProps.agent().analyzeTools(),
-                    ResearchPrompts.verifierSystem() + refsNote(refs), vprompt, listener, null, CodingAgent.Stage.ANALYZE, false, vov);
+            v = agent.run(cwd, UUID.randomUUID().toString(), false, issueProps.agent().analyzeTools(),
+                    ResearchPrompts.verifierSystem() + refsNote(refs), vprompt, listener, CodingAgent.Stage.ANALYZE, vov);
             guard(refs, eid);
             addCost(j, v);
         } catch (RuntimeException e) {
@@ -541,8 +541,8 @@ public class ResearchService {
         try {
             String rprompt = j.issueDraft() ? ResearchPrompts.reviseIssuePrompt(problems) : ResearchPrompts.revisePrompt(problems);
             events.emit(eid, IssueEvent.CLAUDE, "▶ 검증 지적 반영 시작 (" + j.getModel() + "/" + j.getEffort() + ", 작성 세션 이어서)", rprompt);
-            CodingAgent.Result r2 = agent.run(cwd, sid, true, gitlabProps.agent().analyzeTools(), sys, rprompt, listener, null,
-                    CodingAgent.Stage.ANALYZE, false, ov);
+            CodingAgent.Result r2 = agent.run(cwd, sid, true, issueProps.agent().analyzeTools(), sys, rprompt, listener,
+                    CodingAgent.Stage.ANALYZE, ov);
             guard(refs, eid);
             addCost(j, r2);
             events.emit(eid, IssueEvent.CLAUDE, String.format("■ 검증 지적 반영 완료 · %d턴 · %s · %ds%s", r2.turns(), r2.tokens(), r2.elapsedMs() / 1000,
@@ -731,7 +731,7 @@ public class ResearchService {
         SettingService.AgentModels m = settings.getAgentModels();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("enabled", enabled());
-        out.put("projects", settings.getGitLabProjects());
+        out.put("projects", settings.getIssueProjects());
         out.put("models", List.of("fable", "opus", "sonnet", "haiku"));
         out.put("efforts", List.of("low", "medium", "high"));
         out.put("defaultModel", nz(props.model(), m.designModel()));
@@ -744,11 +744,11 @@ public class ResearchService {
 
     /** 메신저용 한 줄 접수 안내. */
     public String submitFromMessenger(String text) {
-        Parsed p = parseMessengerCommand(text, settings.getGitLabProjects());
+        Parsed p = parseMessengerCommand(text, settings.getIssueProjects());
         if (p == null) {
-            return "사용법: @AI 질문 <프로젝트[@브랜치][,프로젝트…]>: <질문>  예) @AI 질문 batch: 스케줄 job 목록을 표로 정리해줘 / @AI 질문 batch@develop: …"
-                    + (settings.getGitLabProjects().size() == 1 ? "  (대상 프로젝트가 1개면 '프로젝트:' 생략 가능)" : "")
-                    + "\n대상 프로젝트: " + settings.getGitLabProjects();
+            return "사용법: 질문 <프로젝트[@브랜치][,프로젝트…]>: <질문>  예) 질문 batch: 스케줄 job 목록을 표로 정리해줘 / 질문 batch@develop: …"
+                    + (settings.getIssueProjects().size() == 1 ? "  (대상 프로젝트가 1개면 '프로젝트:' 생략 가능)" : "")
+                    + "\n대상 프로젝트: " + settings.getIssueProjects();
         }
         ResearchJob j = submit(p.question(), p.projects(), null, null, null, true, "messenger", null);
         return "#" + j.getId() + " 접수 (" + String.join(", ", j.projectList()) + " · " + j.getModel() + "/" + j.getEffort() + "). "
@@ -790,7 +790,7 @@ public class ResearchService {
 
     private String systemPrompt(List<Ref> refs) {
         StringBuilder sb = new StringBuilder();
-        sb.append("당신은 사내 GitLab 프로젝트의 소스를 읽고 질문에 답하는 시니어 개발자·분석가입니다. ")
+        sb.append("당신은 GitHub 저장소의 소스를 읽고 질문에 답하는 시니어 개발자·분석가입니다. ")
                 .append("이 세션은 조사·정리 전용입니다: 파일을 수정·생성하지 말고(Edit/Write 금지), 빌드·테스트·설치 명령도 돌리지 마세요. ")
                 .append("현재 작업 디렉터리는 '").append(refs.get(0).path()).append("' 의 ").append(refs.get(0).branch())
                 .append(" 브랜치 읽기 전용 작업트리입니다.");
@@ -806,7 +806,6 @@ public class ResearchService {
                 .append("- 목록·비교는 마크다운 표로 정리합니다(항목이 많아도 생략하지 말고 전부).\n")
                 .append("- 각 항목에 근거 파일 경로(가능하면 :라인)를 붙입니다. 저장소 루트 기준 상대 경로.\n")
                 .append("- 한국어로 쓰되 코드 식별자·파일명·설정 키는 원문 그대로.\n")
-                .append("- 사내 문서 검색 도구가 있으면 규칙·운영 맥락 확인에 활용하고 출처를 적습니다.\n")
                 .append("\n출력 형식(마크다운 문서, 이 틀을 지키세요):\n")
                 .append("# <문서 제목>\n")
                 .append("## 요약\n(3~5줄. 핵심 숫자·결론 먼저)\n")

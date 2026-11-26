@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * 질의(리서치) 워크플로우 설정 (prefix: research).
- * 대시보드 "질의" 탭 / 자기방 {@code @AI 질문 …} 으로 들어온 질문을, 대상 프로젝트의 읽기 전용 worktree 에서
+ * 대시보드 "질의" 탭 / 자기방 {@code 질문 …} 으로 들어온 질문을, 대상 프로젝트의 읽기 전용 worktree 에서
  * Claude 세션이 소스를 훑어 마크다운 문서로 답한다. 코드 수정·빌드 없음, 후속 질문은 같은 세션을 이어간다.
  */
 @ConfigurationProperties(prefix = "research")

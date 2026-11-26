@@ -1,10 +1,6 @@
 package io.github.lib0823.devagent.admin;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
-import io.github.lib0823.devagent.docs.KnowledgeSource;
-import io.github.lib0823.devagent.llm.ChatModel;
-import io.github.lib0823.devagent.llm.ToolChatModel;
-import io.github.lib0823.devagent.mcp.McpConfigService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.platform.PortHealth;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,63 +25,42 @@ import java.util.Map;
 public class PlatformController {
 
     private final MessengerService messenger;
-    private final ChatModel chat;
-    private final ToolChatModel toolChat;
     private final CodingAgent agent;
-    private final McpConfigService mcp;
     private final SettingService settings;
-    private final KnowledgeSource knowledge;
 
-    public PlatformController(MessengerService messenger, ChatModel chat, ToolChatModel toolChat, CodingAgent agent,
-                              McpConfigService mcp, SettingService settings, KnowledgeSource knowledge) {
-        this.knowledge = knowledge;
+    public PlatformController(MessengerService messenger, CodingAgent agent, SettingService settings) {
         this.messenger = messenger;
-        this.chat = chat;
-        this.toolChat = toolChat;
         this.agent = agent;
-        this.mcp = mcp;
         this.settings = settings;
     }
 
     @GetMapping("/api/platform")
     public Map<String, Object> platform() {
         List<Map<String, Object>> ports = new ArrayList<>();
-        ports.add(entry("messenger", "메신저", "방 목록 · 메시지 수집 · 전송", "PLATFORM_MESSENGER", messenger.health(),
+        ports.add(entry("messenger", "메신저", "자기 대화 수신 · 알림·답 전송", "PLATFORM_MESSENGER", messenger.health(),
                 "자기방에 테스트 메시지 전송"));
-        ports.add(entry("chat", "채팅 모델", "요약 · 멘션 초안 · @AI 답변", "PLATFORM_CHAT_MODEL", chat.health(),
-                "짧은 프롬프트 1건 호출(토큰 소량)"));
-        PortHealth tool = toolChat.health().with("mcpServers", mcp.available() ? String.join(", ", mcp.serverNames()) : "비활성");
-        ports.add(entry("tool", "도구 모델", "운영 질의(@AI 운영 …, MCP 도구)", "PLATFORM_CHAT_MODEL", tool,
-                "CLI 실행 확인 + MCP 서버 연결 확인(토큰 없음)"));
         SettingService.AgentModels m = settings.getAgentModels();
         PortHealth ag = agent.health()
                 .with("models", "기획 " + m.designModel() + "/" + m.designEffort() + " · 개발 " + m.devModel() + "/" + m.devEffort()
                         + " · 테스트 " + m.verifyModel() + "/" + m.verifyEffort());
         ports.add(entry("agent", "코딩 에이전트", "이슈 분석 · 수정 · 검증, 질의", "PLATFORM_CODING_AGENT", ag,
                 "CLI 실행 확인(토큰 없음)"));
-        ports.add(entry("knowledge", "지식(RAG)", "사내 문서 검색 → @AI·멘션·이슈 분석에 주입", "PLATFORM_KNOWLEDGE", knowledge.health(),
-                "검색 1건 실행(토큰 없음)"));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ports", ports);
         // 예전 형식(이름만)도 유지
         out.put("messenger", messenger.provider());
-        out.put("chatModel", chat.provider());
-        out.put("toolChatModel", toolChat.provider());
         out.put("codingAgent", agent.provider());
         return out;
     }
 
-    /** 연결 테스트. port = messenger | chat | tool | agent */
+    /** 연결 테스트. port = messenger | agent */
     @PostMapping("/api/platform/test")
     public Map<String, Object> test(@RequestParam String port) {
         PortHealth.TestResult r;
         switch (port) {
             case "messenger" -> r = messenger.selfTest("[봇] 연동 테스트 — "
                     + OffsetDateTime.now(ZoneId.of("Asia/Seoul")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-            case "chat" -> r = chatTest();
-            case "tool" -> r = toolTest();
             case "agent" -> r = agent.selfTest();
-            case "knowledge" -> r = knowledgeTest();
             default -> r = new PortHealth.TestResult(false, "알 수 없는 포트: " + port, 0);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -93,47 +68,6 @@ public class PlatformController {
         out.put("message", r.message());
         out.put("elapsedMs", r.elapsedMs());
         return out;
-    }
-
-    private PortHealth.TestResult chatTest() {
-        long t0 = System.currentTimeMillis();
-        try {
-            String a = chat.complete("연결 테스트입니다. 'pong' 한 단어만 답하세요.");
-            String shown = a == null ? "" : a.strip();
-            return new PortHealth.TestResult(!shown.isBlank(), "응답: " + (shown.length() > 80 ? shown.substring(0, 80) + "…" : shown),
-                    System.currentTimeMillis() - t0);
-        } catch (RuntimeException e) {
-            return new PortHealth.TestResult(false, "호출 실패: " + e.getMessage(), System.currentTimeMillis() - t0);
-        }
-    }
-
-    private PortHealth.TestResult knowledgeTest() {
-        long t0 = System.currentTimeMillis();
-        try {
-            Map<String, Object> d = knowledge.debug("브랜치 컨벤션", 3);
-            Object hits = d.get("hits");
-            int n = hits instanceof List<?> l ? l.size() : 0;
-            return new PortHealth.TestResult(n > 0, n > 0 ? "'브랜치 컨벤션' 검색 " + n + "건" : "검색 결과 없음(적재 상태 확인)", System.currentTimeMillis() - t0);
-        } catch (RuntimeException e) {
-            return new PortHealth.TestResult(false, "검색 실패: " + e.getMessage(), System.currentTimeMillis() - t0);
-        }
-    }
-
-    private PortHealth.TestResult toolTest() {
-        long t0 = System.currentTimeMillis();
-        PortHealth.TestResult cli = toolChat.selfTest();
-        if (!cli.ok() || !mcp.available()) {
-            return new PortHealth.TestResult(cli.ok(), cli.message() + (mcp.available() ? "" : " · 운영 MCP 비활성"), System.currentTimeMillis() - t0);
-        }
-        List<Map<String, Object>> servers = mcp.health();
-        long okCount = servers.stream().filter(s -> Boolean.TRUE.equals(s.get("ok"))).count();
-        StringBuilder sb = new StringBuilder(cli.message()).append(" · MCP ").append(okCount).append("/").append(servers.size()).append(" 연결");
-        for (Map<String, Object> s : servers) {
-            if (!Boolean.TRUE.equals(s.get("ok"))) {
-                sb.append(" · ").append(s.get("name")).append(" 실패(").append(s.get("detail")).append(")");
-            }
-        }
-        return new PortHealth.TestResult(okCount == servers.size(), sb.toString(), System.currentTimeMillis() - t0);
     }
 
     private static Map<String, Object> entry(String port, String label, String role, String envKey, PortHealth h, String testHint) {

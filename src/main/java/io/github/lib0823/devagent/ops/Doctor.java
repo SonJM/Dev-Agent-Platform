@@ -2,10 +2,11 @@ package io.github.lib0823.devagent.ops;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.boot.Bootstrap;
-import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.config.PreviewProperties;
-import io.github.lib0823.devagent.docs.KnowledgeSource;
-import io.github.lib0823.devagent.gitlab.GitLabClient;
+import io.github.lib0823.devagent.boot.LegacyEnvKeys;
+import io.github.lib0823.devagent.config.GitHubProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
+import io.github.lib0823.devagent.platform.ChildEnv;
+import io.github.lib0823.devagent.issue.GitHubClient;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.platform.Os;
@@ -35,25 +36,23 @@ public class Doctor {
     private final JdbcTemplate jdbc;
     private final CodingAgent agent;
     private final MessengerService messenger;
-    private final GitLabProperties gitlab;
-    private final GitLabClient gitlabClient;
+    private final IssueProperties issueProps;
+    private final GitHubProperties github;
+    private final GitHubClient githubClient;
     private final SettingService settings;
-    private final PreviewProperties preview;
-    private final KnowledgeSource knowledge;
 
     private volatile List<Map<String, Object>> cache;
     private volatile long cachedAt;
 
-    public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, GitLabProperties gitlab, GitLabClient gitlabClient,
-                  SettingService settings, PreviewProperties preview, KnowledgeSource knowledge) {
+    public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, IssueProperties issueProps, GitHubProperties github,
+                  GitHubClient githubClient, SettingService settings) {
         this.jdbc = jdbc;
         this.agent = agent;
         this.messenger = messenger;
-        this.gitlab = gitlab;
-        this.gitlabClient = gitlabClient;
+        this.issueProps = issueProps;
+        this.github = github;
+        this.githubClient = githubClient;
         this.settings = settings;
-        this.preview = preview;
-        this.knowledge = knowledge;
     }
 
     public List<Map<String, Object>> checks(boolean refresh) {
@@ -66,16 +65,15 @@ public class Doctor {
         out.add(database());
         out.add(codingAgent());
         out.add(claudeLogin());
-        out.add(tool("git", "Git", List.of("git", "--version"), "fail", "저장소 clone·worktree·푸시에 필요합니다. Git 을 설치하세요."));
+        out.add(tool("git", "Git", List.of("git", "--version"), "fail", (Os.isWindows() ? "저장소 clone·worktree·푸시에 필요합니다. Git 을 설치하세요." : "저장소 clone·worktree·푸시에 필요합니다. 패키지 관리자로 git 을 설치하세요(예: apt install git).")));
         out.add(messengerCheck());
-        out.add(gitlabCheck());
+        out.add(githubCheck());
+        out.add(legacyEnv());
         out.add(workDir());
         out.add(tool("node", "Node.js", List.of("node", "--version"), "warn", "JS 문법 검사(node --check)와 npx 기반 MCP 서버에 필요합니다. 없으면 그 검사만 생략됩니다."));
         if (Os.isWindows()) {
             out.add(gitBash());
         }
-        out.add(previewCheck());
-        out.add(knowledgeCheck());
         cache = out;
         cachedAt = System.currentTimeMillis();
         return out;
@@ -122,8 +120,11 @@ public class Doctor {
             return check("login", "Claude 로그인", "ok", "로그인 정보 있음(~/.claude)", null);
         }
         if (!Os.isWindows()) {
-            return check("login", "Claude 로그인", "warn", "로그인 파일이 없습니다(macOS 는 키체인에 저장되므로 정상일 수 있음)",
-                    "터미널에서 claude 를 한 번 실행해 로그인돼 있는지 확인하세요. 구독 사용률 게이지는 추정치로 표시됩니다.");
+            boolean mac = "macOS".equals(Os.name());
+            return check("login", "Claude 로그인", "warn", mac ? "로그인 파일이 없습니다(macOS 는 키체인에 저장되므로 정상일 수 있음)"
+                            : "로그인 파일이 없습니다(" + cred + ")",
+                    mac ? "터미널에서 claude 를 한 번 실행해 로그인돼 있는지 확인하세요. 구독 사용률 게이지는 추정치로 표시됩니다."
+                            : "이 앱을 실행하는 계정으로 터미널에서 claude 를 실행해 로그인하세요(서비스로 띄우면 그 계정의 홈을 봅니다). 구독 사용률 게이지는 추정치로 표시됩니다.");
         }
         return check("login", "Claude 로그인", "fail", "로그인 정보가 없습니다", "터미널에서 claude 를 실행해 로그인하세요(구독 계정).");
     }
@@ -132,39 +133,23 @@ public class Doctor {
         PortHealth h = messenger.health();
         if ("none".equals(h.provider())) {
             return check("messenger", "메신저", "warn", "연결 안 함 — 화면에서만 확인·알림",
-                    "메신저 어댑터(MessengerPort 구현)를 추가하고 .env 의 PLATFORM_MESSENGER 에 그 이름을 넣으면 @AI 명령·자기방 알림을 쓸 수 있습니다.");
+                    "메신저 어댑터(MessengerPort 구현)를 추가하고 .env 의 PLATFORM_MESSENGER 에 그 이름을 넣으면 이슈·질문 명령과 자기방 알림을 쓸 수 있습니다.");
         }
         String st = PortHealth.OK.equals(h.status()) ? "ok" : PortHealth.DOWN.equals(h.status()) ? "fail" : "warn";
         return check("messenger", "메신저(" + h.provider() + ")", st, h.summary(), "ok".equals(st) ? null : "메신저 계정·주소 설정과 네트워크를 확인하세요.");
     }
 
-    private Map<String, Object> gitlabCheck() {
-        if (!gitlab.enabled()) {
-            return check("gitlab", "GitLab", "warn", "꺼짐 — 이슈 에이전트·질의를 쓸 수 없습니다",
-                    ".env 에 GITLAB_ENABLED=true, GITLAB_URL, GITLAB_TOKEN(개인 액세스 토큰: api·write_repository)을 넣고 재시작하세요.");
-        }
-        if (blank(gitlab.url()) || blank(gitlab.token())) {
-            return check("gitlab", "GitLab", "fail", "주소 또는 토큰이 비어 있습니다", ".env 의 GITLAB_URL, GITLAB_TOKEN 을 채우세요.");
-        }
-        List<String> projects = settings.getGitLabProjects();
-        if (projects.isEmpty()) {
-            return check("gitlab", "GitLab", "warn", gitlab.url() + " · 대상 프로젝트 없음", "플랫폼 탭 \"대상 프로젝트\"에서 group/repo 를 추가하세요.");
-        }
-        try {
-            gitlabClient.project(projects.get(0));
-            return check("gitlab", "GitLab", "ok", gitlab.url() + " · 대상 프로젝트 " + projects.size() + "개 · 토큰 확인됨", null);
-        } catch (RuntimeException e) {
-            return check("gitlab", "GitLab", "fail", projects.get(0) + " 조회 실패: " + rootMessage(e), "토큰 권한·만료와 GITLAB_URL 을 확인하세요.");
-        }
+    private Map<String, Object> githubCheck() {
+        return GitHubCheck.run(issueProps, github, githubClient, settings.getIssueProjects(), java.time.Instant.now());
     }
 
     /** 작업 디렉터리가 CLAUDE.md 를 가진 디렉터리 아래면 에이전트 세션이 그 지침을 읽어 들인다(토큰 낭비·규칙 혼입). */
     private Map<String, Object> workDir() {
-        Path dir = Path.of(blank(gitlab.workDir()) ? "work" : gitlab.workDir()).toAbsolutePath().normalize();
+        Path dir = Path.of(blank(issueProps.workDir()) ? "work" : issueProps.workDir()).toAbsolutePath().normalize();
         for (Path p = dir.getParent(); p != null; p = p.getParent()) {
             if (Files.isRegularFile(p.resolve("CLAUDE.md"))) {
                 return check("workdir", "작업 디렉터리", "warn", dir + " — 상위(" + p + ")에 CLAUDE.md 가 있습니다",
-                        "GITLAB_WORK_DIR 을 다른 프로젝트 밖의 경로로 옮기세요(에이전트 세션이 상위 CLAUDE.md 를 읽습니다).");
+                        "ISSUE_WORK_DIR 을 다른 프로젝트 밖의 경로로 옮기세요(에이전트 세션이 상위 CLAUDE.md 를 읽습니다).");
             }
         }
         return check("workdir", "작업 디렉터리", "ok", dir.toString(), null);
@@ -177,25 +162,7 @@ public class Doctor {
                 return check("bash", "Git Bash", "ok", c, null);
             }
         }
-        return check("bash", "Git Bash", "warn", "찾지 못했습니다", "Claude Code 의 Bash 도구와 검사 스크립트(jscheck·jspcheck)가 Git Bash 를 씁니다. Git for Windows 를 설치하세요.");
-    }
-
-    private Map<String, Object> previewCheck() {
-        if (preview == null || !preview.enabled()) {
-            return check("preview", "로컬 프리뷰(화면 검증)", "off", "꺼짐(PREVIEW_ENABLED=false)", null);
-        }
-        boolean tools = !blank(preview.catalinaHome()) && Files.isDirectory(Path.of(preview.catalinaHome()))
-                && !blank(preview.javaHome()) && Files.isDirectory(Path.of(preview.javaHome()));
-        return tools ? check("preview", "로컬 프리뷰(화면 검증)", "ok", "도구 설치됨(" + preview.catalinaHome() + ")", null)
-                : check("preview", "로컬 프리뷰(화면 검증)", "warn", "도구(JDK 21·Maven·Tomcat)가 설치돼 있지 않습니다",
-                "화면 검증이 필요하면 scripts/setup-preview.ps1 을 실행하세요(Windows). 쓰지 않으면 PREVIEW_ENABLED=false 로 끕니다.");
-    }
-
-    private Map<String, Object> knowledgeCheck() {
-        PortHealth h = knowledge.health();
-        String st = PortHealth.OK.equals(h.status()) ? "ok" : "warn";
-        return check("knowledge", "지식(RAG · " + h.provider() + ")", st, h.summary(),
-                "ok".equals(st) ? null : "사내 문서 사이트(DOCS_SEARCH_INDEX_URL)에 닿는지 확인하세요. 없어도 다른 기능은 동작합니다(DOCS_ENABLED=false 로 끌 수 있음).");
+        return check("bash", "Git Bash", "warn", "찾지 못했습니다", "Claude Code 의 Bash 도구가 Git Bash 를 씁니다. Git for Windows 를 설치하세요.");
     }
 
     private Map<String, Object> tool(String key, String name, List<String> cmd, String missing, String hint) {
@@ -208,7 +175,7 @@ public class Doctor {
     /** 명령을 돌려 출력 첫 줄을 돌려준다. 실행 실패·시간 초과·오류 종료면 null. */
     static String run(List<String> cmd) {
         try {
-            Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+            Process p = ChildEnv.clean(new ProcessBuilder(cmd)).redirectErrorStream(true).start();
             p.getOutputStream().close();
             if (!p.waitFor(10, TimeUnit.SECONDS)) {
                 p.destroyForcibly();
@@ -227,7 +194,19 @@ public class Doctor {
         }
     }
 
-    private static Map<String, Object> check(String key, String name, String status, String detail, String hint) {
+    private Map<String, Object> legacyEnv() {
+        Map<String, String> envFile = Bootstrap.readEnv(Path.of("").toAbsolutePath().resolve(".env"));
+        return legacyEnvCheck(LegacyEnvKeys.find(envFile, System.getenv()));
+    }
+
+    static Map<String, Object> legacyEnvCheck(List<String> keys) {
+        if (keys.isEmpty()) {
+            return check("legacyEnv", "옛 설정 키", "ok", "옛 GITLAB_* 키 없음", null);
+        }
+        return check("legacyEnv", "옛 설정 키", "warn", "읽히지 않는 옛 키: " + String.join(", ", keys), LegacyEnvKeys.hint(keys));
+    }
+
+    static Map<String, Object> check(String key, String name, String status, String detail, String hint) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("key", key);
         m.put("name", name);

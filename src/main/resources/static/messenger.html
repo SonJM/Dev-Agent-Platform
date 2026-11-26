@@ -16,6 +16,11 @@
   .nrow:last-child { border-bottom: none; }
   .nrow .nl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .nrow .nl b { font-size: 13.5px; font-weight: 600; }
+  .crow { display: flex; flex-direction: column; gap: 4px; padding: 10px 2px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text2); }
+  .crow .ci { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+  .crow code { font-size: 12.5px; background: var(--surface2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: var(--text); }
+  .msgr .r1 { display: flex; align-items: center; gap: 8px; }
+  .msgr .sum { font-size: 12.5px; color: var(--text2); margin-top: 6px; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -23,44 +28,30 @@
   <header id="topbar"></header>
 
   <div class="wrap">
-    <section class="stats hero" id="stats">
-      <div class="stat"><div class="l">수집 메시지</div><div class="v"><div class="skel" style="width:60%"></div></div></div>
-      <div class="stat"><div class="l">요약</div><div class="v"><div class="skel" style="width:40%"></div></div></div>
-      <div class="stat"><div class="l">멘션 처리</div><div class="v"><div class="skel" style="width:40%"></div></div></div>
-      <div class="stat"><div class="l">수집 모드</div><div class="v"><div class="skel" style="width:50%"></div></div></div>
-      <div class="stat"><div class="l">멘션 모드</div><div class="v"><div class="skel" style="width:70%"></div></div></div>
-    </section>
-
     <div class="grid two">
       <div class="col">
         <section class="card">
-          <h2><span class="ic" id="icRooms"></span>방 설정<span class="sp"></span><span class="hint" id="roomsCount"></span></h2>
-          <div class="hint" style="margin-bottom:12px">
-            <b>수집</b> = 그 방 메시지를 가져와 @AI·멘션을 감지합니다. 수집만 켜면 답은 <b>내 자기방</b>으로 갑니다.<br>
-            <b>방에 직접 답</b> = 답을 <b>그 방</b>에 올립니다(자동응답/@AI). 켜면 수집은 자동 포함됩니다.
-          </div>
-          <div class="toolbar">
-            <div class="field has-ico"><span class="ico" id="icSearch"></span><input id="filter" placeholder="방 이름 검색…" autocomplete="off"></div>
-            <button class="btn" onclick="loadRooms()" id="roomsRefresh">새로고침</button>
-            <button class="btn primary" id="saveBtn" onclick="save()">저장</button>
-          </div>
-          <div class="rhead"><span>방</span><span>수집</span><span>방에 직접 답</span></div>
-          <div class="rlist" id="rooms"><div class="skel" style="margin:12px 10px"></div><div class="skel" style="margin:12px 10px;width:70%"></div><div class="skel" style="margin:12px 10px;width:85%"></div></div>
-          <div class="callout warn" style="margin-top:12px"><span class="ic" id="icWarn"></span><span><b>그룹방 "방에 직접 답"</b>을 켜면 그 방 모든 멤버에게 봇이 자동으로 글을 올립니다. 민감 요청(결재·승인 등)은 자동응답 대신 자기방 초안으로만 갑니다.</span></div>
+          <h2><span class="ic" id="icPlat"></span>연결 상태<span class="sp"></span><span class="hint" id="msgrSummary"></span></h2>
+          <div id="msgrState"><div class="skel" style="margin:6px 0"></div><div class="skel" style="margin:6px 0;width:70%"></div></div>
+        </section>
+        <section class="card">
+          <h2><span class="ic" id="icBell"></span>메신저 알림<span class="sp"></span><span class="hint" id="notifyCount"></span></h2>
+          <div class="hint" style="margin-bottom:6px">플랫폼이 <b>내 자기방</b>으로 보내는 알림을 유형별로 켜고 끕니다. 꺼도 내용은 화면(알림함·각 탭)에 그대로 남습니다.
+            메신저에서 <b>직접 보낸 명령의 답</b>은 알림이 아니라서 항상 보냅니다.</div>
+          <div id="notifyKinds"><div class="skel" style="margin:12px 2px"></div><div class="skel" style="margin:12px 2px;width:70%"></div></div>
         </section>
       </div>
       <div class="col">
         <section class="card">
-          <h2><span class="ic" id="icBell"></span>메신저 알림<span class="sp"></span><span class="hint" id="notifyCount"></span></h2>
-          <div class="hint" style="margin-bottom:6px">플랫폼이 <b>내 자기방</b>으로 보내는 알림을 유형별로 켜고 끕니다. 꺼도 내용은 화면(알림함·각 탭)에 그대로 남습니다.
-            메신저에서 직접 친 <b>@AI 명령의 답</b>은 알림이 아니라서 항상 보냅니다.</div>
-          <div id="notifyKinds"><div class="skel" style="margin:12px 2px"></div><div class="skel" style="margin:12px 2px;width:70%"></div></div>
-        </section>
-        <section class="card">
-          <h2><span class="ic" id="icClock"></span>최근 활동<span class="sp"></span>
-            <div class="seg"><button class="tab sel" data-r="sum">요약</button><button class="tab" data-r="men">멘션 처리</button></div></h2>
-          <div class="pane sel" id="r-sum"><div class="md-empty">불러오는 중…</div></div>
-          <div class="pane" id="r-men"></div>
+          <h2><span class="ic" id="icTerm"></span>메신저 명령<span class="sp"></span><span class="hint">내 자기 대화에 보냅니다</span></h2>
+          <div class="hint" style="margin-bottom:6px">첫 단어로 구분합니다. 앞에 붙이는 접두어는 없습니다.</div>
+          <div class="crow"><div class="ci"><code>이슈 스캔</code></div><span>대상 프로젝트의 열린 이슈를 바로 스캔합니다.</span></div>
+          <div class="crow"><div class="ci"><code>이슈 owner/repo#12</code></div><span>그 이슈를 큐에 등록합니다. 이슈 URL도 됩니다. 닫힌 이슈 재실행 포함.</span></div>
+          <div class="crow"><div class="ci"><code>이슈 프로젝트 추가|삭제 owner/repo</code></div><span>대상 프로젝트를 바꿉니다.</span></div>
+          <div class="crow"><div class="ci"><code>이슈 상태</code><code>이슈 중단 [repo#12]</code></div><span>세션·큐 현황을 보거나 작업 중인 이슈를 멈춥니다.</span></div>
+          <div class="crow"><div class="ci"><code>질문 owner/repo: 질문 내용</code></div><span>리서치로 접수하고 끝나면 알려 줍니다. <code>질의 …</code> 도 같습니다.</span></div>
+          <div class="crow"><div class="ci"><code>진행</code><code>승인</code><code>중단</code><code>diff</code><code>상태</code><code>검증</code><code>피드백: …</code></div><span>확인을 기다리는 이슈에 답합니다. 기다리는 이슈가 2건 이상이면 앞에 <code>repo#12</code> 를 붙입니다.</span></div>
+          <div class="hint" style="margin-top:8px">그 밖의 입력은 무시합니다. 기다리는 이슈가 없으면 명령 안내를, 있으면 답하는 방법을 단계마다 한 번만 보내 줍니다.</div>
         </section>
       </div>
     </div>
@@ -73,8 +64,8 @@
 <script>
 UI.topbar('messenger', '메신저');
 UI.pollAgentChip();
-loadStatus(); loadRooms(); loadRecent(); loadNotify();
-UI.every(loadStatus, 15000); UI.every(loadRecent, 60000);
+loadMessenger(); loadNotify();
+UI.every(loadMessenger, 20000);
 </script>
 </body>
 </html>

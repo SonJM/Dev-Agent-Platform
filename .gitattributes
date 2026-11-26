@@ -1,3 +1,5 @@
 # Claude 의 Bash(Git Bash)가 실행하는 스크립트는 CRLF 면 깨진다(\r: command not found) — 항상 LF 로 체크아웃
 scripts/bin/* text eol=lf
 *.sh text eol=lf
+# 서버(Linux)로 복사해 쓰는 파일 — CRLF 면 systemd unit·.env 값 끝에 CR 이 붙는다
+deploy/** text eol=lf

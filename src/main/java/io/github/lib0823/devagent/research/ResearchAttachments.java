@@ -1,6 +1,6 @@
 package io.github.lib0823.devagent.research;
 
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -34,8 +34,8 @@ public class ResearchAttachments {
     private final Path root;
 
     @org.springframework.beans.factory.annotation.Autowired   // 생성자가 둘(아래는 테스트용)이라 Spring 이 쓸 것을 표시해야 한다 — 없으면 기동 실패
-    public ResearchAttachments(GitLabProperties gitlab) {
-        this(Path.of(gitlab.workDir() == null || gitlab.workDir().isBlank() ? "work" : gitlab.workDir()).toAbsolutePath().resolve("research-attach"));
+    public ResearchAttachments(IssueProperties issueProps) {
+        this(Path.of(issueProps.workDir() == null || issueProps.workDir().isBlank() ? "work" : issueProps.workDir()).toAbsolutePath().resolve("research-attach"));
     }
 
     ResearchAttachments(Path root) {

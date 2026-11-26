@@ -4,8 +4,9 @@ import jakarta.annotation.PostConstruct;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.config.MaintainProperties;
-import io.github.lib0823.devagent.gitlab.IssueEvent;
-import io.github.lib0823.devagent.gitlab.IssueEventBus;
+import io.github.lib0823.devagent.platform.ChildEnv;
+import io.github.lib0823.devagent.issue.IssueEvent;
+import io.github.lib0823.devagent.issue.IssueEventBus;
 import io.github.lib0823.devagent.llm.UsageService;
 import io.github.lib0823.devagent.notify.NotificationService;
 import org.slf4j.Logger;
@@ -127,7 +128,7 @@ public class MaintainService {
         }
         turns.ensureTable();
         turns.ensureIndex();
-        events.ensureTable();                         // GitLab 이 꺼져 있어도 이벤트 테이블은 필요하다(멱등)
+        events.ensureTable();                         // GitHub 이 꺼져 있어도 이벤트 테이블은 필요하다(멱등)
         // 재기동 시 진행 중이던 요청: 중간 상태를 알 수 없으므로 실패로 닫는다. 작업트리의 변경과 세션은 남아 있어 이어서 요청할 수 있다
         for (MaintainTurn t : turns.findActive()) {
             boolean started = MaintainTurn.RUNNING.equals(t.getState());
@@ -251,7 +252,7 @@ public class MaintainService {
         try {
             CodingAgent.Result r;
             try {
-                r = agent.run(repo, sid, resume, props.toolsOr(), sys, t.getQuestion(), listener, null, CodingAgent.Stage.FIX, false, ov);
+                r = agent.run(repo, sid, resume, props.toolsOr(), sys, t.getQuestion(), listener, CodingAgent.Stage.FIX, ov);
             } catch (CodingAgent.UsageLimitException | CodingAgent.AgentTimeoutException e) {
                 throw e;
             } catch (RuntimeException e) {
@@ -263,7 +264,7 @@ public class MaintainService {
                 t.setClaudeSessionId(sid);
                 turns.update(t);
                 events.emit(eid, IssueEvent.INFO, "이전 대화 세션을 찾지 못해 새 세션으로 시작합니다(앞선 대화 맥락 없음)");
-                r = agent.run(repo, sid, false, props.toolsOr(), sys, t.getQuestion(), listener, null, CodingAgent.Stage.FIX, false, ov);
+                r = agent.run(repo, sid, false, props.toolsOr(), sys, t.getQuestion(), listener, CodingAgent.Stage.FIX, ov);
             }
             t.setTurns(r.turns());
             t.setInputTokens(r.inputTotal());
@@ -517,7 +518,7 @@ public class MaintainService {
     private GitOut git(long timeoutMs, String... args) {
         List<String> cmd = new ArrayList<>(List.of("git", "-c", "core.quotepath=false", "-c", "core.longpaths=true"));
         cmd.addAll(Arrays.asList(args));
-        ProcessBuilder pb = new ProcessBuilder(cmd).directory(repo.toFile());
+        ProcessBuilder pb = ChildEnv.clean(new ProcessBuilder(cmd).directory(repo.toFile()));
         pb.environment().put("GIT_TERMINAL_PROMPT", "0");   // 자격증명이 없으면 묻지 말고 실패
         pb.environment().put("GCM_INTERACTIVE", "never");
         pb.environment().put("LC_ALL", "C.UTF-8");

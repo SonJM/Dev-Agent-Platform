@@ -2,7 +2,6 @@ package io.github.lib0823.devagent.admin;
 
 import io.github.lib0823.devagent.research.ResearchJob;
 import io.github.lib0823.devagent.research.ResearchService;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -93,13 +92,8 @@ public class ResearchController {
 
     /** 질문에 붙일 이미지 한 장 올리기(본문 = 파일 바이트). 돌려준 name 을 접수 때 attachments 로 보낸다. */
     @PostMapping("/api/research/attach")
-    public Map<String, Object> attach(@RequestBody(required = false) byte[] data, HttpServletRequest req) {
+    public Map<String, Object> attach(@RequestBody(required = false) byte[] data) {
         Map<String, Object> out = new LinkedHashMap<>();
-        if (SystemController.foreign(req)) {
-            out.put("ok", false);
-            out.put("result", "이 화면에서만 요청할 수 있습니다.");
-            return out;
-        }
         try {
             out.put("name", research.stageAttachment(data));
             out.put("ok", true);

@@ -19,10 +19,15 @@ spring:
   task:
     scheduling:
       pool:
-        size: 3                    # @Scheduled 를 한 스레드가 다 돌리면 요약·멘션의 LLM 호출(수십 초) 동안 수집·답변 폴링이 멈춘다 → 3
+        size: 3                    # @Scheduled 를 한 스레드가 다 돌리면 긴 작업(LLM 호출 수십 초) 동안 다른 주기 작업이 멈춘다 → 3
       thread-name-prefix: sched-
 
 # 로컬 관리 페이지 (localhost 전용 — 외부 접속 차단)
+# 접근 제어(FR-104): 상태를 바꾸는 요청(경로와 무관하게 GET·HEAD·OPTIONS 외 전부)의 Origin 이 루프백이 아니면 여기 목록과 정확히 일치해야 한다(쉼표 구분). 비우면 루프백만.
+# tailscale serve 뒤에서 쓸 때 https://<MagicDNS 이름>:8443 을 넣는다. server.address 는 127.0.0.1 고정(환경변수로 바꾸지 않는다).
+access:
+  allowed-origins: ${ACCESS_ALLOWED_ORIGINS:}
+
 server:
   address: 127.0.0.1
   port: ${ADMIN_PORT:8777}
@@ -33,199 +38,84 @@ server:
 
 # 플랫폼 어댑터 선택(포트-어댑터). 값에 해당하는 구현체 빈만 뜬다 — 새 메신저/LLM 은 포트를 구현한 빈을 추가하고 여기 값만 바꾼다.
 #   messenger    : MessengerPort  구현체 (none | 직접 추가한 어댑터: slack 등)
-#   chat-model   : ChatModel/ToolChatModel 구현체 (claude-cli | 추후 claude-api, openai …) — 요약·멘션·@AI·운영 질의
-#   knowledge    : KnowledgeSource 구현체 (사내 지식 검색·RAG)
 #   coding-agent : CodingAgent 구현체 (claude-cli | 추후 claude-api …) — 이슈 분석/수정/검증, 질의
 platform:
   messenger: ${PLATFORM_MESSENGER:none}   # none(메신저 없이 화면만) | 추가한 MessengerPort 어댑터 이름
-  chat-model: ${PLATFORM_CHAT_MODEL:claude-cli}
   coding-agent: ${PLATFORM_CODING_AGENT:claude-cli}
-  knowledge: ${PLATFORM_KNOWLEDGE:mkdocs-keyword}   # KnowledgeSource 구현체 (mkdocs-keyword | 추후 pgvector 등 벡터 RAG)
+  # 운영 알림(M6)
+  ops:
+    notify-on-startup: true           # 기동 시 "나에게 보내기"로 시작 알림
+    alert-cooldown-minutes: 30        # 오류 알림 최소 간격(스팸 방지)
 
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
     default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
 
-# LLM — Claude Code CLI(headless) 경유 (Enterprise 구독, API 키 불필요)
+# Claude Code CLI(headless) 실행 파일 — 코딩 에이전트가 쓴다 (구독 로그인, API 키 불필요)
 claude:
   cli-command: ${CLAUDE_CLI_COMMAND:claude}
-  timeout-ms: ${CLAUDE_TIMEOUT_MS:120000}
-  # 응답속도 최적화 1단계: 콜드스타트(MCP/스킬 로딩) 제거 + Sonnet + 낮은 추론강도 (~20s -> ~10s)
-  model: ${CLAUDE_MODEL:sonnet}
-  effort: ${CLAUDE_EFFORT:low}
-  strict-mcp-config: ${CLAUDE_STRICT_MCP:true}
-  disable-slash-commands: ${CLAUDE_DISABLE_SLASH:true}
-  system-prompt: ${CLAUDE_SYSTEM_PROMPT:너는 사내 메신저 업무를 돕는 한국어 보조자다. 요청에 맞춰 간결하고 정확하게 답하라.}
-  # 응답속도 최적화 2단계: 상주(warm) stream-json 프로세스 재사용 (2번째 요청부터 ~1s). 실패 시 one-shot 폴백.
-  warm: ${CLAUDE_WARM:true}
-  warm-reset-turns: ${CLAUDE_WARM_RESET_TURNS:20}   # N턴마다 프로세스 재시작(맥락 누적 리셋)
-  # warm은 claude.exe를 직접 실행(cmd.exe 코드페이지 우회 → 한글 시스템프롬프트 안전). 비면 cli-command 사용.
+  # claude.exe 를 직접 실행(cmd.exe 코드페이지 우회 → 한글 인자 안전). 비면 cli-command 기준 자동 탐색.
   exe-command: ${CLAUDE_EXE_COMMAND:}        # 비우면 자동 탐색(config/ClaudeCliLocator: PATH · npm 전역 · ~/.local/bin)
-  # 안정성/속도 보강: 기동·리셋 시 백그라운드 프리웜(콜드 7.8s 체감 제거) + warm 연속실패 서킷브레이커(일시 one-shot)
-  warm-prewarm: ${CLAUDE_WARM_PREWARM:true}
-  warm-failure-threshold: ${CLAUDE_WARM_FAIL_THRESHOLD:3}
-  warm-breaker-cooldown-ms: ${CLAUDE_WARM_BREAKER_COOLDOWN_MS:60000}
 
-# 사내 개발문서 RAG — MkDocs search_index.json 을 주기 적재(doc_chunk)하고 @AI 질문에 관련 섹션만 주입.
-# 속도: 적재는 핫패스 밖(기동/스케줄), 검색은 DB 1쿼리(~수십 ms). 관련 문서가 없으면(min-score 미달) 주입을 건너뜀.
-docs:
-  enabled: ${DOCS_ENABLED:false}
-  search-index-url: ${DOCS_SEARCH_INDEX_URL:}
-  site-base-url: ${DOCS_SITE_BASE_URL:}
-  refresh-cron: ${DOCS_REFRESH_CRON:0 30 6 * * *}   # 매일 06:30 재적재
-  refresh-on-startup: ${DOCS_REFRESH_ON_STARTUP:true}
-  fetch-timeout-ms: ${DOCS_FETCH_TIMEOUT_MS:20000}
-  top-k: ${DOCS_TOP_K:3}                 # 주입할 최대 섹션 수(실측: 섹션↓ = 모델 추론↓ = 응답↑)
-  min-score: ${DOCS_MIN_SCORE:2}         # 게이트 임계치(최고 점수가 이 미만이면 주입 안 함)
-  max-context-chars: ${DOCS_MAX_CONTEXT_CHARS:6000}  # 주입 컨텍스트 총 길이 상한
-  max-body-chars: ${DOCS_MAX_BODY_CHARS:2500}        # 섹션 1개당 본문 상한
-  use-in-mentions: ${DOCS_USE_IN_MENTIONS:true}      # 남의 멘션 초안/AUTO 회신에도 관련 문서 참고(게이트 통과 시만)
-
-# GitLab 이슈 수정 에이전트 — 라벨 이슈를 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인) → ai/ 브랜치 푸시 → 코멘트·MR.
-# 사용자 확인은 자기방 메시지로만 받는다. 코딩용 Claude 는 저장소 디렉터리에서 별도 claude -p 세션(채팅 warm 세션과 분리).
-# 운영 MCP 연동 (mcp-integration-guide.md A안) — Claude Code CLI 에 --mcp-config 로 붙인다. 모두 읽기 전용 도구만 허용.
-# ① 자기방 "@AI 운영 …"/키워드 질의 → one-shot claude(MCP) ② 이슈 에이전트 분석/수정 단계에서 운영 데이터 조회
+# GitHub 이슈 수정 에이전트 — 라벨 이슈를 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인) → ai/ 브랜치 푸시 → 코멘트·PR.
+# 사용자 확인은 자기방 메시지로만 받는다. 코딩용 Claude 는 저장소 디렉터리에서 별도 claude -p 세션.
+# 사용자 정의 MCP 연동 — 관리 화면에서 등록한 서버를 Claude Code CLI 에 --mcp-config 로 붙인다(내장 서버 없음).
 mcp:
-  enabled: ${MCP_ENABLED:true}
-  opensearch-url: ${MCP_OPENSEARCH_URL:}   # Streamable HTTP (인증 없음, 백엔드 계정 읽기 전용)
-  postgres-url: ${MCP_POSTGRES_URL:}       # SSE (restricted 읽기 전용)
-  k3s-url: ${MCP_K3S_URL:}                 # Bearer 토큰 필요 — 비어 있으면 k3s 제외
-  k3s-token: ${K3S_MCP_TOKEN:}
-  k3s-read-tools: get_nodes,get_namespaces,get_pods,get_deployments,get_services,get_events,get_logs,describe_pod,get_command_history
-  agent-enabled: ${MCP_AGENT_ENABLED:true}
-  chat:
-    enabled: ${MCP_CHAT_ENABLED:true}
-    model: ${MCP_CHAT_MODEL:sonnet}
-    effort: ${MCP_CHAT_EFFORT:medium}
-    timeout-ms: ${MCP_CHAT_TIMEOUT_MS:180000}
-    max-turns: 12
-    allow-auto-rooms: ${MCP_CHAT_AUTO_ROOMS:true}   # 자기방 + '방에 직접 답' 방에서 허용(그 외 방은 일반 @AI 응답)
-    prefixes: 운영,ops,조회
-    keywords: k3s,k8s,쿠버,pod,파드,노드,네임스페이스,namespace,deployment,디플로이,컨테이너 로그,pod 로그,opensearch,오픈서치,인덱스,index,샤드,클러스터,postgres,포스트그레,db ,디비,테이블,스키마,쿼리,sql,slow query,느린 쿼리,vacuum,커넥션
+  enabled: ${MCP_ENABLED:true}               # 사용자 정의 MCP 기능 전체(테이블 준비·설정 파일 생성)
+  agent-enabled: ${MCP_AGENT_ENABLED:true}   # 이슈 에이전트(분석/수정) 실행에 붙일지
 
-# 로컬 프리뷰(화면 검증): 이슈 에이전트가 수정한 소스를 Maven 으로 WAR 빌드 → 봇 호스트 Tomcat 인스턴스에 배포 → Playwright MCP(Edge headless)로
-# 실제 화면을 열어 스크린샷·검증. 도구는 scripts/setup-preview.ps1 로 tools/ 아래에 설치(git 제외). 대상: shop(Spring MVC+JSP, Java 21).
-preview:
-  enabled: ${PREVIEW_ENABLED:false}
-  java-home: ${PREVIEW_JAVA_HOME:${user.dir}/tools/jdk-21}
-  maven-home: ${PREVIEW_MAVEN_HOME:${user.dir}/tools/maven}
-  catalina-home: ${PREVIEW_CATALINA_HOME:${user.dir}/tools/tomcat}
-  catalina-base: ${PREVIEW_CATALINA_BASE:${user.dir}/tools/tomcat-preview}
-  port: ${PREVIEW_PORT:8790}
-  context-path: ${PREVIEW_CONTEXT_PATH:/app}
-  war-name: ${PREVIEW_WAR_NAME:app.war}
-  # 프리뷰 빌드는 WAR 만 필요: 테스트 컴파일과 배포용 assembly tar(수백 MB, 수 분)를 건너뛴다. 예: -s tools/m2-settings.xml 추가 가능
-  maven-args: ${PREVIEW_MAVEN_ARGS:-Dmaven.test.skip=true -Dassembly.skipAssembly=true}
-  # shop WAR 는 deploy/standard/webapp 의 127.0.0.1 설정을 WEB-INF/classes 에 굽는다 → 개발서버 설정(src/main/resources)으로 덮어쓴다.
-  # config.properties(메일/SMS 게이트웨이)는 일부러 localhost 그대로 둔다(프리뷰에서 실제 발송 방지).
-  overlay-dirs: ${PREVIEW_OVERLAY_DIRS:db,opensearch}
-  build-timeout-ms: ${PREVIEW_BUILD_TIMEOUT_MS:900000}
-  start-timeout-ms: ${PREVIEW_START_TIMEOUT_MS:900000}   # jar/TLD 스캔(3~6분) + Spring 초기화(2~3분): 실측 최대 9분 → 15분 상한
-  login-id: ${PREVIEW_LOGIN_ID:}                # 프리뷰 로그인 테스트 계정(선택) — 모델에게 전달됨
-  login-pw: ${PREVIEW_LOGIN_PW:}
-  playwright-version: ${PREVIEW_PLAYWRIGHT_VERSION:0.0.85}
-  browser: ${PREVIEW_BROWSER:msedge}            # 설치된 Edge 사용(브라우저 다운로드 불필요)
-  headless: ${PREVIEW_HEADLESS:true}
+# GitHub 연동(이슈·PR·git 인증). 토큰은 fine-grained PAT(개인 계정의 대상 저장소만) — 서버 .env 의 GITHUB_TOKEN 에만 둔다. 비어도 기동된다(설치 점검이 알려 줌)
+github:
+  token: ${GITHUB_TOKEN:}
+  api-url: ${GITHUB_API_URL:https://api.github.com}   # https 만 허용(시험용 localhost·127.0.0.1 http 는 허용하되 설치 점검이 경고)
+  trusted-authors-only: ${GITHUB_TRUSTED_AUTHORS_ONLY:true}   # 이슈 본문·코멘트 작성자가 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트 반영
 
-gitlab:
-  enabled: ${GITLAB_ENABLED:false}
-  url: ${GITLAB_URL:}
-  token: ${GITLAB_TOKEN:}
-  projects: ${GITLAB_PROJECTS:}             # 쉼표구분 "group/repo"
-  label: ${GITLAB_LABEL:ai-fix}             # 이 라벨이 붙은 열린 이슈만 자동 처리 (비우면 열린 이슈 전부 — 비권장)
-  scan-interval-ms: ${GITLAB_SCAN_INTERVAL_MS:120000}      # 2분(프로젝트당 GitLab 호출 1회, 라벨 붙인 뒤 최대 2분 안에 큐 등록)
-  reply-poll-interval-ms: ${GITLAB_REPLY_POLL_MS:5000}     # 자기방 답변 폴링
-  work-dir: ${GITLAB_WORK_DIR:work}         # 저장소 clone 루트 (git 제외)
-  # 브랜치/커밋 컨벤션 — 사내 Document "Git Branch Strategy"(ko/convention/convention/branch_convention) 기준.
-  # 브랜치 {유형}/{일감번호}: 일반 작업은 develop 에서 분기해 develop 으로 MR, hotfix 는 main 에서 분기(MR 은 develop). 커밋 첫 줄 feat|fix|docs|...: 제목
+issue:
+  enabled: ${ISSUE_ENABLED:false}
+  projects: ${ISSUE_PROJECTS:}             # 쉼표구분 "owner/repo"
+  label: ${ISSUE_LABEL:ai-fix}             # 이 라벨이 붙은 열린 이슈만 자동 처리 (비우면 열린 이슈 전부 — 비권장)
+  scan-interval-ms: ${ISSUE_SCAN_INTERVAL_MS:120000}      # 2분(프로젝트당 GitHub 호출 1회, 라벨 붙인 뒤 최대 2분 안에 큐 등록)
+  reply-poll-interval-ms: ${ISSUE_REPLY_POLL_MS:5000}     # 자기방 답변 폴링
+  work-dir: ${ISSUE_WORK_DIR:work}         # 저장소 clone 루트 (git 제외)
+  # 브랜치/커밋 컨벤션: 브랜치 {유형}/{이슈번호}(예 fix/12), 모든 유형이 저장소 기본 브랜치에서 분기해 기본 브랜치로 Draft PR. 커밋 첫 줄 feat|fix|docs|...: 제목
   convention:
-    base-branch: ${GITLAB_BASE_BRANCH:develop}
-    hotfix-base: ${GITLAB_HOTFIX_BASE:main}
-    mr-target: ${GITLAB_MR_TARGET:develop}
-    prefixes: ${GITLAB_BRANCH_PREFIXES:feature,fix,refactor,doc,hotfix}
-    hotfix-labels: ${GITLAB_HOTFIX_LABELS:hotfix,긴급,urgent}
-    work-id-pattern: "${GITLAB_WORK_ID_PATTERN:#?(\\d{5,7})}"   # 이슈 제목 "#123456 - …" 에서 일감번호. 없으면 issue-<GitLab iid>
-  git-user-name: ${GITLAB_GIT_USER_NAME:dev-agent}
-  git-user-email: ${GITLAB_GIT_USER_EMAIL:dev-agent@example.com}
-  comment-on-issue: ${GITLAB_COMMENT_ON_ISSUE:true}
-  create-mr: ${GITLAB_CREATE_MR:true}
-  prefetch: ${GITLAB_PREFETCH:true}
-  concurrency: ${GITLAB_CONCURRENCY:2}      # 동시에 진행할 이슈 수(수정/검증이 겹치면 Maven·Claude 가 병렬로 돈다). 프리뷰 Tomcat 은 1개 공유(순서 대기)
-  wait-remind-ms: ${GITLAB_WAIT_REMIND_MS:14400000}  # 확인 대기 4시간마다 자기방 리마인더(0=끔)         # 확인 대기 중 다음 이슈 선분석(세션별 git worktree 사용)
+    prefixes: ${ISSUE_BRANCH_PREFIXES:feature,fix,refactor,doc,hotfix}
+  git-user-name: ${ISSUE_GIT_USER_NAME:dev-agent}
+  git-user-email: ${ISSUE_GIT_USER_EMAIL:dev-agent@example.com}
+  comment-on-issue: ${ISSUE_COMMENT_ON_ISSUE:true}
+  create-pr: ${ISSUE_CREATE_PR:true}
+  prefetch: ${ISSUE_PREFETCH:true}
+  concurrency: ${ISSUE_CONCURRENCY:2}      # 동시에 진행할 이슈 수(수정/검증이 겹치면 Maven·Claude 가 병렬로 돈다). 프리뷰 Tomcat 은 1개 공유(순서 대기)
+  wait-remind-ms: ${ISSUE_WAIT_REMIND_MS:14400000}  # 확인 대기 4시간마다 자기방 리마인더(0=끔)         # 확인 대기 중 다음 이슈 선분석(세션별 git worktree 사용)
   agent:
-    model: ${GITLAB_AGENT_MODEL:opus}
-    effort: ${GITLAB_AGENT_EFFORT:high}
-    timeout-ms: ${GITLAB_AGENT_TIMEOUT_MS:3600000}         # 분석(설계·재설계) 1회 실행 상한 60분
-    max-turns: ${GITLAB_AGENT_MAX_TURNS:80}                # 분석 턴 상한
-    fix-timeout-ms: ${GITLAB_AGENT_FIX_TIMEOUT_MS:14400000} # 개발(수정·재수정) 1회 실행 상한 4시간 — 큰 이슈(마이그레이션 등)용. preview deploy(20분 안팎)도 품는다
-    fix-max-turns: ${GITLAB_AGENT_FIX_MAX_TURNS:600}       # 개발 턴 상한(파일 수십 개 수정이면 수백 턴)
-    idle-timeout-ms: ${GITLAB_AGENT_IDLE_TIMEOUT_MS:2700000} # 무응답 상한 45분: 도구 호출·출력이 이 시간 동안 없으면 멈춘 것으로 보고 중단(0=끔). 긴 빌드는 Bash 결과가 와야 갱신되므로 빌드 시간보다 길게
+    model: ${ISSUE_AGENT_MODEL:opus}
+    effort: ${ISSUE_AGENT_EFFORT:high}
+    timeout-ms: ${ISSUE_AGENT_TIMEOUT_MS:3600000}         # 분석(설계·재설계) 1회 실행 상한 60분
+    max-turns: ${ISSUE_AGENT_MAX_TURNS:80}                # 분석 턴 상한
+    fix-timeout-ms: ${ISSUE_AGENT_FIX_TIMEOUT_MS:14400000} # 개발(수정·재수정) 1회 실행 상한 4시간 — 큰 이슈(마이그레이션 등)용
+    fix-max-turns: ${ISSUE_AGENT_FIX_MAX_TURNS:600}       # 개발 턴 상한(파일 수십 개 수정이면 수백 턴)
+    idle-timeout-ms: ${ISSUE_AGENT_IDLE_TIMEOUT_MS:2700000} # 무응답 상한 45분: 도구 호출·출력이 이 시간 동안 없으면 멈춘 것으로 보고 중단(0=끔). 긴 빌드는 Bash 결과가 와야 갱신되므로 빌드 시간보다 길게
     # 상한에 걸리면 분석은 실패(FAILED), 개발은 작업트리 변경을 보존한 채 리뷰 대기로 넘겨 「피드백: 이어서 진행」으로 같은 세션을 계속할 수 있다
     # 분석 단계: 읽기 전용
-    analyze-tools: ${GITLAB_AGENT_ANALYZE_TOOLS:Read,Grep,Glob,LS,Bash(git log:*),Bash(git show:*),Bash(git blame:*)}
+    analyze-tools: ${ISSUE_AGENT_ANALYZE_TOOLS:Read,Grep,Glob,LS,Bash(git log:*),Bash(git show:*),Bash(git blame:*)}
     # 수정 단계: 파일 편집 + 지정 빌드/테스트 명령만 (Bash(<접두어>:*) 패턴). push/commit 은 봇이 수행.
-    fix-tools: ${GITLAB_AGENT_FIX_TOOLS:Read,Grep,Glob,LS,Edit,Write,MultiEdit,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(gradlew:*),Bash(./gradlew:*),Bash(gradlew.bat:*),Bash(mvn:*),Bash(./mvnw:*),Bash(npm test:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx jest:*),Bash(node --check:*)}
-    test-hint: ${GITLAB_AGENT_TEST_HINT:Gradle 프로젝트는 gradlew test (또는 영향 모듈만 :module:test), Maven 은 mvn -q test, Node 는 npm test 를 실행}
-    max-message-chars: ${GITLAB_AGENT_MAX_MESSAGE_CHARS:3000}  # 메신저 1건 길이 상한(초과 시 분할 전송)
-  # 검증 단계: 수정 후 봇이 직접 컴파일/정적검사(jscheck·jspcheck)를 돌리고, 독립 리뷰어 Claude 세션이 이슈·설계·diff·프리뷰를 보고 PASS/FAIL.
+    fix-tools: ${ISSUE_AGENT_FIX_TOOLS:Read,Grep,Glob,LS,Edit,Write,MultiEdit,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(gradlew:*),Bash(./gradlew:*),Bash(gradlew.bat:*),Bash(mvn:*),Bash(./mvnw:*),Bash(npm test:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx jest:*),Bash(node --check:*)}
+    test-hint: ${ISSUE_AGENT_TEST_HINT:Gradle 프로젝트는 gradlew test (또는 영향 모듈만 :module:test), Maven 은 mvn -q test, Node 는 npm test 를 실행}
+    max-message-chars: ${ISSUE_AGENT_MAX_MESSAGE_CHARS:3000}  # 메신저 1건 길이 상한(초과 시 분할 전송)
+  # 검증 단계: 수정 후 봇이 직접 컴파일/JS 문법 검사(node --check)를 돌리고, 독립 리뷰어 Claude 세션이 이슈·설계·diff 를 보고 PASS/FAIL.
   # FAIL 이면 실패 내역을 피드백으로 자동 재수정(max-retries 회), 그래도 FAIL 이면 실패 내역과 함께 리뷰 대기로 올린다.
   verify:
-    enabled: ${GITLAB_VERIFY_ENABLED:true}
-    max-retries: ${GITLAB_VERIFY_MAX_RETRIES:2}
-    reviewer: ${GITLAB_VERIFY_REVIEWER:true}
-    model: ${GITLAB_VERIFY_MODEL:}                       # 비우면 agent.model
-    effort: ${GITLAB_VERIFY_EFFORT:medium}
-    command-timeout-ms: ${GITLAB_VERIFY_COMMAND_TIMEOUT_MS:900000}
+    enabled: ${ISSUE_VERIFY_ENABLED:true}
+    max-retries: ${ISSUE_VERIFY_MAX_RETRIES:2}
+    reviewer: ${ISSUE_VERIFY_REVIEWER:true}
+    model: ${ISSUE_VERIFY_MODEL:}                       # 비우면 agent.model
+    effort: ${ISSUE_VERIFY_EFFORT:medium}
+    command-timeout-ms: ${ISSUE_VERIFY_COMMAND_TIMEOUT_MS:900000}
     # 프로젝트별 검사 명령 "group/repo=명령;group/repo2=명령". 비우면 pom.xml → mvn -o -q compile, gradle → gradlew compileJava, 그 외 생략.
-    commands: ${GITLAB_VERIFY_COMMANDS:}
-    tools: ${GITLAB_VERIFY_TOOLS:Read,Grep,Glob,LS,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(preview status:*),Bash(preview log:*),Bash(jscheck:*),Bash(jspcheck:*)}
-    reviewer-timeout-ms: ${GITLAB_VERIFY_REVIEWER_TIMEOUT_MS:3600000}   # 리뷰어 세션 1회 실행 상한 60분(0 이면 agent.timeout-ms)
-
-bot:
-  # M1 PoC (완료 — 기본 비활성)
-  poc:
-    enabled: false
-    send-test-to-self: false
-  # M2 수집기
-  collect:
-    enabled: true
-    poll-interval-ms: 20000        # 테스트용 20s (운영 60s+ 권장)
-    mode: SELF_ONLY                # SELF_ONLY | LIST | ALL
-    room-keys: []                  # mode=LIST 일 때 수집할 방. 예: ["single:586","group:15428"]
-    excluded-room-keys: []         # mode=ALL 에서 제외할 방
-    initial-window: 30             # 최초 수집 시 가져올 최신 메시지 수
-    page-size: 100                 # 증분 조회 페이지 크기
-    max-pages-per-poll: 10         # 폭주 방지
-  # M3 요약 배치
-  summary:
-    enabled: true
-    cron: "0 0 9,13,18 * * MON-FRI"   # 업무일 09/13/18시
-    min-messages: 5                   # 최소 건수 미만이면 skip
-    max-messages: 200                 # 1회 요약에 넣을 최대 메시지
-    run-on-startup: false             # 테스트용: 기동 직후 1회 실행 (운영 시 false)
-  # M4 멘션 자동응답 (DRAFT)
-  mention:
-    enabled: true
-    context-size: 20
-    cooldown-minutes: 10              # 같은 방 N분 내 1회
-    poll-interval-ms: 20000
-    allow-self-sender: false          # 내가 보낸 이름 멘션은 무시(루프/오동작 방지)
-    # 남이 나를 부르는 키워드들(쉼표구분). 접미사 자동포함: "@길동"→@길동BE
-    keywords: ${BOT_MENTION_KEYWORDS:}
-    command-keyword: ${BOT_COMMAND_KEYWORD:@AI}  # 내가 봇을 직접 호출 — 내 메시지여도 응답
-    sensitive-keywords: ["결재", "승인", "연봉", "인사발령", "금액 확정", "일정 확정"]
-    # AUTO(실제 회신) 허용 방 — .env 의 BOT_AUTO_ROOMS 에서 편집(쉼표구분). 비우면 전부 DRAFT.
-    # 예) BOT_AUTO_ROOMS=single:586,group:17617
-    auto-room-keys: ${BOT_AUTO_ROOMS:}
-    progress-ack: ${BOT_PROGRESS_ACK:false}   # @AI 방 응답 중 느린 턴(문서 참고)에 "생성 중" 안내 선전송(기본 off)
-  # M6 운영
-  ops:
-    notify-on-startup: true           # 기동 시 "나에게 보내기"로 시작 알림
-    alert-cooldown-minutes: 30        # 오류 알림 최소 간격(스팸 방지)
-  safety:
-    block-group-send: true
-    allowed-single-room-ids: []
+    commands: ${ISSUE_VERIFY_COMMANDS:}
+    tools: ${ISSUE_VERIFY_TOOLS:Read,Grep,Glob,LS,Bash(git diff:*),Bash(git status:*),Bash(git log:*)}
+    reviewer-timeout-ms: ${ISSUE_VERIFY_REVIEWER_TIMEOUT_MS:3600000}   # 리뷰어 세션 1회 실행 상한 60분(0 이면 agent.timeout-ms)
 
 logging:
   charset:

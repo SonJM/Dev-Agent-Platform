@@ -1,7 +1,6 @@
 package io.github.lib0823.devagent.admin;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import jakarta.servlet.http.HttpServletRequest;
 import io.github.lib0823.devagent.mcp.McpConfigService;
 import io.github.lib0823.devagent.mcp.McpServer;
 import io.github.lib0823.devagent.research.ResearchService;
@@ -107,7 +106,7 @@ public class BundleController {
         st.put("verifyEffort", am.verifyEffort());
         st.put("subagents", settings.getAgentSubagents());
         st.put("teams", settings.getAgentTeams());
-        st.put("projects", settings.getGitLabProjects());
+        st.put("projects", settings.getIssueProjects());
         out.put("settings", st);
 
         return ResponseEntity.ok()
@@ -117,13 +116,8 @@ public class BundleController {
 
     /** 번들 적용. 항목별로 검증해 들어간 것과 거부된 것을 알려 준다(하나가 실패해도 나머지는 적용). */
     @PostMapping("/api/bundle/import")
-    public Map<String, Object> importBundle(@RequestBody JsonNode b, HttpServletRequest req) {
+    public Map<String, Object> importBundle(@RequestBody JsonNode b) {
         Map<String, Object> out = new LinkedHashMap<>();
-        if (SystemController.foreign(req)) {
-            out.put("ok", false);
-            out.put("result", "이 화면에서만 요청할 수 있습니다.");
-            return out;
-        }
         if (b == null || !FORMAT.equals(b.path("format").asText())) {
             out.put("ok", false);
             out.put("result", "Dev Agent 구성 묶음 파일이 아닙니다(format 이 " + FORMAT + " 여야 합니다).");
@@ -218,14 +212,14 @@ public class BundleController {
         }
         // 대상 프로젝트는 합친다(이 PC 에만 있는 프로젝트를 지우지 않는다). 형식만 확인 — 존재 여부는 스캔 때 드러난다.
         if (st.path("projects").isArray()) {
-            List<String> merged = new ArrayList<>(settings.getGitLabProjects());
+            List<String> merged = new ArrayList<>(settings.getIssueProjects());
             for (JsonNode p : st.path("projects")) {
                 String path = p.asText("").strip();
                 if (path.matches("[\\w.-]+(/[\\w.-]+)+") && !merged.contains(path)) {
                     merged.add(path);
                 }
             }
-            settings.setGitLabProjects(merged);
+            settings.setIssueProjects(merged);
         }
     }
 

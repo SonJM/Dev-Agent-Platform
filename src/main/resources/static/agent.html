@@ -134,7 +134,7 @@
   .k-TOOL .m { color: #93c5fd; } .k-TOOL .m .tn { color: #c7d2fe; font-weight: 700; }
   .k-TOOL_RESULT .m { color: #8b95ab; } .k-TEXT .m { color: #b8c0d2; font-style: italic; }
   .k-STATE .m { color: #fbbf24; font-weight: 700; } .k-CLAUDE .m { color: #c4b5fd; font-weight: 600; }
-  .k-REPLY .m { color: #86efac; font-weight: 600; } .k-GIT .m, .k-GITLAB .m { color: #fdba74; }
+  .k-REPLY .m { color: #86efac; font-weight: 600; } .k-GIT .m, .k-REMOTE .m { color: #fdba74; }
   .k-ERROR .m { color: #fca5a5; font-weight: 700; } .k-INFO .m { color: #a5b4fc; }
   .ln.k-STATE, .ln.k-CLAUDE, .ln.k-REPLY { margin-top: 4px; }
   .det { display: none; margin: 2px 8px 8px 94px; padding: 10px 12px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07); border-radius: 8px; color: #c7cfdf; white-space: pre-wrap; max-height: 340px; overflow: auto; font-size: 12px; }
@@ -196,23 +196,13 @@
   .tl::before { content: ""; position: absolute; left: 9px; top: 6px; bottom: 6px; width: 2px; background: var(--line2); }
   .ev { position: relative; padding: 8px 0 10px 8px; display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: baseline; }
   .ev::before { content: ""; position: absolute; left: -22px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); border: 2px solid var(--surface); }
-  .ev.k-STATE::before { background: var(--warn); } .ev.k-REPLY::before { background: var(--ok); } .ev.k-ERROR::before { background: var(--err); } .ev.k-CLAUDE::before { background: var(--accent); } .ev.k-GIT::before, .ev.k-GITLAB::before { background: #fb923c; }
+  .ev.k-STATE::before { background: var(--warn); } .ev.k-REPLY::before { background: var(--ok); } .ev.k-ERROR::before { background: var(--err); } .ev.k-CLAUDE::before { background: var(--accent); } .ev.k-GIT::before, .ev.k-REMOTE::before { background: #fb923c; }
   .ev .t { color: var(--muted); font-size: 12px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .ev .m { font-size: 13.5px; white-space: pre-wrap; word-break: break-word; }
   .ev .m .kd { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--muted); margin-right: 8px; }
   .ev.has .m { cursor: pointer; }
   .ev .det2 { grid-column: 1 / -1; display: none; background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; font-size: 12px; max-height: 360px; overflow: auto; font-family: var(--mono); }
   .ev .det2.open { display: block; }
-
-  /* ---------- screenshots ---------- */
-  .shots { margin-top: 18px; }
-  .shots .sec { margin-bottom: 8px; }
-  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-  .shot { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface2); text-decoration: none !important; color: inherit; transition: border-color .15s, transform .1s; }
-  .shot:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .shot img { width: 100%; height: 170px; object-fit: cover; object-position: top; display: block; background: #fff; }
-  .shot .cap { padding: 8px 10px; font-size: 12px; color: var(--text2); display: flex; justify-content: space-between; gap: 8px; }
-  .shot .cap b { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -222,8 +212,8 @@
   <div class="body">
     <aside class="panel-card sidebar">
       <div class="cmdbtns">
-        <button class="btn sm" id="btnNew" onclick="openNewIssue()" title="GitLab 이슈를 여기서 등록합니다"></button>
-        <button class="btn sm" id="btnList" onclick="openIssueList()" title="GitLab 에 열려 있는 이슈를 보고 골라서 시작합니다(라벨이 없어도, 중단된 이슈 다시 시작도)"></button>
+        <button class="btn sm" id="btnNew" onclick="openNewIssue()" title="GitHub 이슈를 여기서 등록합니다"></button>
+        <button class="btn sm" id="btnList" onclick="openIssueList()" title="GitHub 에 열려 있는 이슈를 보고 골라서 시작합니다(라벨이 없어도, 중단된 이슈 다시 시작도)"></button>
         <button class="btn sm" id="btnScan" onclick="scanNow()" title="라벨 이슈를 지금 바로 가져옵니다(평소에는 2분마다 자동)"></button>
       </div>
       <div class="sec"><span>세션<span class="n" id="scount">0</span></span>
@@ -316,7 +306,7 @@
           <div class="term" id="log"></div>
         </div>
         <div class="pane" id="p-design"><div class="md" id="design"></div></div>
-        <div class="pane" id="p-summary"><div class="md" id="summary"></div><div id="shots"></div></div>
+        <div class="pane" id="p-summary"><div class="md" id="summary"></div></div>
         <div class="pane" id="p-verify"><div class="md" id="verify"></div></div>
         <div class="pane" id="p-diff"><div id="diff"></div></div>
         <div class="pane" id="p-sub">
@@ -385,11 +375,11 @@ const STEPS = [
   {k:'FIXING',     n:'코드 수정'},
   {k:'VERIFYING',  n:'검증'},
   {k:'REVIEW_WAIT',n:'리뷰 확인', wait:true},
-  {k:'PUSHING',    n:'푸시 · MR'},
+  {k:'PUSHING',    n:'푸시 · PR'},
   {k:'DONE',       n:'완료'},
 ];
 const ORDER = {NEW:0, PREPARING:1, ANALYZING:1, READY:2, DESIGN_WAIT:2, FIXING:3, VERIFYING:4, REVIEW_WAIT:5, PUSHING:6, DONE:7};
-const ICON = {STATE:'⇢', INFO:'ℹ', REPLY:'💬', CLAUDE:'✦', TOOL:'›', TOOL_RESULT:'↳', TEXT:'…', GIT:'⎇', GITLAB:'⬡', ERROR:'✖'};
+const ICON = {STATE:'⇢', INFO:'ℹ', REPLY:'💬', CLAUDE:'✦', TOOL:'›', TOOL_RESULT:'↳', TEXT:'…', GIT:'⎇', REMOTE:'⬡', ERROR:'✖'};
 const HIDDEN_TL = ['TOOL','TOOL_RESULT','TEXT'];
 
 let sessions = [], selId = null, sel = null, events = [], lastEventId = 0, overview = {};
@@ -590,9 +580,9 @@ function renderList() {
   if (!list.length) { UI.set(box, `<div class="md-empty">${esc(projFilter.split('/').pop())} 프로젝트의 세션이 없습니다.</div>`); return; }
   UI.set(box, list.map(s => `
     <div class="sitem st-${cls(s.state)} ${s.id===selId?'sel':''}" onclick="selectSession(${s.id})">
-      <div class="r1"><span class="ref">${runningOf(s.id) ? `<i class="runmini m-${esc(runningOf(s.id).model)}" title="${esc(runningOf(s.id).model)} 실행 중"></i>` : ''}${esc(s.projectPath.split('/').pop())} <b>#${s.issueIid}</b></span><span class="badge ${cls(s.state)}">${KOR[s.state]||s.state}</span></div>
+      <div class="r1"><span class="ref">${runningOf(s.id) ? `<i class="runmini m-${esc(runningOf(s.id).model)}" title="${esc(runningOf(s.id).model)} 실행 중"></i>` : ''}${esc(s.projectPath.split('/').pop())} <b>#${s.issueNumber}</b></span><span class="badge ${cls(s.state)}">${KOR[s.state]||s.state}</span></div>
       <div class="title" title="${esc(s.issueTitle)}">${esc(s.issueTitle)||'(제목 없음)'}</div>
-      <div class="r3"><span>${ago(s.updatedAt)}</span>${s.feedbackRounds?`<span>피드백 ${s.feedbackRounds}</span>`:''}${s.mrUrl?'<span>MR</span>':''}</div>
+      <div class="r3"><span>${ago(s.updatedAt)}</span>${s.feedbackRounds?`<span>피드백 ${s.feedbackRounds}</span>`:''}${s.prUrl?'<span>PR</span>':''}</div>
     </div>`).join(''));
 }
 
@@ -627,14 +617,13 @@ function currentPane(){ const t=document.querySelector('.tabs .tab.sel'); return
 function renderDetail() {
   $('noSel').style.display='none'; $('detail').style.display='block';
   const s = sel;
-  $('dProj').textContent = s.projectPath; $('dIid').textContent = '이슈 #'+s.issueIid;
+  $('dProj').textContent = s.projectPath; $('dIid').textContent = '이슈 #'+s.issueNumber;
   const st = $('dState'); st.textContent = KOR[s.state]||s.state; st.className = 'badge '+cls(s.state);
   $('dTitle').textContent = s.issueTitle || '(제목 없음)';
   const links = [];
   if (s.issueUrl) links.push(`<a class="lbtn" href="${esc(s.issueUrl)}" target="_blank">${I.ext}이슈</a>`);
-  if (s.branchName && s.issueUrl) links.push(`<a class="lbtn" href="${esc(s.issueUrl.replace(/\/-\/issues\/\d+.*$/,''))}/-/tree/${esc(s.branchName)}" target="_blank">${I.branch}<code>${esc(s.branchName)}</code></a>`);
-  if (!s.branchName && s.workType && s.workId) links.push(`<span class="lbtn" title="컨벤션 브랜치 계획: {유형}/{일감번호} ← 기준 브랜치">${I.branch}<code>${esc(s.workType)}/${esc(s.workId)}</code>${s.baseBranch?` ← ${esc(s.baseBranch)}`:''}</span>`);
-  if (s.mrUrl) links.push(`<a class="lbtn" href="${esc(s.mrUrl)}" target="_blank">${I.ext}Merge Request</a>`);
+  if (s.branchName && s.issueUrl) links.push(`<a class="lbtn" href="${esc(s.issueUrl.replace(/\/issues\/\d+.*$/,''))}/tree/${esc(s.branchName)}" target="_blank">${I.branch}<code>${esc(s.branchName)}</code></a>`);
+  if (s.prUrl) links.push(`<a class="lbtn" href="${esc(s.prUrl)}" target="_blank">${I.ext}Pull Request</a>`);
   if (s.commitSha) links.push(`<span class="lbtn">커밋 <code>${esc(s.commitSha)}</code></span>`);
   UI.set($('dLinks'), links.join(''));
 
@@ -659,20 +648,6 @@ function renderDetail() {
     : '<div class="md-empty">아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.</div>');
   const cv = $('cntVerify'); if (cv) { cv.style.display = s.verifyRounds ? '' : 'none'; cv.textContent = s.verifyRounds ? (s.verifyRounds + '회') : ''; }
   renderSubagents();
-  loadShots();
-}
-
-let shotsLoadedFor = null;
-async function loadShots() {
-  if (selId == null) return;
-  const id = selId;
-  let d; try { d = await (await fetch(`/api/agent/sessions/${id}/shots`)).json(); } catch(e) { return; }
-  if (id !== selId) return;
-  const box = $('shots');
-  const prev = d.previewUrl ? `<a class="lbtn" href="${esc(d.previewUrl)}" target="_blank">${I.ext}프리뷰 열기 <code>${esc(d.previewUrl)}</code></a>` : '';
-  if (!d.shots.length && !prev) { box.innerHTML = ''; return; }
-  box.innerHTML = `<div class="shots"><div class="sec"><span>프리뷰 스크린샷</span><span class="n">${d.shots.length}</span></div>${prev?`<div style="margin:6px 0 12px">${prev}</div>`:''}
-    <div class="gallery">${d.shots.map(f => `<a class="shot" href="${esc(f.url)}" target="_blank" title="${esc(f.name)}"><img loading="lazy" src="${esc(f.url)}?t=${f.modifiedAt}" alt="${esc(f.name)}"><div class="cap"><b>${esc(f.name)}</b><span>${Math.round(f.size/1024)} KB</span></div></a>`).join('')}</div></div>`;
 }
 function stat(l, v, unit, title){ return `<div class="stat"${title?` title="${esc(title)}"`:''}><div class="l">${l}</div><div class="v">${esc(v)}${unit?`<small>${unit}</small>`:''}</div></div>`; }
 
@@ -716,7 +691,7 @@ function renderActions() {
   $('aQ').innerHTML = s.state==='DESIGN_WAIT'
       ? '<b>설계안을 확인해 주세요.</b> 「진행」이면 이 설계대로 코드를 수정합니다(입력칸에 쓴 글은 추가 지시로 함께 전달). 피드백을 보내면 설계를 다시 정리합니다.'
     : s.state==='REVIEW_WAIT'
-      ? '<b>변경 내용을 확인해 주세요.</b> 「진행」이면 컨벤션 브랜치(<code>fix/일감번호</code> 등)로 커밋·푸시하고 Draft MR을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.'
+      ? '<b>변경 내용을 확인해 주세요.</b> 「진행」이면 이슈 브랜치(<code>fix/이슈번호</code> 등)로 커밋·푸시하고 Draft PR을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.'
     : s.state==='NEW' ? '대기열에 있습니다. 앞선 세션이 끝나면 자동으로 시작합니다.'
     : s.state==='PREPARING' ? '<b>선분석 중</b> — 앞선 세션이 확인을 기다리는 동안 이 이슈를 미리 분석하고 있습니다.'
     : s.state==='READY' ? '<b>설계가 준비되었습니다.</b> 앞선 세션이 끝나면 자동으로 설계 확인을 요청합니다. 설계안 탭에서 미리 볼 수 있습니다.'
@@ -770,11 +745,11 @@ async function createIssue() {
   b.disabled = false;
 }
 async function abortSession() {
-  if (!confirm(`${sel.projectPath}#${sel.issueIid} 를 중단할까요?\n작업트리의 변경은 버려집니다. 실행 중인 작업은 즉시 종료됩니다.`)) return;
+  if (!confirm(`${sel.projectPath}#${sel.issueNumber} 를 중단할까요?\n작업트리의 변경은 버려집니다. 실행 중인 작업은 즉시 종료됩니다.`)) return;
   const r = await (await fetch(`/api/agent/sessions/${sel.id}/abort`, {method:'POST'})).json();
   toast(r.result); setTimeout(loadOverview, 700);
 }
-// 이슈 목록: 창을 열거나 프로젝트를 바꿀 때만 GitLab 을 조회한다(주기 갱신 없음). 골라서 시작/다시 시작은 「@AI 이슈 group/repo#n」 과 같은 경로.
+// 이슈 목록: 창을 열거나 프로젝트를 바꿀 때만 GitHub 을 조회한다(주기 갱신 없음). 골라서 시작/다시 시작은 「@AI 이슈 owner/repo#n」 과 같은 경로.
 let ilData = null;
 function openIssueList() {
   if (!projects.length) { toast('대상 프로젝트가 없습니다. 플랫폼 탭에서 먼저 등록해 주세요.', 'err'); return; }
@@ -791,7 +766,7 @@ async function loadIssueList() {
   if (!d.issues.length) { box.innerHTML = '<div class="md-empty">열린 이슈가 없습니다.</div>'; return; }
   box.innerHTML = d.issues.map((it, i) => {
     const st = it.state ? `<span class="badge ${cls(it.state)}">${KOR[it.state]||it.state}</span>` : '';
-    // 완료(DONE)는 다시 시작을 두지 않는다: 올라간 브랜치·MR 과 겹치는 두 번째 MR 이 생긴다 → 미흡하면 새 이슈로
+    // 완료(DONE)는 다시 시작을 두지 않는다: 올라간 브랜치·PR 과 겹치는 두 번째 PR 이 생긴다 → 미흡하면 새 이슈로
     const act = it.active || it.state === 'DONE' ? `<button class="btn sm" onclick="gotoIssue(${it.sessionId})">보기</button>`
       : `<button class="btn sm ${it.state?'':'primary'}" onclick="startIssue(${i}, this)">${it.state?'다시 시작':'시작'}</button>`;
     return `<div class="irow">
@@ -1003,9 +978,8 @@ function connect() {
         renderTimeline();
         if (e.kind==='STATE'||e.kind==='ERROR'||e.kind==='REPLY') setTimeout(()=>{ loadOverview(); loadDetail(false); }, 500);
         else renderSteps();
-        if (e.kind==='INFO' && /스크린샷|프리뷰/.test(e.message||'')) loadShots();
       }
-      if (e.kind==='STATE') toast(`${sel?sel.projectPath.split('/').pop()+'#'+sel.issueIid+' · ':''}${KOR[e.detail]||e.message}`, e.detail==='FAILED'?'err':(e.detail==='DONE'?'ok':''));
+      if (e.kind==='STATE') toast(`${sel?sel.projectPath.split('/').pop()+'#'+sel.issueNumber+' · ':''}${KOR[e.detail]||e.message}`, e.detail==='FAILED'?'err':(e.detail==='DONE'?'ok':''));
     } else if (e.kind==='STATE' || e.kind==='INFO') setTimeout(loadOverview, 500);
   });
 }
