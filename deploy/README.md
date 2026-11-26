@@ -84,10 +84,25 @@ $EDITOR <APP_HOME>/.env                            # 자리표시자를 모두 �
 ```
 
 - **줄바꿈은 LF 로 저장한다.** Windows 편집기에서 CRLF 로 저장해 올리면 값 끝에 CR 이 붙는 키가 생긴다(`DEV_AGENT_RUN_MODE` 는 견디지만 다른 값은 아닐 수 있다). 확인: `file <APP_HOME>/.env` 에 `CRLF` 가 나오면 `sed -i 's/\r$//' <APP_HOME>/.env`.
-- 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_USERNAME`·`DB_PASSWORD`, `GITLAB_WORK_DIR`(앱 홈 **밖**), GitHub 항목(`GITHUB_TOKEN`·`GITLAB_ENABLED`·`GITLAB_PROJECTS`).
+- 키 이름·설명은 `deploy/env.server.example` 에 있다. 꼭 채울 것: `ACCESS_ALLOWED_ORIGINS`(`https://<MagicDNS 이름>:8443`), `DB_USERNAME`·`DB_PASSWORD`, `ISSUE_WORK_DIR`(앱 홈 **밖**), GitHub 항목(`GITHUB_TOKEN`·`ISSUE_ENABLED`·`ISSUE_PROJECTS`).
 - **`.env` 에 `DB_URL` 을 적지 않는다.** `resolve-db.sh` 가 조회한 주소로 `DB_URL` 을 만든다. `.env` 에 `DB_URL=` 줄이 있으면 `resolve-db.sh` 가 거부한다(주석 처리한 줄은 무방).
 - `MAINTAIN_ENABLED=false` 를 유지한다(플랫폼 관리 사용 여부는 OI-14 미정).
 - `.env` 는 비밀값이 들어 있으니 git·메신저·로그에 올리지 않는다.
+
+### 기존 설치의 `.env` 개명 (GITLAB_* → ISSUE_*)
+
+이슈 에이전트 설정 키가 개명되어 **옛 `GITLAB_*` 키는 더 읽히지 않는다**(남아 있으면 `ISSUE_ENABLED` 가 기본값 false 라 에이전트가 조용히 꺼진다). 갱신 전에 기존 `.env` 를 바꾼다.
+
+| 옛 키 | 새 키 |
+|---|---|
+| `GITLAB_<이름>` (`ENABLED`, `PROJECTS`, `PREFETCH`, `CONCURRENCY`, `LABEL`, `SCAN_INTERVAL_MS`, `WORK_DIR`, `BRANCH_PREFIXES`, `GIT_USER_NAME`, `GIT_USER_EMAIL`, `COMMENT_ON_ISSUE`, `AGENT_*`, `VERIFY_*`) | `ISSUE_<같은 이름>` |
+| `GITLAB_CREATE_MR` | `ISSUE_CREATE_PR` |
+| `GITLAB_URL`, `GITLAB_TOKEN` | 지운다. GitHub 용 `GITHUB_TOKEN` 을 새로 발급해 넣는다(`deploy/env.server.example` 참고) |
+| `GITLAB_BASE_BRANCH`, `GITLAB_HOTFIX_BASE`, `GITLAB_MR_TARGET`, `GITLAB_HOTFIX_LABELS` | 지운다(더 읽지 않는 키) |
+
+- 위 표의 지울 키(`GITLAB_URL`·`GITLAB_TOKEN`·기준 브랜치 계열)를 먼저 지운 뒤, 나머지를 한 번에 바꾼다(내용 확인 후): `sed -i -e 's/^GITLAB_CREATE_MR=/ISSUE_CREATE_PR=/' -e 's/^GITLAB_/ISSUE_/' <APP_HOME>/.env`
+- 놓친 키는 기동 로그(`[boot] WARN 옛 GITLAB_* 키…`)와 플랫폼 탭 「설치 점검」의 「옛 설정 키」 항목이 키 이름으로 알려 준다(값은 출력하지 않는다).
+- DB 쪽(옛 컬럼·`issue_event.kind`)은 앱이 기동 때 스스로 맞춘다(멱등).
 
 ## 5. jar 올리기
 

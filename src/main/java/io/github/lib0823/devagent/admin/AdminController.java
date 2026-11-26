@@ -1,6 +1,6 @@
 package io.github.lib0823.devagent.admin;
 
-import io.github.lib0823.devagent.gitlab.IssueAgentService;
+import io.github.lib0823.devagent.issue.IssueAgentService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +28,7 @@ public class AdminController {
         this.issueAgent = issueAgent;
     }
 
-    /** GitLab 이슈 에이전트 현황: 활성/다음 대기 + 최근 세션 (localhost 전용). */
+    /** GitHub 이슈 에이전트 현황: 활성/다음 대기 + 최근 세션 (localhost 전용). */
     @GetMapping("/api/issues")
     public Map<String, Object> issues() {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -44,7 +44,7 @@ public class AdminController {
         return Map.of("result", issueAgent.command(cmd));
     }
 
-    /** 이슈 에이전트 대상 프로젝트 목록(DB 우선, 없으면 GITLAB_PROJECTS). 각 항목에 GitLab 조회 결과(id/webUrl 또는 error). */
+    /** 이슈 에이전트 대상 프로젝트 목록(DB 우선, 없으면 ISSUE_PROJECTS). 각 항목에 GitHub 조회 결과(id/webUrl 또는 error). */
     @GetMapping("/api/issues-projects")
     public Map<String, Object> issuesProjects() {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -119,7 +119,7 @@ public class AdminController {
                 + " · 테스트 " + verifyModel + "/" + verifyEffort + " (다음 실행부터 적용, 사용 불가 모델은 opus 로 대체)");
     }
 
-    /** 대상 프로젝트 추가(group/repo). GitLab 에서 조회해 검증·정규화 후 저장, 즉시 스캔. 재시작 불필요. */
+    /** 대상 프로젝트 추가(group/repo). GitHub 에서 조회해 검증·정규화 후 저장, 즉시 스캔. 재시작 불필요. */
     @PostMapping("/api/issues-projects/add")
     public Map<String, Object> issuesProjectAdd(@RequestParam String path) {
         return Map.of("result", issueAgent.addProject(path));
@@ -148,8 +148,8 @@ public class AdminController {
     }
 
     /**
-     * GitLab 이슈 등록(에이전트 화면 "새 이슈"). project 는 대상 프로젝트만. start=true 면 스캔 라벨을 붙이고 바로 큐에 넣는다.
-     * GitLab 에 글을 쓰는 요청이라 다른 사이트 페이지에서 온 것은 막는다.
+     * GitHub 이슈 등록(에이전트 화면 "새 이슈"). project 는 대상 프로젝트만. start=true 면 스캔 라벨을 붙이고 바로 큐에 넣는다.
+     * GitHub 에 글을 쓰는 요청이라 다른 사이트 페이지에서 온 것은 막는다.
      */
     @PostMapping("/api/issues-create")
     public Map<String, Object> issuesCreate(@RequestParam String project, @RequestParam String title,

@@ -1,7 +1,7 @@
 # 05. API 명세서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.6 · 2026-11-25 · 상태: Draft
+> 버전 0.7 · 2026-11-26 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md), [03. 데이터 모델 설계서](./03-data-model.md)
 > 관련 문서: [06. 기능 정의서](./06-functional-specification.md)
 > 기계 판독 명세는 없다. **현행 API의 기준은 `admin/*Controller.java`** 이고, 이 문서는 공통 규칙과 전환으로 바뀌는 목록만 적는다(전수 명세는 범위 밖).
@@ -87,7 +87,7 @@
 | GET | `/api/issues-list?project=` | GitHub 열린 이슈(PR 제외) 50건 + 세션 상태 | FR-306 |
 | POST | `/api/issues-create` | GitHub 이슈 생성. `start=true`면 스캔 라벨 부여 후 큐 등록 | FR-306 |
 | POST | `/api/issues-command` | `cmd` 표기 `owner/repo#n` 또는 이슈 URL(`https://github.com/<owner>/<repo>/issues/<n>`) | FR-303 |
-| GET | `/api/issues`, `/api/agent/**` | 응답 필드 `issueIid` → `issueNumber`, `mrUrl` → `prUrl`, `projectId` 제거(T-011, 화면 수정 T-012와 함께) | FR-305 |
+| GET | `/api/issues`, `/api/agent/**` | 응답 필드 `issueIid` → `issueNumber`, `mrUrl` → `prUrl`, `projectId`·`workId` 제거, 이벤트 `kind` 값 `GITLAB` → `REMOTE`(T-011 완료, 화면 수정 T-012와 함께 커밋). `/api/issues-list` 항목의 `iid` 키는 유지 | FR-305 |
 | GET | `/api/research/branches?project=` | GitHub 브랜치(기본 브랜치 + 최근 갱신 순) | FR-306 |
 
 ### 2.4 Phase 4·5
@@ -110,3 +110,4 @@
 | 2026-11-25 | 0.4 | T-007 착수 전 재확인: §2.2에 `/api/docs-read` 추가(코드 대조), `/api/status`·`/api/mcp-status`를 "유지·T-007에서 확인" → 삭제로 확정(T-008 뒤 호출처 0), T-007 분할에 맞춰 채팅 모델·운영 MCP 행 담당을 T-018로 |
 | 2026-11-25 | 0.5 | T-007 완료(QA PASS): §2.2 이 작업 행(`/api/rooms`·`/api/rooms-config`·`/api/recent`·`/api/docs-*`·`/api/status` 삭제, `/api/messenger-notify` 유형 축소, `/api/platform` 지식 검색 항목 제거)에 완료 표시 |
 | 2026-11-25 | 0.6 | T-018 완료(QA PASS): §1.2 `/api/llm-test` 문장을 삭제 완료로, §2.2 `/api/llm-test`·`/api/mcp-ask`·`/api/mcp-status` 삭제, `/api/mcp-servers` 예약 이름, `/api/platform` 채팅·도구 모델 제거에 완료 표시 |
+| 2026-11-26 | 0.7 | T-011 검수 통과(커밋은 T-012와 묶음): §2.3 `/api/issues`·`/api/agent/**` 행에 `workId` 제거, 이벤트 `kind` `REMOTE`, `/api/issues-list`의 `iid` 유지를 더함 |

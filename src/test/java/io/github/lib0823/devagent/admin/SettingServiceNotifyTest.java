@@ -1,6 +1,6 @@
 package io.github.lib0823.devagent.admin;
 
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -18,7 +18,7 @@ class SettingServiceNotifyTest {
     private static final Set<String> KNOWN = Set.of("issue", "research", "system");
 
     private final SettingMapper mapper = mock(SettingMapper.class);
-    private final SettingService settings = new SettingService(mapper, mock(GitLabProperties.class));
+    private final SettingService settings = new SettingService(mapper, mock(IssueProperties.class));
 
     @Test
     void tc011_storedValueIsReadAsIs() {

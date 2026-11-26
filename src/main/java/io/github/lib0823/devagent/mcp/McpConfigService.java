@@ -3,7 +3,7 @@ package io.github.lib0823.devagent.mcp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import io.github.lib0823.devagent.config.McpProperties;
 import io.github.lib0823.devagent.platform.ChildEnv;
 import org.slf4j.Logger;
@@ -31,7 +31,7 @@ public class McpConfigService {
     private static final Logger log = LoggerFactory.getLogger(McpConfigService.class);
 
     private final McpProperties props;
-    private final GitLabProperties gitlab;
+    private final IssueProperties issueProps;
     private final ObjectMapper json = new ObjectMapper();
 
     private volatile Path configPath;
@@ -41,10 +41,10 @@ public class McpConfigService {
     private final McpServerMapper serverMapper;
     private final org.springframework.core.env.Environment environment;
 
-    public McpConfigService(McpProperties props, GitLabProperties gitlab,
+    public McpConfigService(McpProperties props, IssueProperties issueProps,
                             McpServerMapper serverMapper, org.springframework.core.env.Environment environment) {
         this.props = props;
-        this.gitlab = gitlab;
+        this.issueProps = issueProps;
         this.serverMapper = serverMapper;
         this.environment = environment;
     }
@@ -270,7 +270,7 @@ public class McpConfigService {
     }
 
     private Path workDir() {
-        return Path.of(gitlab.workDir() == null || gitlab.workDir().isBlank() ? "work" : gitlab.workDir()).toAbsolutePath();
+        return Path.of(issueProps.workDir() == null || issueProps.workDir().isBlank() ? "work" : issueProps.workDir()).toAbsolutePath();
     }
 
     /**
@@ -298,7 +298,7 @@ public class McpConfigService {
         for (McpServer s : custom) {
             servers.set(s.getName(), customNode(s));
         }
-        Path dir = Path.of(gitlab.workDir() == null || gitlab.workDir().isBlank() ? "work" : gitlab.workDir()).toAbsolutePath();
+        Path dir = Path.of(issueProps.workDir() == null || issueProps.workDir().isBlank() ? "work" : issueProps.workDir()).toAbsolutePath();
         Files.createDirectories(dir);
         Path file = dir.resolve("mcp-servers.json");
         Files.writeString(file, json.writerWithDefaultPrettyPrinter().writeValueAsString(root), StandardCharsets.UTF_8);

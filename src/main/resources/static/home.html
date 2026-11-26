@@ -61,7 +61,7 @@
           <h2><span class="ic" id="icAgent"></span>이슈 에이전트<span class="sp"></span><a class="more" href="/agent.html">대시보드 열기 <span id="icArrow"></span></a></h2>
           <div id="issueActive"></div>
           <div class="toolbar" style="margin-bottom:8px">
-            <div class="field has-ico"><span class="ico" id="icTerm"></span><input id="issueCmd" placeholder="수동 시작: group/repo#12 · 이슈 URL · 스캔" autocomplete="off"></div>
+            <div class="field has-ico"><span class="ico" id="icTerm"></span><input id="issueCmd" placeholder="수동 시작: owner/repo#12 · 이슈 URL · 스캔" autocomplete="off"></div>
             <button class="btn" onclick="issueCommand()">실행</button>
           </div>
           <div class="sec" style="margin:14px 0 6px"><span>최근 세션</span><span class="n" id="issueCount">0</span></div>
@@ -128,7 +128,7 @@ async function loadHome() {
   // ---- KPI
   $('kpis').innerHTML =
       kpi('진행 중 이슈', `${activeIds.length}<small> / ${(ov && ov.concurrency) || 1}</small>`, ov && !ov.enabled ? '이슈 에이전트 비활성' : (ov && ov.nextRef ? '다음 대기 ' + ov.nextRef : (activeIds.length ? '작업 중' : '유휴')), '/agent.html')
-    + kpi('확인 대기', `${waiting.length}<small> 건</small>`, waiting.length ? waiting.map(s => s.projectPath.split('/').pop() + '#' + s.issueIid).join(', ') : '내 확인을 기다리는 세션 없음', waiting.length ? '/agent.html#s=' + waiting[0].id : '/agent.html', waiting.length > 0)
+    + kpi('확인 대기', `${waiting.length}<small> 건</small>`, waiting.length ? waiting.map(s => s.projectPath.split('/').pop() + '#' + s.issueNumber).join(', ') : '내 확인을 기다리는 세션 없음', waiting.length ? '/agent.html#s=' + waiting[0].id : '/agent.html', waiting.length > 0)
     + kpi('리서치', rs && rs.runningId ? '조사 중' : (rQueued ? `대기 ${rQueued}` : '유휴'), `스레드 ${threads.length}개${rQueued && rs.runningId ? ' · 대기 ' + rQueued : ''}`, '/research.html')
     + kpi('연동', `${ports.length - badPorts.length}<small> / ${ports.length} 정상</small>`, badPorts.length ? badPorts.map(p => p.label).join(', ') + ' 확인 필요' : '메신저 · 코딩 에이전트', '/platform.html', badPorts.some(p => p.status === 'down'))
     + kpi('구독 사용률 (5시간)', plan && plan.fiveHour ? `${Math.round(plan.fiveHour.percent)}<small> %</small>` : (us && us.budget ? `${us.budget.usedPct}<small> % 추정</small>` : '—'), plan && plan.fiveHour ? '리셋 ' + (plan.fiveHour.resetsAtText || '') + (plan.stale ? ' · 이전 값' : '') : '구독 API 를 못 읽어 토큰 합계로 추정', null, plan && plan.fiveHour && plan.fiveHour.percent >= 90)
@@ -137,7 +137,7 @@ async function loadHome() {
   // ---- 주의할 것
   const al = [];
   if (us && us.limit && us.limit.active) al.push(`<div class="callout err"><span class="ic">${I.warn}</span><span><b>Claude 사용량 한도</b> — 리셋(${esc(us.limit.untilText || '?')})까지 새 작업을 시작하지 않습니다. 대기열은 리셋 뒤 자동으로 이어집니다.</span></div>`);
-  waiting.forEach(s => al.push(`<div class="callout warn"><span class="ic">${I.warn}</span><span><b>${esc(KOR[s.state] || s.state)}</b> · ${esc(s.projectPath.split('/').pop())}#${s.issueIid} ${esc(s.issueTitle || '')}</span><a href="/agent.html#s=${s.id}">${s.state === 'DESIGN_WAIT' ? '설계안 검토' : '변경 내용 검토'} ${I.arrow}</a></div>`));
+  waiting.forEach(s => al.push(`<div class="callout warn"><span class="ic">${I.warn}</span><span><b>${esc(KOR[s.state] || s.state)}</b> · ${esc(s.projectPath.split('/').pop())}#${s.issueNumber} ${esc(s.issueTitle || '')}</span><a href="/agent.html#s=${s.id}">${s.state === 'DESIGN_WAIT' ? '설계안 검토' : '변경 내용 검토'} ${I.arrow}</a></div>`));
   badPorts.forEach(p => al.push(`<div class="callout ${p.status === 'down' ? 'err' : 'warn'}"><span class="ic">${I.warn}</span><span><b>${esc(p.label)}</b> (${esc(p.provider)}) — ${esc(p.summary)}</span><a href="/platform.html">연동 확인 ${I.arrow}</a></div>`));
   $('alerts').innerHTML = al.join('');
 

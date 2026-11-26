@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.15 · 2026-11-26 · 상태: Draft
+> 버전 0.17 · 2026-11-26 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -114,7 +114,7 @@ flowchart LR
   | `ACCESS_ALLOWED_ORIGINS` | 신뢰 Origin(쉼표 구분). 루프백은 항상 포함 | 1 |
   | `DEV_AGENT_RUN_MODE` | 실행 방식 표시(`systemd`). unit이 넣는다 | 1 |
   | `DEV_AGENT_SSH` | (개발 PC의 셸에만) 서버 기동 확인 스크립트가 쓰는 SSH 접속 대상. 값은 어디에도 적지 않는다 | 1 |
-  | `GITHUB_TOKEN`, `ISSUE_*` | GitHub 토큰, 이슈 에이전트 설정(`GITLAB_*` 대체) | 3 |
+  | `GITHUB_TOKEN`, `ISSUE_*` | GitHub 토큰, 이슈 에이전트 설정(`GITLAB_*` 대체 — 대응표는 [T-011 변경 설명서](./tasks/results/T-011-이름-정리.md), `GITLAB_CREATE_MR`만 `ISSUE_CREATE_PR`). 옛 `GITLAB_*`는 읽지 않고, 남아 있으면 기동 로그 WARN과 설치 점검 「옛 설정 키」 경고 | 3 |
   | `PLATFORM_MESSENGER`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 메신저 선택, Telegram 봇 토큰·허용 대화 | 4 |
 
   변수 이름의 최종 확정은 해당 작업의 변경 설명서에 적고 PM이 이 표를 갱신한다.
@@ -126,7 +126,7 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 항목 | 값 |
 |---|---|
 | 빌드 | `gradlew.bat bootJar` (JDK 17 toolchain. 첫 실행은 Gradle 배포판 다운로드가 필요하다) |
-| 띄우기 명령 | `bash e2e/scripts/start-app.sh` (jar는 `QA_JAR`, 없으면 `build/libs/dev-agent.jar`). 스크립트가 주는 값: `ADMIN_PORT=8778`·`MAINTAIN_ENABLED=false`·`GITLAB_PROJECTS=qa-group/qa-sample`(가짜 대상 프로젝트 — 루틴 저장에 프로젝트가 필요하다), JVM 인자 `-Duser.home=<작업 디렉터리>/home`(시험용 앱과 그 앱이 홈 아래에 쓰는 Claude CLI 상태를 사용자 홈과 분리). `DB_URL`을 주지 않아 내장 DB를 쓴다 |
+| 띄우기 명령 | `bash e2e/scripts/start-app.sh` (jar는 `QA_JAR`, 없으면 `build/libs/dev-agent.jar`). 스크립트가 주는 값: `ADMIN_PORT=8778`·`MAINTAIN_ENABLED=false`·`ISSUE_PROJECTS=qa-group/qa-sample`(가짜 대상 프로젝트 — 루틴 저장에 프로젝트가 필요하다), JVM 인자 `-Duser.home=<작업 디렉터리>/home`(시험용 앱과 그 앱이 홈 아래에 쓰는 Claude CLI 상태를 사용자 홈과 분리). `DB_URL`을 주지 않아 내장 DB를 쓴다 |
 | 작업 디렉터리 | 기본 `e2e/test-results/qa-home/`(git 제외). 앱은 **현재 디렉터리**를 홈으로 써서 `.env`(틀 자동 생성)·`pgdata-embedded/`·`pg-bin/`·`logs/`·`work/`를 그 안에 만든다 |
 | 준비 확인 URL | `http://127.0.0.1:8778/api/system/status` |
 | 내리기 명령 | `bash e2e/scripts/stop-app.sh` = `POST http://127.0.0.1:8778/api/system/shutdown`(Origin 없는 요청 허용). 앱과 내장 DB가 함께 내려간다(확인됨). 응답이 없으면 프로세스 종료 |
@@ -140,7 +140,9 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 
 주의: 앱은 2.0.0(T-009)부터 `<user.home>/bin`에 심을 쓰지 않는다. 그래도 QA는 `-Duser.home`으로 사용자 홈과 분리한다 — 이 인자를 빼고 띄우지 않는다. QA 실행은 짧게, 에이전트 실행(Claude CLI 호출)을 일으키지 않는 흐름만 다룬다.
 
-이슈 연동을 켠 화면 확인(설치 점검의 GitHub 항목 등)은 그 실행에서만 `qa-run.sh --up` 앞에 `GITLAB_ENABLED=true`(T-011 뒤에는 새 이름)를 붙인다. `start-app.sh` 기본값에는 넣지 않는다 — 핵심 묶음은 이슈 연동을 쓰지 않고, 이 키는 T-011에서 이름이 바뀐다(T-010 qa 제안, 2026-11-26 PM 결정). 토큰은 주지 않고 GitHub API 주소는 닿지 않는 로컬 주소로 둔다(실제 GitHub 호출 금지).
+이슈 연동을 켠 화면 확인(설치 점검의 GitHub 항목 등)은 그 실행에서만 `qa-run.sh --up` 앞에 `ISSUE_ENABLED=true`를 붙인다. `start-app.sh` 기본값에는 넣지 않는다 — 핵심 묶음은 이슈 연동을 쓰지 않는다(T-010 qa 제안, 2026-11-26 PM 결정). 토큰은 주지 않고 GitHub API 주소는 닿지 않는 로컬 주소로 둔다(실제 GitHub 호출 금지).
+
+**이슈 세션 시드 확인**(T-012 qa 제안, 2026-11-26 PM 결정): 세션이 있어야 보이는 화면(세션 목록·PR 링크·이벤트 렌더)은 `ISSUE_ENABLED=true` + 닿지 않는 로컬 GitHub 주소(토큰 없음)로 띄우고, 세션·이벤트는 API가 없어 `e2e/seed/IssueSessions.java`로 내장 DB(54329)에 SQL로 넣는다(JDBC 드라이버는 jar에서 꺼내 `-cp`로, 작업자가 집지 않는 상태만). **핵심 묶음(`@core`)과 같은 실행에서 돌리지 않는다** — TC-006·010·013이 "세션 없음"을 단언하므로 시드가 있으면 앱 결함 없이 실패한다. 순서: 핵심 묶음(시드 없음) → 별도 실행으로 시드 확인. 세션을 쓰는 TC는 `@core`에 넣지 않는다(07 §8 변경 없음).
 
 **지시서 검증 명령에 앱 기동을 넣는 형태** (T-006 검수에서 `start-app.sh && curl …`이 끝나지 않아 인스턴스가 남은 일의 재발 방지): `start-app.sh`는 java를 앞단(`exec`)에서 실행해 끝나지 않는다. 그래서 ① 백그라운드로 띄우고(`(bash e2e/scripts/start-app.sh > e2e/test-results/start-app.out 2>&1 &)`) ② 준비 확인 URL을 상한 있는 반복으로 기다리며(`--max-time` 포함) ③ 확인 뒤 **같은 명령 블록의 마지막 줄에 `bash e2e/scripts/stop-app.sh`를 조건 없이(`;`·새 줄) 둔다**. 기동 뒤의 확인을 `&&`로 잇지 않는다. 한 시점에 8778을 쓰는 실행은 하나뿐이다 — PM 재실행·개발 에이전트·qa가 겹치지 않게 메인 세션이 순서를 잡는다(겹치면 위 거부로 rc=3).
 
@@ -160,7 +162,7 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | Linux 기동 동작 | `~/bin`에 심을 쓰지 않는다(T-009에서 심 전부 제거 — OS 무관). 실행 방식은 `systemd`·`direct` 둘뿐이다. `DEV_AGENT_RUN_MODE=systemd`면 재시작 = 종료 코드 10, 종료 = 0(stop 플래그 파일 없음) — T-001 |
 | 실행 런타임 | 서버에 있는 Temurin JDK 21(앱 대상은 17+). **unit의 `JAVA_HOME`·`PATH`의 JDK·`ExecStart`의 java를 모두 JDK 21로 고정**한다(`OI-29` 결정 ①, 2026-11-25 — 코드 변경 없음). 검증 빌드(`mvn -o -q compile`)와 수정 세션이 봇 JVM의 JDK·PATH의 도구를 쓰므로, Java 21을 요구하는 대상 프로젝트가 JDK 17에서 검사 FAIL → 불필요한 자동 재수정으로 빠지지 않게 한다. 대상 프로젝트가 서로 다른 JDK를 요구하게 되면 프로젝트별 JDK 선택을 따로 기획한다(OI-29 ③). unit 틀·절차서 반영은 T-022 |
 | 대상 저장소 빌드 도구 | `OI-15` 결정 ①(2026-11-25, 사용자): 서버에는 **대상 저장소가 쓰는 도구만** 설치하고(JDK는 위 21, Maven·Gradle·Node 등은 대상 저장소에 따라), 대상 저장소마다 서비스 계정으로 **한 번 빌드해 의존성 캐시를 채운다**(검증 빌드가 `mvn -o` 오프라인이라 캐시가 없으면 FAIL). 절차는 `deploy/README.md`(T-010에서 틀만 — 저장소별 도구 목록은 첫 대상 저장소를 사용자가 정할 때 채운다, **미정**) |
-| GitHub 연동 | 서버 `.env`: `GITHUB_TOKEN`(Fine-grained, 02 D-6), `GITLAB_ENABLED=true`, `GITLAB_PROJECTS=<owner/repo>`(두 키는 T-011에서 이름이 바뀐다 — 대응표는 T-011 변경 설명서). `GITHUB_TRUSTED_AUTHORS_ONLY`는 기본 켜짐 — 끄지 않는다(02 §6, OI-36 ②). 대상 저장소의 git 훅·외부 diff 도구는 실행되지 않는다(`GitRunner` 하드닝 — 서버 쪽 설정 불필요). 설치 점검의 GitHub 항목이 토큰 만료 14일 전부터 경고한다. 실제 동작 확인은 [T-010 변경 설명서](./tasks/results/T-010-github-연동.md) 「사용자가 서버에서 확인할 것」 |
+| GitHub 연동 | 서버 `.env`: `GITHUB_TOKEN`(Fine-grained, 02 D-6), `ISSUE_ENABLED=true`, `ISSUE_PROJECTS=<owner/repo>`(T-011 개명. 기존 설치는 `deploy/README.md` §4 「기존 설치의 `.env` 개명」대로 옛 `GITLAB_*`를 바꾼다 — 안 바꾸면 이슈 에이전트가 꺼진다). `GITHUB_TRUSTED_AUTHORS_ONLY`는 기본 켜짐 — 끄지 않는다(02 §6, OI-36 ②). 대상 저장소의 git 훅·외부 diff 도구는 실행되지 않는다(`GitRunner` 하드닝 — 서버 쪽 설정 불필요). 설치 점검의 GitHub 항목이 토큰 만료 14일 전부터 경고한다. 실제 동작 확인은 [T-010 변경 설명서](./tasks/results/T-010-github-연동.md) 「사용자가 서버에서 확인할 것」 |
 | 산출물 전달 | 개발 PC에서 만든 `dev-agent.jar`를 서버로 복사(기본). 서버 빌드는 Java 17 toolchain이 필요하다 |
 | 접근 경로 | `tailscale serve`(HTTPS **8443** 확정) → `127.0.0.1:8777` |
 | DB | 서버의 기존 공유 PostgreSQL 16(다른 서비스의 compose 소유 컨테이너). 전용 DB + 전용 role(소유자 권한만), 빈 DB로 시작. **호스트 포트를 공개하지 않는다**(OI-18, 2026-11-25). unit의 `ExecStartPre=+`(root)가 `resolve-db.sh`(T-017)로 기동 때 `docker inspect`해 컨테이너(인자 `<DB_CONTAINER>`, 네트워크가 여럿이면 `<DB_NETWORK>`)의 주소를 얻고 `DB_URL`(`jdbc:postgresql://<조회한 주소>:5432/<전용 DB>`)을 `/run/dev-agent/db.env`에 쓴다. 입력은 인자로만 줘서 java와 그 자식(에이전트·빌드) 환경에 `DB_CONTAINER`·`DB_NAME`이 남지 않는다. 서비스 계정은 docker 그룹이 필요 없다. 서버 `.env`에는 `DB_URL`을 두지 않는다(`DB_USERNAME`·`DB_PASSWORD`만, 있으면 거부). 조회 실패 = 기동 실패(java를 띄우지 않으므로 내장 DB로 뜨지 않는다): 컨테이너가 안 떴으면 60초 기다린 뒤 종료 코드 3으로 끝나 계속 재시도, 설정 오류(이름 오타·권한·형식·`.env`의 `DB_URL`)는 종료 코드 2로 즉시 끝나 약 25초 뒤 `start-limit-hit`으로 멈춘다(`RestartPreventExitStatus`는 `ExecStartPre`에 적용되지 않아 쓰지 않는다 — 서버 systemd 255 확인). DB 컨테이너가 다시 만들어져 주소가 바뀌면 앱을 재시작한다. 커넥션 풀 5 유지 |
@@ -190,3 +192,5 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-25 | 0.13 | OI-15 결정 ①: §9에 대상 저장소 빌드 도구(쓰는 도구만 설치, 저장소마다 한 번 빌드해 캐시 채움, 도구 목록 미정) |
 | 2026-11-26 | 0.14 | T-010 완료(2.1.0): §5 버전 이력(2.0.x 전환 중, 2.1.0 GitHub 연동, T-011 개명 가정 — OI-39), §8 이슈 연동 화면 확인의 환경값(기본값에 넣지 않음), §9 GitHub 연동 행(`.env` 키, 신뢰 작성자 한정, git 하드닝, 만료 경고) |
 | 2026-11-26 | 0.15 | OI-39 결정 ①+③: §5 T-011 개명 버전을 가정에서 결정(2.2.0, T-011·T-012 묶음 커밋 때, 서버 첫 반영은 그 뒤)으로 |
+| 2026-11-26 | 0.16 | T-011 검수(모드 C): §7 환경변수 `ISSUE_*` 대응표 링크·옛 키 경고, §8 `start-app.sh`·이슈 연동 확인의 키를 `ISSUE_PROJECTS`·`ISSUE_ENABLED`로, §9 GitHub 연동 행의 `.env` 키와 기존 설치 개명 안내 |
+| 2026-11-26 | 0.17 | T-012 완료(qa 제안): §8에 이슈 세션 시드 확인 방법(`ISSUE_ENABLED=true`·로컬 GitHub 주소, `e2e/seed/IssueSessions.java`, 핵심 묶음과 따로 실행) |

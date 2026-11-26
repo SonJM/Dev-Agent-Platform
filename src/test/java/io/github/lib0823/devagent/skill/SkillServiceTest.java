@@ -1,7 +1,7 @@
 package io.github.lib0823.devagent.skill;
 
 import io.github.lib0823.devagent.admin.SettingService;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -48,14 +48,14 @@ class SkillServiceTest {
     @Test
     void promptNoteFiltersByStageAndInlinesShortBodies(@TempDir Path tmp) throws Exception {
         AgentSkillMapper mapper = mock(AgentSkillMapper.class);
-        GitLabProperties gitlab = mock(GitLabProperties.class);
-        when(gitlab.workDir()).thenReturn(tmp.toString());
+        IssueProperties issueProps = mock(IssueProperties.class);
+        when(issueProps.workDir()).thenReturn(tmp.toString());
         AgentSkill shortFix = skill("short-fix", "수정할 때", "짧은 지침", "fix");
         AgentSkill longAll = skill("long-all", "항상", "가".repeat(SkillService.INLINE_MAX + 1), null);
         AgentSkill off = skill("off", "꺼짐", "x", "fix");
         off.setEnabled(false);
         when(mapper.findAll()).thenReturn(List.of(shortFix, longAll, off));
-        SkillService svc = new SkillService(mapper, gitlab, mock(SettingService.class));
+        SkillService svc = new SkillService(mapper, issueProps, mock(SettingService.class));
         svc.init();
 
         String fix = svc.promptNote("fix");
@@ -69,7 +69,7 @@ class SkillServiceTest {
         assertTrue(research.contains("long-all"));                                      // 단계 미지정 = 전 단계
 
         assertTrue(Files.readString(svc.file("long-all")).startsWith("---\nname: long-all"));
-        assertEquals("", new SkillService(mock(AgentSkillMapper.class), gitlab, mock(SettingService.class)).promptNote("fix"));
+        assertEquals("", new SkillService(mock(AgentSkillMapper.class), issueProps, mock(SettingService.class)).promptNote("fix"));
     }
 
     @Test
@@ -90,19 +90,19 @@ class SkillServiceTest {
     @Test
     void seedsDefaultsOnlyOnce(@TempDir Path tmp) {
         AgentSkillMapper mapper = mock(AgentSkillMapper.class);
-        GitLabProperties gitlab = mock(GitLabProperties.class);
-        when(gitlab.workDir()).thenReturn(tmp.toString());
+        IssueProperties issueProps = mock(IssueProperties.class);
+        when(issueProps.workDir()).thenReturn(tmp.toString());
         when(mapper.insertIfAbsent(any())).thenReturn(1);
         SettingService settings = mock(SettingService.class);
         int n = DefaultSkills.all().size();
 
-        new SkillService(mapper, gitlab, settings).init();                  // 첫 기동: 심고 표시를 남긴다
+        new SkillService(mapper, issueProps, settings).init();                  // 첫 기동: 심고 표시를 남긴다
         verify(mapper, times(n)).insertIfAbsent(any());
         verify(settings).setRaw(SkillService.SEEDED_KEY, "1");
         verify(mapper, never()).upsert(any());                              // 덮어쓰기(upsert)로 심지 않는다
 
         when(settings.getRaw(SkillService.SEEDED_KEY)).thenReturn("1");     // 다음 기동: 지운 스킬을 되살리지 않는다
-        SkillService again = new SkillService(mapper, gitlab, settings);
+        SkillService again = new SkillService(mapper, issueProps, settings);
         again.init();
         verify(mapper, times(n)).insertIfAbsent(any());
 

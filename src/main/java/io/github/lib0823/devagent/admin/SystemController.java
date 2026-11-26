@@ -1,8 +1,8 @@
 package io.github.lib0823.devagent.admin;
 
 import io.github.lib0823.devagent.boot.Bootstrap;
-import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.gitlab.IssueAgentService;
+import io.github.lib0823.devagent.config.IssueProperties;
+import io.github.lib0823.devagent.issue.IssueAgentService;
 import io.github.lib0823.devagent.maintain.MaintainService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.ops.Doctor;
@@ -43,19 +43,19 @@ public class SystemController {
     private final ResearchService research;
     private final MaintainService maintain;
     private final MessengerService messenger;
-    private final GitLabProperties gitlab;
+    private final IssueProperties issueProps;
     private final Doctor doctor;
     private final String version;
 
     public SystemController(ConfigurableApplicationContext ctx, IssueAgentService issues, ResearchService research, MaintainService maintain,
                             MessengerService messenger,
-                            GitLabProperties gitlab, Doctor doctor, ObjectProvider<BuildProperties> build) {
+                            IssueProperties issueProps, Doctor doctor, ObjectProvider<BuildProperties> build) {
         this.ctx = ctx;
         this.issues = issues;
         this.research = research;
         this.maintain = maintain;
         this.messenger = messenger;
-        this.gitlab = gitlab;
+        this.issueProps = issueProps;
         this.doctor = doctor;
         BuildProperties b = build.getIfAvailable();
         this.version = b == null ? "dev" : b.getVersion();
@@ -76,8 +76,8 @@ public class SystemController {
         m.put("busy", busyCount());
         // 첫 실행 길잡이: 아직 채우지 않은 핵심 설정
         List<String> setup = new ArrayList<>();
-        if (!gitlab.enabled()) {
-            setup.add("GitLab 연결(이슈 에이전트·질의)");
+        if (!issueProps.enabled()) {
+            setup.add("GitHub 연결(이슈 에이전트·질의)");
         }
         if ("none".equals(messenger.provider())) {
             setup.add("메신저 연결(선택)");

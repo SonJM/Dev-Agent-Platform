@@ -2,10 +2,10 @@ package io.github.lib0823.devagent.command;
 
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.admin.SettingService;
-import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.gitlab.IssueAgentService;
-import io.github.lib0823.devagent.gitlab.IssueAgentService.ReplyOutcome;
-import io.github.lib0823.devagent.gitlab.IssueNotifier;
+import io.github.lib0823.devagent.config.IssueProperties;
+import io.github.lib0823.devagent.issue.IssueAgentService;
+import io.github.lib0823.devagent.issue.IssueAgentService.ReplyOutcome;
+import io.github.lib0823.devagent.issue.IssueNotifier;
 import io.github.lib0823.devagent.notify.NotificationService;
 import io.github.lib0823.devagent.research.ResearchService;
 import org.junit.jupiter.api.BeforeEach;
@@ -146,7 +146,7 @@ class MessengerCommandRouterTest {
     void tc011_noticeOffSkipsMessengerButKeepsNotificationBox() {
         when(settings.getMessengerNotifyOff()).thenReturn(Set.of(MessengerService.NOTICE_ISSUE));
         NotificationService box = mock(NotificationService.class);
-        IssueNotifier notifier = new IssueNotifier(mock(GitLabProperties.class, RETURNS_DEEP_STUBS),
+        IssueNotifier notifier = new IssueNotifier(mock(IssueProperties.class, RETURNS_DEEP_STUBS),
                 messenger, null, null, box);
 
         notifier.sendSelf("[이슈] 확인 대기");

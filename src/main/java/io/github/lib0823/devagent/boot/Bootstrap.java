@@ -46,7 +46,10 @@ public final class Bootstrap {
             writeTemplate(envFile);
         }
         Map<String, String> env = readEnv(envFile);
-
+        String legacyWarning = LegacyEnvKeys.warning(LegacyEnvKeys.find(env, System.getenv()));
+        if (legacyWarning != null) {
+            say("WARN " + legacyWarning);
+        }
 
         String url = val(env, "DB_URL");
         String user = val(env, "DB_USERNAME");

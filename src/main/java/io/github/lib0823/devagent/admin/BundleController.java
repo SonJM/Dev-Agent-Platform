@@ -106,7 +106,7 @@ public class BundleController {
         st.put("verifyEffort", am.verifyEffort());
         st.put("subagents", settings.getAgentSubagents());
         st.put("teams", settings.getAgentTeams());
-        st.put("projects", settings.getGitLabProjects());
+        st.put("projects", settings.getIssueProjects());
         out.put("settings", st);
 
         return ResponseEntity.ok()
@@ -212,14 +212,14 @@ public class BundleController {
         }
         // 대상 프로젝트는 합친다(이 PC 에만 있는 프로젝트를 지우지 않는다). 형식만 확인 — 존재 여부는 스캔 때 드러난다.
         if (st.path("projects").isArray()) {
-            List<String> merged = new ArrayList<>(settings.getGitLabProjects());
+            List<String> merged = new ArrayList<>(settings.getIssueProjects());
             for (JsonNode p : st.path("projects")) {
                 String path = p.asText("").strip();
                 if (path.matches("[\\w.-]+(/[\\w.-]+)+") && !merged.contains(path)) {
                     merged.add(path);
                 }
             }
-            settings.setGitLabProjects(merged);
+            settings.setIssueProjects(merged);
         }
     }
 

@@ -1,6 +1,6 @@
 package io.github.lib0823.devagent.ops;
 
-import io.github.lib0823.devagent.config.BotProperties;
+import io.github.lib0823.devagent.config.PlatformProperties;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.notify.NotificationService;
 import org.slf4j.Logger;
@@ -25,11 +25,11 @@ public class AlertService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final MessengerService client;
-    private final BotProperties bot;
+    private final PlatformProperties bot;
     private final NotificationService notifications;
     private volatile long lastAlertMs = 0L;
 
-    public AlertService(MessengerService client, BotProperties bot, NotificationService notifications) {
+    public AlertService(MessengerService client, PlatformProperties bot, NotificationService notifications) {
         this.notifications = notifications;
         this.client = client;
         this.bot = bot;

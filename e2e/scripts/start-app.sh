@@ -18,9 +18,9 @@ mkdir -p "$HOME_DIR"
 rm -rf "$HOME_DIR/pgdata-embedded"
 cd "$HOME_DIR"
 export ADMIN_PORT=$PORT MAINTAIN_ENABLED=false
-# One fake target project so the routine screens work without GitLab
-# (adding a project through the UI needs a real GitLab).
-export GITLAB_PROJECTS=qa-group/qa-sample
+# One fake target project so the routine screens work without GitHub
+# (adding a project through the UI needs a real GitHub).
+export ISSUE_PROJECTS=qa-group/qa-sample
 unset DB_URL
 # user.home is redirected so the test app (and any Claude CLI state it writes under the
 # home directory) stays isolated from the real user's home.

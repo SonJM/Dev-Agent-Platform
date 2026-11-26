@@ -17,7 +17,7 @@ const SKILL_DESC_MAX = 300;
 const SKILL_BODY_MAX = 40_000;
 const ROUTINE_NAME_MAX = 80;
 const ROUTINE_QUESTION_MAX = 4_000;
-// Must equal GITLAB_PROJECTS in scripts/start-app.sh (the routine API does not check it).
+// Must equal ISSUE_PROJECTS in scripts/start-app.sh (the routine API does not check it).
 const SEED_PROJECT = 'qa-group/qa-sample';
 const WORDS = ['배포', '점검', '검토', '정리', '요청', '확인', '보고', '일정'] as const;
 const DAY_SETS = ['', 'MON,TUE,WED,THU,FRI', 'SAT,SUN', 'MON,WED,FRI'] as const;

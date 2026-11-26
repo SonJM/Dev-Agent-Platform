@@ -4,47 +4,45 @@ DROP TABLE IF EXISTS bot_setting;
 DROP TABLE IF EXISTS issue_event;
 DROP TABLE IF EXISTS issue_session;
 
--- 런타임 설정 (관리 페이지에서 편집 → 재시작 없이 반영). 예: gitlab_projects
+-- 런타임 설정 (관리 페이지에서 편집 → 재시작 없이 반영). 예: projects
 CREATE TABLE bot_setting (
     key         VARCHAR(64)  PRIMARY KEY,
     value       TEXT,
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- GitLab 이슈 수정 에이전트 세션 (이슈 1건 = 1행). 상태: NEW → ANALYZING → DESIGN_WAIT → FIXING → REVIEW_WAIT → PUSHING → DONE (ABORTED/FAILED)
+-- GitHub 이슈 수정 에이전트 세션 (이슈 1건 = 1행). 상태: NEW → ANALYZING → DESIGN_WAIT → FIXING → REVIEW_WAIT → PUSHING → DONE (ABORTED/FAILED)
 -- 앱 기동 시 IssueSessionMapper.ensureTable() 로도 멱등 생성되므로 기존 DB 에도 자동 추가된다.
 CREATE TABLE issue_session (
     id                     BIGSERIAL    PRIMARY KEY,
     project_path           TEXT         NOT NULL,          -- "group/repo"
-    project_id             BIGINT       NOT NULL,
-    issue_iid              BIGINT       NOT NULL,
+    issue_number           BIGINT       NOT NULL,
     issue_title            TEXT,
     issue_url              TEXT,
     default_branch         TEXT,
     state                  VARCHAR(16)  NOT NULL,
     claude_session_id      TEXT,                           -- claude -p --session-id/--resume (이슈당 1세션)
-    branch_name            TEXT,                           -- ai/issue-<iid>-<slug>
+    branch_name            TEXT,                           -- ai/issue-<number>-<slug>
     design_text            TEXT,                           -- 마지막 설계안
     change_summary         TEXT,                           -- 마지막 변경 요약/검증/커밋 메시지
     commit_sha             TEXT,
-    mr_url                 TEXT,
+    pr_url                 TEXT,
     last_error             TEXT,
     feedback_rounds        INT          NOT NULL DEFAULT 0,
     verify_rounds          INT          NOT NULL DEFAULT 0,  -- 검증 실행 횟수(자동 재수정 포함)
     verify_result          TEXT,                             -- 마지막 검증 보고(봇 검사 + 리뷰어 판정)
     work_type              VARCHAR(16),                      -- 컨벤션 작업 유형 = 브랜치 접두어(feature/fix/refactor/doc/hotfix)
-    work_id                VARCHAR(64),                      -- 일감번호(이슈 제목의 Redmine 번호, 없으면 issue-<iid>)
     base_branch            TEXT,                             -- 작업트리 기준 브랜치(develop / hotfix 는 main)
     created_at             TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at             TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    UNIQUE (project_path, issue_iid)
+    UNIQUE (project_path, issue_number)
 );
 
 -- 이슈 세션 타임라인/활동 로그 (모니터 화면 /agent.html 원천; 기동 시 멱등 생성)
 CREATE TABLE issue_event (
     id          BIGSERIAL    PRIMARY KEY,
     session_id  BIGINT       NOT NULL,                      -- issue_session.id
-    kind        VARCHAR(16)  NOT NULL,                      -- STATE|INFO|REPLY|CLAUDE|TOOL|TOOL_RESULT|TEXT|GIT|GITLAB|ERROR
+    kind        VARCHAR(16)  NOT NULL,                      -- STATE|INFO|REPLY|CLAUDE|TOOL|TOOL_RESULT|TEXT|GIT|REMOTE|ERROR
     message     TEXT,                                       -- 한 줄 요약
     detail      TEXT,                                       -- 프롬프트/출력/diff 등 긴 본문
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
@@ -89,7 +87,7 @@ CREATE TABLE IF NOT EXISTS research_job (
     verify             BOOLEAN      NOT NULL DEFAULT false, -- 2차 검증 수행 여부
     verify_state       VARCHAR(16),                      -- PASS / FIXED / FAIL / SKIPPED
     verify_md          TEXT,                             -- 검증자 보고서
-    kind               VARCHAR(16)  NOT NULL DEFAULT 'doc', -- 결과 형식: doc(조사 문서) / issue(GitLab 이슈 초안)
+    kind               VARCHAR(16)  NOT NULL DEFAULT 'doc', -- 결과 형식: doc(조사 문서) / issue(GitHub 이슈 초안)
     attachments        TEXT,                             -- 첨부 이미지 이름(쉼표 구분). 파일은 작업 디렉터리 research-attach/<id>/
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
     started_at         TIMESTAMPTZ,

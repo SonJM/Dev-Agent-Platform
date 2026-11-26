@@ -279,7 +279,7 @@ async function loadIssues() {
   UI.setAgentChip(d);
   window.LAST_OVERVIEW = { at: Date.now(), data: d };   // 홈 화면이 같은 응답을 다시 쓴다
   const act = $('issueActive');
-  if (!d.enabled) { act.innerHTML = `<div class="callout err"><span class="ic">${I.warn}</span><span>이슈 에이전트가 비활성 상태입니다 (GITLAB_ENABLED=false).</span></div>`; $('issueRecent').innerHTML=''; return; }
+  if (!d.enabled) { act.innerHTML = `<div class="callout err"><span class="ic">${I.warn}</span><span>이슈 에이전트가 비활성 상태입니다 (ISSUE_ENABLED=false).</span></div>`; $('issueRecent').innerHTML=''; return; }
   const activeIds = d.activeIds || (d.activeId != null ? [d.activeId] : []);
   const busyIds = d.busyIds || [];
   const actives = activeIds.map(id => (d.sessions||[]).find(x => x.id === id)).filter(Boolean);
@@ -298,7 +298,7 @@ async function loadIssues() {
       const waiting = s.state==='DESIGN_WAIT'||s.state==='REVIEW_WAIT'; const cur = ORDER[s.state]; const busy = busyIds.includes(s.id);
       const dots = ['ANALYZING','DESIGN_WAIT','FIXING','VERIFYING','REVIEW_WAIT','PUSHING','DONE'].map(k => { const o=ORDER[k]; return `<i class="${o<cur?'d':o===cur?(waiting?'w':'c'):''}"></i>`; }).join('');
       return `<div class="active ${waiting?'wait':'run'}" data-id="${s.id}"><div class="in">
-      <div class="ref"><span class="badge ${cls(s.state)}">${busy?'작업 중 · ':''}${KOR[s.state]}</span><span>${esc(s.projectPath)}#${s.issueIid}</span>${s.feedbackRounds?`<span style="color:var(--muted)">피드백 ${s.feedbackRounds}</span>`:''}</div>
+      <div class="ref"><span class="badge ${cls(s.state)}">${busy?'작업 중 · ':''}${KOR[s.state]}</span><span>${esc(s.projectPath)}#${s.issueNumber}</span>${s.feedbackRounds?`<span style="color:var(--muted)">피드백 ${s.feedbackRounds}</span>`:''}</div>
       <div class="ttl">${esc(s.issueTitle)}</div>
       <div class="dots">${dots}<span>${ago(s.updatedAt)}</span></div>
       <div class="row" style="flex-wrap:wrap">
@@ -311,7 +311,7 @@ async function loadIssues() {
   }
   const list = (d.sessions||[]).filter(x => !activeIds.includes(x.id)).slice(0,6);
   $('issueCount').textContent = (d.sessions||[]).length;
-  $('issueRecent').innerHTML = list.map(x => `<a class="sess" href="/agent.html#s=${x.id}"><span class="badge ${cls(x.state)}">${KOR[x.state]||x.state}</span><span class="ref">${esc(x.projectPath.split('/').pop())}#${x.issueIid}</span><span class="ttl" title="${esc(x.issueTitle)}">${esc(x.issueTitle)}</span><span class="when">${ago(x.updatedAt)}</span></a>`).join('')
+  $('issueRecent').innerHTML = list.map(x => `<a class="sess" href="/agent.html#s=${x.id}"><span class="badge ${cls(x.state)}">${KOR[x.state]||x.state}</span><span class="ref">${esc(x.projectPath.split('/').pop())}#${x.issueNumber}</span><span class="ttl" title="${esc(x.issueTitle)}">${esc(x.issueTitle)}</span><span class="when">${ago(x.updatedAt)}</span></a>`).join('')
     || '<div class="md-empty">세션 이력이 없습니다.</div>';
 }
 async function issueReply(text, sessionId) {

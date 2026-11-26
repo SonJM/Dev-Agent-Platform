@@ -1,0 +1,286 @@
+{
+  "config": {
+    "argv": [
+      "C:\\nvm4w\\nodejs\\node.exe",
+      "<repo>\\e2e\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--grep",
+      "@task:T-012",
+      "--output",
+      "<repo>/docs/tasks/results/T-012-qa/task/artifacts"
+    ],
+    "configFile": "<repo>\\e2e\\playwright.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/tasks/results/T-012-qa/task/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "core/**/*.spec.ts",
+          "tasks/**/*.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "<repo>\\docs\\tasks\\results\\T-012-qa\\task\\artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "chromium",
+        "testDir": "<repo>\\e2e",
+        "snapshotDir": "<repo>\\e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "core/**/*.spec.ts",
+          "tasks/**/*.spec.ts"
+        ],
+        "timeout": 60000,
+        "use": {
+          "baseURL": "http://127.0.0.1:8778",
+          "screenshot": "on",
+          "trace": "retain-on-failure",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.8127.18 Safari/537.36",
+          "screen": {
+            "width": 1920,
+            "height": 1080
+          },
+          "deviceScaleFactor": 1,
+          "isMobile": false,
+          "hasTouch": false,
+          "defaultBrowserType": "chromium"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": "chromium"
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/tasks/results/T-012-qa/task/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.65.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "tasks\\T-012.spec.ts",
+      "file": "tasks/T-012.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-T012-1 에이전트 화면: 세션 목록 issueNumber·PR 배지, 상세 이슈·PR 링크",
+          "ok": false,
+          "tags": [
+            "task:T-012"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 11999,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).not.\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#detail')\nExpected pattern: not \u001b[32m/MR/\u001b[39m\nReceived string: \u001b[31m\"\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          qa-group/qa-sample이슈 #9002리뷰 확인 대기\u001b[39m\n\u001b[31m          변경 확인 대기 이슈 PR 있음\u001b[39m\n\u001b[31m          이슈fix/9002Pull Request\u001b[39m\n\u001b[31m          경과20s피드백1회Claude 실행0회도구 호출1회토큰—시작11. 26. 08:59\u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        ✓분석✓설계 확인✓코드 수정✓검증5리뷰 확인6푸시 · PR7완료opus · 리뷰 확인 대기\u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  z\u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m            변경 내용을 확인해 주세요. 「진행」이면 컨벤션 브랜치(fix/일감번호 등)로 커밋·푸시하고 Draft \u001b[7mMR\u001b[27m을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m              진행\u001b[39m\n\u001b[31m              피드백 보내기 ⏎\u001b[39m\n\u001b[31m              중단\u001b[39m\n\u001b[31m              동시 진행 중: 자기방에서는 「repo#1 진행」처럼 대상을 앞에 붙여 답합니다\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          활동 로그 10\u001b[39m\n\u001b[31m          설계안\u001b[39m\n\u001b[31m          변경 요약\u001b[39m\n\u001b[31m          검증 \u001b[39m\n\u001b[31m          Diff\u001b[39m\n\u001b[31m          서브 에이전트 \u001b[39m\n\u001b[31m          타임라인 7\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m             도구 호출\u001b[39m\n\u001b[31m             중간 텍스트\u001b[39m\n\u001b[31m             도구 결과\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m             자동 스크롤\u001b[39m\n\u001b[31m            줄을 클릭하면 상세를 펼칩니다\u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m          10:59:42⇢이벤트 STATE10:59:42ℹ이벤트 INFO10:59:42💬이벤트 REPLY10:59:42✦이벤트 CLAUDE10:59:42›이벤트 TOOL10:59:42↳이벤트 TOOL_RESULT10:59:42…이벤트 TEXT10:59:42⎇이벤트 GIT10:59:42⬡원격 이벤트 REMOTE10:59:42✖이벤트 ERROR\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        아직 설계안이 없습니다. 분석이 끝나면 여기에 표시됩니다.\u001b[39m\n\u001b[31m        아직 변경 요약이 없습니다. 코드 수정이 끝나면 표시됩니다.\u001b[39m\n\u001b[31m        아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m          이 세션은 서브 에이전트를 띄우지 않았습니다.\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m      11. 26. 10:59STATE이벤트 STATE\u001b[39m\n\u001b[31m      11. 26. 10:59INFO이벤트 INFO\u001b[39m\n\u001b[31m      11. 26. 10:59REPLY이벤트 REPLY\u001b[39m\n\u001b[31m      11. 26. 10:59CLAUDE이벤트 CLAUDE\u001b[39m\n\u001b[31m      11. 26. 10:59GIT이벤트 GIT\u001b[39m\n\u001b[31m      11. 26. 10:59REMOTE원격 이벤트 REMOTE\u001b[39m\n\u001b[31m      11. 26. 10:59ERROR이벤트 ERROR\u001b[39m\n\u001b[31m      \"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"soft not toContainText\" locator('#detail') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#detail')\u001b[22m\n\u001b[2m    13 × locator resolved to <div id=\"detail\" class=\"swap-in\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          qa-group/qa-sample이슈 #9002리뷰 확인 대기\u001b[22m\n\u001b[2m          변경 확인 대기 이슈 PR 있음\u001b[22m\n\u001b[2m          이슈fix/9002Pull Request\u001b[22m\n\u001b[2m          경과20s피드백1회Claude 실행0회도구 호출1회토큰—시작11. 26. 08:59\u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        ✓분석✓설계 확인✓코드 수정✓검증5리뷰 확인6푸시 · PR7완료opus · 리뷰 확인 대기\u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  z\u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m            변경 내용을 확인해 주세요. 「진행」이면 컨벤션 브랜치(fix/일감번호 등)로 커밋·푸시하고 Draft MR을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m              진행\u001b[22m\n\u001b[2m              피드백 보내기 ⏎\u001b[22m\n\u001b[2m              중단\u001b[22m\n\u001b[2m              동시 진행 중: 자기방에서는 「repo#1 진행」처럼 대상을 앞에 붙여 답합니다\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          활동 로그 10\u001b[22m\n\u001b[2m          설계안\u001b[22m\n\u001b[2m          변경 요약\u001b[22m\n\u001b[2m          검증 \u001b[22m\n\u001b[2m          Diff\u001b[22m\n\u001b[2m          서브 에이전트 \u001b[22m\n\u001b[2m          타임라인 7\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m             도구 호출\u001b[22m\n\u001b[2m             중간 텍스트\u001b[22m\n\u001b[2m             도구 결과\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m             자동 스크롤\u001b[22m\n\u001b[2m            줄을 클릭하면 상세를 펼칩니다\u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m          10:59:42⇢이벤트 STATE10:59:42ℹ이벤트 INFO10:59:42💬이벤트 REPLY10:59:42✦이벤트 CLAUDE10:59:42›이벤트 TOOL10:59:42↳이벤트 TOOL_RESULT10:59:42…이벤트 TEXT10:59:42⎇이벤트 GIT10:59:42⬡원격 이벤트 REMOTE10:59:42✖이벤트 ERROR\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        아직 설계안이 없습니다. 분석이 끝나면 여기에 표시됩니다.\u001b[22m\n\u001b[2m        아직 변경 요약이 없습니다. 코드 수정이 끝나면 표시됩니다.\u001b[22m\n\u001b[2m        아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m          이 세션은 서브 에이전트를 띄우지 않았습니다.\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m      11. 26. 10:59STATE이벤트 STATE\u001b[22m\n\u001b[2m      11. 26. 10:59INFO이벤트 INFO\u001b[22m\n\u001b[2m      11. 26. 10:59REPLY이벤트 REPLY\u001b[22m\n\u001b[2m      11. 26. 10:59CLAUDE이벤트 CLAUDE\u001b[22m\n\u001b[2m      11. 26. 10:59GIT이벤트 GIT\u001b[22m\n\u001b[2m      11. 26. 10:59REMOTE원격 이벤트 REMOTE\u001b[22m\n\u001b[2m      11. 26. 10:59ERROR이벤트 ERROR\u001b[22m\n\u001b[2m      \"\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).not.\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#detail')\nExpected pattern: not \u001b[32m/MR/\u001b[39m\nReceived string: \u001b[31m\"\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          qa-group/qa-sample이슈 #9002리뷰 확인 대기\u001b[39m\n\u001b[31m          변경 확인 대기 이슈 PR 있음\u001b[39m\n\u001b[31m          이슈fix/9002Pull Request\u001b[39m\n\u001b[31m          경과20s피드백1회Claude 실행0회도구 호출1회토큰—시작11. 26. 08:59\u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        ✓분석✓설계 확인✓코드 수정✓검증5리뷰 확인6푸시 · PR7완료opus · 리뷰 확인 대기\u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  z\u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m            변경 내용을 확인해 주세요. 「진행」이면 컨벤션 브랜치(fix/일감번호 등)로 커밋·푸시하고 Draft \u001b[7mMR\u001b[27m을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m              진행\u001b[39m\n\u001b[31m              피드백 보내기 ⏎\u001b[39m\n\u001b[31m              중단\u001b[39m\n\u001b[31m              동시 진행 중: 자기방에서는 「repo#1 진행」처럼 대상을 앞에 붙여 답합니다\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          활동 로그 10\u001b[39m\n\u001b[31m          설계안\u001b[39m\n\u001b[31m          변경 요약\u001b[39m\n\u001b[31m          검증 \u001b[39m\n\u001b[31m          Diff\u001b[39m\n\u001b[31m          서브 에이전트 \u001b[39m\n\u001b[31m          타임라인 7\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m             도구 호출\u001b[39m\n\u001b[31m             중간 텍스트\u001b[39m\n\u001b[31m             도구 결과\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m             자동 스크롤\u001b[39m\n\u001b[31m            줄을 클릭하면 상세를 펼칩니다\u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m          10:59:42⇢이벤트 STATE10:59:42ℹ이벤트 INFO10:59:42💬이벤트 REPLY10:59:42✦이벤트 CLAUDE10:59:42›이벤트 TOOL10:59:42↳이벤트 TOOL_RESULT10:59:42…이벤트 TEXT10:59:42⎇이벤트 GIT10:59:42⬡원격 이벤트 REMOTE10:59:42✖이벤트 ERROR\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        아직 설계안이 없습니다. 분석이 끝나면 여기에 표시됩니다.\u001b[39m\n\u001b[31m        아직 변경 요약이 없습니다. 코드 수정이 끝나면 표시됩니다.\u001b[39m\n\u001b[31m        아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m          이 세션은 서브 에이전트를 띄우지 않았습니다.\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m      11. 26. 10:59STATE이벤트 STATE\u001b[39m\n\u001b[31m      11. 26. 10:59INFO이벤트 INFO\u001b[39m\n\u001b[31m      11. 26. 10:59REPLY이벤트 REPLY\u001b[39m\n\u001b[31m      11. 26. 10:59CLAUDE이벤트 CLAUDE\u001b[39m\n\u001b[31m      11. 26. 10:59GIT이벤트 GIT\u001b[39m\n\u001b[31m      11. 26. 10:59REMOTE원격 이벤트 REMOTE\u001b[39m\n\u001b[31m      11. 26. 10:59ERROR이벤트 ERROR\u001b[39m\n\u001b[31m      \"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"soft not toContainText\" locator('#detail') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#detail')\u001b[22m\n\u001b[2m    13 × locator resolved to <div id=\"detail\" class=\"swap-in\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          qa-group/qa-sample이슈 #9002리뷰 확인 대기\u001b[22m\n\u001b[2m          변경 확인 대기 이슈 PR 있음\u001b[22m\n\u001b[2m          이슈fix/9002Pull Request\u001b[22m\n\u001b[2m          경과20s피드백1회Claude 실행0회도구 호출1회토큰—시작11. 26. 08:59\u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        ✓분석✓설계 확인✓코드 수정✓검증5리뷰 확인6푸시 · PR7완료opus · 리뷰 확인 대기\u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  z\u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m            변경 내용을 확인해 주세요. 「진행」이면 컨벤션 브랜치(fix/일감번호 등)로 커밋·푸시하고 Draft MR을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m              진행\u001b[22m\n\u001b[2m              피드백 보내기 ⏎\u001b[22m\n\u001b[2m              중단\u001b[22m\n\u001b[2m              동시 진행 중: 자기방에서는 「repo#1 진행」처럼 대상을 앞에 붙여 답합니다\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          활동 로그 10\u001b[22m\n\u001b[2m          설계안\u001b[22m\n\u001b[2m          변경 요약\u001b[22m\n\u001b[2m          검증 \u001b[22m\n\u001b[2m          Diff\u001b[22m\n\u001b[2m          서브 에이전트 \u001b[22m\n\u001b[2m          타임라인 7\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m             도구 호출\u001b[22m\n\u001b[2m             중간 텍스트\u001b[22m\n\u001b[2m             도구 결과\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m             자동 스크롤\u001b[22m\n\u001b[2m            줄을 클릭하면 상세를 펼칩니다\u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m          10:59:42⇢이벤트 STATE10:59:42ℹ이벤트 INFO10:59:42💬이벤트 REPLY10:59:42✦이벤트 CLAUDE10:59:42›이벤트 TOOL10:59:42↳이벤트 TOOL_RESULT10:59:42…이벤트 TEXT10:59:42⎇이벤트 GIT10:59:42⬡원격 이벤트 REMOTE10:59:42✖이벤트 ERROR\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        아직 설계안이 없습니다. 분석이 끝나면 여기에 표시됩니다.\u001b[22m\n\u001b[2m        아직 변경 요약이 없습니다. 코드 수정이 끝나면 표시됩니다.\u001b[22m\n\u001b[2m        아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m          이 세션은 서브 에이전트를 띄우지 않았습니다.\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m      11. 26. 10:59STATE이벤트 STATE\u001b[22m\n\u001b[2m      11. 26. 10:59INFO이벤트 INFO\u001b[22m\n\u001b[2m      11. 26. 10:59REPLY이벤트 REPLY\u001b[22m\n\u001b[2m      11. 26. 10:59CLAUDE이벤트 CLAUDE\u001b[22m\n\u001b[2m      11. 26. 10:59GIT이벤트 GIT\u001b[22m\n\u001b[2m      11. 26. 10:59REMOTE원격 이벤트 REMOTE\u001b[22m\n\u001b[2m      11. 26. 10:59ERROR이벤트 ERROR\u001b[22m\n\u001b[2m      \"\u001b[22m\n\n    at <repo>\\e2e\\tasks\\T-012.spec.ts:44:50",
+                    "location": {
+                      "file": "<repo>\\e2e\\tasks\\T-012.spec.ts",
+                      "column": 50,
+                      "line": 44
+                    },
+                    "snippet": " \u001b[90m 42 |\u001b[39m   \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#dLinks'\u001b[39m))\u001b[33m.\u001b[39mnot\u001b[33m.\u001b[39mtoContainText(\u001b[33mFORBIDDEN\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 43 |\u001b[39m   \u001b[90m// Scope: \"MR\" -> \"PR\" in screen text. The review-wait guidance must not name an MR either.\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 44 |\u001b[39m   \u001b[36mawait\u001b[39m expect\u001b[33m.\u001b[39msoft(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#detail'\u001b[39m))\u001b[33m.\u001b[39mnot\u001b[33m.\u001b[39mtoContainText(\u001b[35m/MR/\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                  \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 45 |\u001b[39m   \u001b[36mawait\u001b[39m shot(page\u001b[33m,\u001b[39m testInfo\u001b[33m,\u001b[39m \u001b[32m'agent-detail-pr-link'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 46 |\u001b[39m\n \u001b[90m 47 |\u001b[39m   \u001b[90m// kind REMOTE event renders in the activity log with its own icon and colour.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "<repo>\\e2e\\tasks\\T-012.spec.ts",
+                        "column": 50,
+                        "line": 44
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).not.\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#detail')\nExpected pattern: not \u001b[32m/MR/\u001b[39m\nReceived string: \u001b[31m\"\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          qa-group/qa-sample이슈 #9002리뷰 확인 대기\u001b[39m\n\u001b[31m          변경 확인 대기 이슈 PR 있음\u001b[39m\n\u001b[31m          이슈fix/9002Pull Request\u001b[39m\n\u001b[31m          경과20s피드백1회Claude 실행0회도구 호출1회토큰—시작11. 26. 08:59\u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        ✓분석✓설계 확인✓코드 수정✓검증5리뷰 확인6푸시 · PR7완료opus · 리뷰 확인 대기\u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  \u001b[39m\n\u001b[31m  z\u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m            변경 내용을 확인해 주세요. 「진행」이면 컨벤션 브랜치(fix/일감번호 등)로 커밋·푸시하고 Draft \u001b[7mMR\u001b[27m을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m              진행\u001b[39m\n\u001b[31m              피드백 보내기 ⏎\u001b[39m\n\u001b[31m              중단\u001b[39m\n\u001b[31m              동시 진행 중: 자기방에서는 「repo#1 진행」처럼 대상을 앞에 붙여 답합니다\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          활동 로그 10\u001b[39m\n\u001b[31m          설계안\u001b[39m\n\u001b[31m          변경 요약\u001b[39m\n\u001b[31m          검증 \u001b[39m\n\u001b[31m          Diff\u001b[39m\n\u001b[31m          서브 에이전트 \u001b[39m\n\u001b[31m          타임라인 7\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m             도구 호출\u001b[39m\n\u001b[31m             중간 텍스트\u001b[39m\n\u001b[31m             도구 결과\u001b[39m\n\u001b[31m            \u001b[39m\n\u001b[31m             자동 스크롤\u001b[39m\n\u001b[31m            줄을 클릭하면 상세를 펼칩니다\u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m          10:59:42⇢이벤트 STATE10:59:42ℹ이벤트 INFO10:59:42💬이벤트 REPLY10:59:42✦이벤트 CLAUDE10:59:42›이벤트 TOOL10:59:42↳이벤트 TOOL_RESULT10:59:42…이벤트 TEXT10:59:42⎇이벤트 GIT10:59:42⬡원격 이벤트 REMOTE10:59:42✖이벤트 ERROR\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        아직 설계안이 없습니다. 분석이 끝나면 여기에 표시됩니다.\u001b[39m\n\u001b[31m        아직 변경 요약이 없습니다. 코드 수정이 끝나면 표시됩니다.\u001b[39m\n\u001b[31m        아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m          \u001b[39m\n\u001b[31m          이 세션은 서브 에이전트를 띄우지 않았습니다.\u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m        \u001b[39m\n\u001b[31m      11. 26. 10:59STATE이벤트 STATE\u001b[39m\n\u001b[31m      11. 26. 10:59INFO이벤트 INFO\u001b[39m\n\u001b[31m      11. 26. 10:59REPLY이벤트 REPLY\u001b[39m\n\u001b[31m      11. 26. 10:59CLAUDE이벤트 CLAUDE\u001b[39m\n\u001b[31m      11. 26. 10:59GIT이벤트 GIT\u001b[39m\n\u001b[31m      11. 26. 10:59REMOTE원격 이벤트 REMOTE\u001b[39m\n\u001b[31m      11. 26. 10:59ERROR이벤트 ERROR\u001b[39m\n\u001b[31m      \"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"soft not toContainText\" locator('#detail') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#detail')\u001b[22m\n\u001b[2m    13 × locator resolved to <div id=\"detail\" class=\"swap-in\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          qa-group/qa-sample이슈 #9002리뷰 확인 대기\u001b[22m\n\u001b[2m          변경 확인 대기 이슈 PR 있음\u001b[22m\n\u001b[2m          이슈fix/9002Pull Request\u001b[22m\n\u001b[2m          경과20s피드백1회Claude 실행0회도구 호출1회토큰—시작11. 26. 08:59\u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        ✓분석✓설계 확인✓코드 수정✓검증5리뷰 확인6푸시 · PR7완료opus · 리뷰 확인 대기\u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  \u001b[22m\n\u001b[2m  z\u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m            변경 내용을 확인해 주세요. 「진행」이면 컨벤션 브랜치(fix/일감번호 등)로 커밋·푸시하고 Draft MR을 만듭니다. 입력칸에 글을 쓴 채 「진행」을 누르면 푸시하지 않고 그 내용부터 반영합니다. 피드백을 보내면 추가 수정하고, 「검증」「재검증」이라고만 보내면 수정 없이 검증만 다시 돌립니다.\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m              진행\u001b[22m\n\u001b[2m              피드백 보내기 ⏎\u001b[22m\n\u001b[2m              중단\u001b[22m\n\u001b[2m              동시 진행 중: 자기방에서는 「repo#1 진행」처럼 대상을 앞에 붙여 답합니다\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          활동 로그 10\u001b[22m\n\u001b[2m          설계안\u001b[22m\n\u001b[2m          변경 요약\u001b[22m\n\u001b[2m          검증 \u001b[22m\n\u001b[2m          Diff\u001b[22m\n\u001b[2m          서브 에이전트 \u001b[22m\n\u001b[2m          타임라인 7\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m             도구 호출\u001b[22m\n\u001b[2m             중간 텍스트\u001b[22m\n\u001b[2m             도구 결과\u001b[22m\n\u001b[2m            \u001b[22m\n\u001b[2m             자동 스크롤\u001b[22m\n\u001b[2m            줄을 클릭하면 상세를 펼칩니다\u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m          10:59:42⇢이벤트 STATE10:59:42ℹ이벤트 INFO10:59:42💬이벤트 REPLY10:59:42✦이벤트 CLAUDE10:59:42›이벤트 TOOL10:59:42↳이벤트 TOOL_RESULT10:59:42…이벤트 TEXT10:59:42⎇이벤트 GIT10:59:42⬡원격 이벤트 REMOTE10:59:42✖이벤트 ERROR\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        아직 설계안이 없습니다. 분석이 끝나면 여기에 표시됩니다.\u001b[22m\n\u001b[2m        아직 변경 요약이 없습니다. 코드 수정이 끝나면 표시됩니다.\u001b[22m\n\u001b[2m        아직 검증 결과가 없습니다. 코드 수정이 끝나면 봇 검사(빌드·JS/JSP 문법)와 독립 리뷰어 판정이 여기 표시됩니다.\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m          \u001b[22m\n\u001b[2m          이 세션은 서브 에이전트를 띄우지 않았습니다.\u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m        \u001b[22m\n\u001b[2m      11. 26. 10:59STATE이벤트 STATE\u001b[22m\n\u001b[2m      11. 26. 10:59INFO이벤트 INFO\u001b[22m\n\u001b[2m      11. 26. 10:59REPLY이벤트 REPLY\u001b[22m\n\u001b[2m      11. 26. 10:59CLAUDE이벤트 CLAUDE\u001b[22m\n\u001b[2m      11. 26. 10:59GIT이벤트 GIT\u001b[22m\n\u001b[2m      11. 26. 10:59REMOTE원격 이벤트 REMOTE\u001b[22m\n\u001b[2m      11. 26. 10:59ERROR이벤트 ERROR\u001b[22m\n\u001b[2m      \"\u001b[22m\n\n\n  42 |   await expect(page.locator('#dLinks')).not.toContainText(FORBIDDEN);\n  43 |   // Scope: \"MR\" -> \"PR\" in screen text. The review-wait guidance must not name an MR either.\n> 44 |   await expect.soft(page.locator('#detail')).not.toContainText(/MR/);\n     |                                                  ^\n  45 |   await shot(page, testInfo, 'agent-detail-pr-link');\n  46 |\n  47 |   // kind REMOTE event renders in the activity log with its own icon and colour.\n    at <repo>\\e2e\\tasks\\T-012.spec.ts:44:50"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-agent-list.png",
+                      "duration": 301
+                    },
+                    {
+                      "title": "shot 02-agent-detail-pr-link.png",
+                      "duration": 305
+                    },
+                    {
+                      "title": "shot 03-agent-remote-event.png",
+                      "duration": 291
+                    },
+                    {
+                      "title": "shot 04-agent-timeline-remote.png",
+                      "duration": 285
+                    }
+                  ],
+                  "startTime": "2026-11-26T01:59:59.164Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-012-qa\\task\\artifacts\\tasks-T-012-TC-T012-1-에이전트-6ec7f-sueNumber·PR-배지-상세-이슈·PR-링크-chromium\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "<repo>\\docs\\tasks\\results\\T-012-qa\\task\\artifacts\\tasks-T-012-TC-T012-1-에이전트-6ec7f-sueNumber·PR-배지-상세-이슈·PR-링크-chromium\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "<repo>\\docs\\tasks\\results\\T-012-qa\\task\\artifacts\\tasks-T-012-TC-T012-1-에이전트-6ec7f-sueNumber·PR-배지-상세-이슈·PR-링크-chromium\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "<repo>\\e2e\\tasks\\T-012.spec.ts",
+                    "column": 50,
+                    "line": 44
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "3e3c3cd94cf3ec52e4da-03602fd9b119d347b6f7",
+          "file": "tasks/T-012.spec.ts",
+          "line": 20,
+          "column": 1
+        },
+        {
+          "title": "TC-T012-2 홈·메신저·플랫폼: 이슈 표기와 GitHub 용어",
+          "ok": true,
+          "tags": [
+            "task:T-012"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3988,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-home-sessions.png",
+                      "duration": 232
+                    },
+                    {
+                      "title": "shot 02-messenger-examples.png",
+                      "duration": 118
+                    },
+                    {
+                      "title": "shot 03-platform-project-input.png",
+                      "duration": 313
+                    },
+                    {
+                      "title": "shot 04-research.png",
+                      "duration": 134
+                    }
+                  ],
+                  "startTime": "2026-11-26T02:00:16.330Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-012-qa\\task\\artifacts\\tasks-T-012-TC-T012-2-홈·메신저·플랫폼-이슈-표기와-GitHub-용어-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3e3c3cd94cf3ec52e4da-0bf1c52a10ba8ed08461",
+          "file": "tasks/T-012.spec.ts",
+          "line": 71,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-26T01:59:56.546Z",
+    "duration": 25699.412,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

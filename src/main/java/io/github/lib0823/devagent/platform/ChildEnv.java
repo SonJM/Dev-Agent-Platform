@@ -23,7 +23,7 @@ public final class ChildEnv {
     public static final List<String> SECRET_KEYS = List.of(
             "DB_URL", "DB_USERNAME", "DB_PASSWORD",
             "SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD",
-            "GITHUB_TOKEN", "GITLAB_TOKEN");   // GITLAB_TOKEN: 기존 .env 에 값이 남아 있을 수 있어 T-011 까지 둔다
+            "GITHUB_TOKEN", "GITLAB_TOKEN");   // GITLAB_TOKEN: 옛 .env 에 값이 남아 있을 수 있어 자식 프로세스로 새지 않게 일부러 남긴 옛 이름(T-011)
 
     private ChildEnv() {
     }

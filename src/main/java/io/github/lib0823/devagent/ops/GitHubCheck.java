@@ -1,9 +1,9 @@
 package io.github.lib0823.devagent.ops;
 
 import io.github.lib0823.devagent.config.GitHubProperties;
-import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.gitlab.GitHubClient;
-import io.github.lib0823.devagent.gitlab.GitHubException.Kind;
+import io.github.lib0823.devagent.config.IssueProperties;
+import io.github.lib0823.devagent.issue.GitHubClient;
+import io.github.lib0823.devagent.issue.GitHubException.Kind;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -38,14 +38,14 @@ final class GitHubCheck {
     private GitHubCheck() {
     }
 
-    static Map<String, Object> run(GitLabProperties agent, GitHubProperties gh, GitHubClient client, List<String> projects, Instant now) {
+    static Map<String, Object> run(IssueProperties agent, GitHubProperties gh, GitHubClient client, List<String> projects, Instant now) {
         if (!agent.enabled()) {
             return Doctor.check(KEY, NAME, "warn", "꺼짐 — 이슈 에이전트·질의를 쓸 수 없습니다",
-                    ".env 에 GITLAB_ENABLED=true, GITHUB_TOKEN 을 넣고 재시작하세요. " + TOKEN_HOWTO);
+                    ".env 에 ISSUE_ENABLED=true, GITHUB_TOKEN 을 넣고 재시작하세요. " + TOKEN_HOWTO);
         }
         if (agent.label() == null || agent.label().isBlank()) {
-            return Doctor.check(KEY, NAME, "fail", "처리할 이슈 라벨이 비어 있어 스캔하지 않습니다 (GITLAB_LABEL)",
-                    ".env 의 GITLAB_LABEL 에 라벨 이름(예: ai-fix)을 넣고 재시작하세요. 라벨이 없으면 열린 이슈 전부가 대상이 되므로 에이전트는 아무것도 처리하지 않습니다.");
+            return Doctor.check(KEY, NAME, "fail", "처리할 이슈 라벨이 비어 있어 스캔하지 않습니다 (ISSUE_LABEL)",
+                    ".env 의 ISSUE_LABEL 에 라벨 이름(예: ai-fix)을 넣고 재시작하세요. 라벨이 없으면 열린 이슈 전부가 대상이 되므로 에이전트는 아무것도 처리하지 않습니다.");
         }
         if (!gh.hasToken()) {
             return Doctor.check(KEY, NAME, "fail", "토큰이 비어 있습니다 (GITHUB_TOKEN)", TOKEN_HOWTO);

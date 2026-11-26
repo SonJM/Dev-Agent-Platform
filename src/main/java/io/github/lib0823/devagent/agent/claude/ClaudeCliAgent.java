@@ -4,14 +4,14 @@ import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.platform.CallStats;
 import io.github.lib0823.devagent.platform.ChildEnv;
 import io.github.lib0823.devagent.platform.PortHealth;
-import io.github.lib0823.devagent.gitlab.IssueEvent;
+import io.github.lib0823.devagent.issue.IssueEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.config.ClaudeProperties;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import io.github.lib0823.devagent.mcp.McpConfigService;
 import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
@@ -71,7 +71,7 @@ public class ClaudeCliAgent implements CodingAgent {
     private static final Logger log = LoggerFactory.getLogger(ClaudeCliAgent.class);
 
     private final ClaudeProperties claude;
-    private final GitLabProperties props;
+    private final IssueProperties props;
     private final McpConfigService mcp;
     private final SettingService settings;
     private final int adminPort;
@@ -129,7 +129,7 @@ public class ClaudeCliAgent implements CodingAgent {
     /** 플랫폼 스킬(관리자 등록 지침) — 단계에 맞는 것을 시스템 프롬프트에 덧붙인다. */
     private final io.github.lib0823.devagent.skill.SkillService skills;
 
-    public ClaudeCliAgent(ClaudeProperties claude, GitLabProperties props, McpConfigService mcp,
+    public ClaudeCliAgent(ClaudeProperties claude, IssueProperties props, McpConfigService mcp,
                              SettingService settings,
                              io.github.lib0823.devagent.llm.UsageService usage,
                              io.github.lib0823.devagent.skill.SkillService skills,
@@ -278,7 +278,7 @@ public class ClaudeCliAgent implements CodingAgent {
             cmd.add("--session-id");
             cmd.add(sessionId);
         }
-        GitLabProperties.Agent a = props.agent();
+        IssueProperties.Agent a = props.agent();
         if (!model.isBlank()) {
             cmd.add("--model");
             cmd.add(model);

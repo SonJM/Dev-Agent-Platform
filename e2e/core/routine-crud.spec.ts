@@ -8,7 +8,7 @@ test('TC-008 리서치에서 루틴을 등록하고 삭제한다(예약 전이�
   page.on('dialog', (dialog) => dialog.accept());
   const item = page.locator('#rlist .ritem', { hasText: name });
   try {
-    // The launch script registers one fake target project (GITLAB_PROJECTS); a routine needs one.
+    // The launch script registers one fake target project (ISSUE_PROJECTS); a routine needs one.
     await page.goto('/research.html');
     await expect(page.locator('#projChips')).toContainText('qa-sample');
     await page.locator('#qIn').fill('QA 확인용 질문입니다');

@@ -1,10 +1,10 @@
 package io.github.lib0823.devagent.ops;
 
 import io.github.lib0823.devagent.config.GitHubProperties;
-import io.github.lib0823.devagent.config.GitLabProperties;
-import io.github.lib0823.devagent.gitlab.FakeGitHubServer;
-import io.github.lib0823.devagent.gitlab.FakeGitHubServer.Reply;
-import io.github.lib0823.devagent.gitlab.GitHubClient;
+import io.github.lib0823.devagent.config.IssueProperties;
+import io.github.lib0823.devagent.issue.FakeGitHubServer;
+import io.github.lib0823.devagent.issue.FakeGitHubServer.Reply;
+import io.github.lib0823.devagent.issue.GitHubClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,8 +42,8 @@ class GitHubCheckTest {
         server.close();
     }
 
-    private static GitLabProperties agent(boolean enabled) {
-        return new GitLabProperties(enabled, List.of(), "ai-fix", 1000, 1000, "work", "bot", "bot@x", true, true, true, 0L,
+    private static IssueProperties agent(boolean enabled) {
+        return new IssueProperties(enabled, List.of(), "ai-fix", 1000, 1000, "work", "bot", "bot@x", true, true, true, 0L,
                 null, null, null, 2);
     }
 
@@ -53,12 +53,12 @@ class GitHubCheckTest {
         return GitHubCheck.run(agent(enabled), gh, client, projects, NOW);
     }
 
-    private Map<String, Object> runWith(GitLabProperties agent, GitHubProperties gh, List<String> projects) {
+    private Map<String, Object> runWith(IssueProperties agent, GitHubProperties gh, List<String> projects) {
         return GitHubCheck.run(agent, gh, new GitHubClient(RestClient.builder(), gh), projects, NOW);
     }
 
-    private static GitLabProperties agentWithLabel(String label) {
-        return new GitLabProperties(true, List.of(), label, 1000, 1000, "work", "bot", "bot@x", true, true, true, 0L,
+    private static IssueProperties agentWithLabel(String label) {
+        return new IssueProperties(true, List.of(), label, 1000, 1000, "work", "bot", "bot@x", true, true, true, 0L,
                 null, null, null, 2);
     }
 
@@ -67,7 +67,7 @@ class GitHubCheckTest {
         Map<String, Object> c = runWith(agentWithLabel("  "), new GitHubProperties(TOKEN, server.url()), List.of("own/repo"));
 
         assertEquals("fail", c.get("status"));
-        assertTrue(text(c).contains("GITLAB_LABEL"));
+        assertTrue(text(c).contains("ISSUE_LABEL"));
         assertTrue(text(c).contains("재시작"));
     }
 

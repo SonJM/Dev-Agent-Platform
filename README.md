@@ -1,6 +1,6 @@
 # Dev Agent — 로컬 에이전트 운용 플랫폼
 
-로컬 PC 에서 도는 에이전트 운용 플랫폼입니다. 라벨이 붙은 GitLab 이슈를 **분석 → 설계 확인 → 수정 → 검증 → 리뷰 확인 → 브랜치 푸시·MR** 까지 대화형으로 처리하고, 소스를 훑어 문서로 답하는 **질의**, 예약 실행(**루틴**)을 한 화면에서 다룹니다. 메신저를 연결하면(`MessengerPort` 어댑터) 자기 대화로 `이슈 …`·`질문 …` 명령을 보내고 알림·확인 답을 주고받을 수 있습니다. LLM 호출은 전부 **Claude Code CLI(headless)** 입니다(API 키 없이 구독 로그인).
+로컬 PC 에서 도는 에이전트 운용 플랫폼입니다. 라벨이 붙은 GitHub 이슈를 **분석 → 설계 확인 → 수정 → 검증 → 리뷰 확인 → 브랜치 푸시·MR** 까지 대화형으로 처리하고, 소스를 훑어 문서로 답하는 **질의**, 예약 실행(**루틴**)을 한 화면에서 다룹니다. 메신저를 연결하면(`MessengerPort` 어댑터) 자기 대화로 `이슈 …`·`질문 …` 명령을 보내고 알림·확인 답을 주고받을 수 있습니다. LLM 호출은 전부 **Claude Code CLI(headless)** 입니다(API 키 없이 구독 로그인).
 
 > 모든 화면은 localhost 전용입니다. 메신저는 **사용자 자신의 대화 하나**(받기·보내기)만 다루며, 이슈 에이전트의 확인은 자기 대화/로컬 대시보드에서만 받습니다.
 
@@ -15,7 +15,7 @@
 | 트리거 | 누가 | 동작 |
 |---|---|---|
 | **메신저 명령** | 내가 자기 대화로 보냄 | `이슈 …`(에이전트 명령) · `질문 …`(리서치 접수) · 확인 대기 중이면 진행·중단·피드백 답 |
-| **GitLab 이슈 에이전트** | 라벨 `ai-fix` 이슈(2분 스캔) / `이슈 group/repo#12` | 분석 → **설계 확인** → 수정 → **검증(봇 검사 + 독립 리뷰, 실패 시 자동 재수정)** → **리뷰 확인** → 컨벤션 브랜치 푸시 → 이슈 코멘트·Draft MR |
+| **GitHub 이슈 에이전트** | 라벨 `ai-fix` 이슈(2분 스캔) / `이슈 group/repo#12` | 분석 → **설계 확인** → 수정 → **검증(봇 검사 + 독립 리뷰, 실패 시 자동 재수정)** → **리뷰 확인** → 컨벤션 브랜치 푸시 → 이슈 코멘트·Draft MR |
 | **리서치** | 대시보드 「리서치」 탭 / `질문 batch: …` | 대상 프로젝트 소스를 **읽기 전용**으로 훑어 마크다운 문서(요약·표·근거·미확인)로 답. 후속 질문은 같은 세션 재사용. 코드 수정·빌드 없음 |
 
 **안전 설계**: 메신저 포트에는 방 목록 조회·다른 방 읽기·그룹 전송이 없습니다(자기 대화 받기·보내기만). 봇 생성물 접두어(`[이슈]`/`[질의]`/`[봇]`)가 붙은 글은 어댑터가 자기가 보낸 글로 걸러야 합니다.
@@ -121,9 +121,9 @@
 
 ---
 
-## GitLab 이슈 수정 에이전트
+## GitHub 이슈 수정 에이전트
 
-대상 프로젝트의 **라벨(`ai-fix`) 붙은 열린 이슈**를 자동으로, 또는 자기방 `이슈 group/repo#12` 로 수동으로 집어 아래 흐름을 돕니다. 기본 비활성(`GITLAB_ENABLED=false`).
+대상 프로젝트의 **라벨(`ai-fix`) 붙은 열린 이슈**를 자동으로, 또는 자기방 `이슈 group/repo#12` 로 수동으로 집어 아래 흐름을 돕니다. 기본 비활성(`ISSUE_ENABLED=false`).
 
 ```
 이슈 스캔(2분) ─▶ NEW ─▶ ANALYZING   fetch → origin/develop 기준 worktree → claude(읽기 전용) 원인·설계·작업 유형
@@ -161,28 +161,28 @@
 
 **명령**(`이슈 …`): `상태` · `목록` · `스캔`(즉시) · `프로젝트 [추가|삭제 group/repo]` · `중단 [대상]` · `group/repo#12` 또는 이슈 URL · `도움말`. 관리 페이지와 대시보드에서도 같은 일을 합니다(`POST /api/issues-reply`, `/api/issues-command`).
 
-**에이전트 화면에서 바로**: 「새 이슈」로 GitLab 이슈를 등록합니다(`POST /api/issues-create` — 대상 프로젝트만, "등록 후 바로 시작"이면 스캔 라벨을 붙이고 곧바로 큐에 넣음). 「이슈 목록」은 고른 프로젝트의 열린 이슈(최근 갱신 순 50건, `GET /api/issues-list?project=`)와 에이전트 상태를 보여 주고, 라벨이 없는 이슈를 「시작」하거나 실패·중단된 이슈를 「다시 시작」합니다(완료된 이슈는 「보기」만 — 미흡하면 새 이슈로. 창을 열 때만 조회). 「가져오기」는 2분 주기를 기다리지 않고 라벨 스캔을 즉시 돌립니다. 확인 대기 중 입력칸에 글을 쓴 채 「진행」을 누르면 코멘트가 함께 전달됩니다(`note` 파라미터) — 설계 확인에서는 설계대로 수정하되 추가 지시로 반영, 리뷰 확인에서는 푸시하지 않고 그 내용부터 수정·검증한 뒤 다시 확인을 받습니다.
+**에이전트 화면에서 바로**: 「새 이슈」로 GitHub 이슈를 등록합니다(`POST /api/issues-create` — 대상 프로젝트만, "등록 후 바로 시작"이면 스캔 라벨을 붙이고 곧바로 큐에 넣음). 「이슈 목록」은 고른 프로젝트의 열린 이슈(최근 갱신 순 50건, `GET /api/issues-list?project=`)와 에이전트 상태를 보여 주고, 라벨이 없는 이슈를 「시작」하거나 실패·중단된 이슈를 「다시 시작」합니다(완료된 이슈는 「보기」만 — 미흡하면 새 이슈로. 창을 열 때만 조회). 「가져오기」는 2분 주기를 기다리지 않고 라벨 스캔을 즉시 돌립니다. 확인 대기 중 입력칸에 글을 쓴 채 「진행」을 누르면 코멘트가 함께 전달됩니다(`note` 파라미터) — 설계 확인에서는 설계대로 수정하되 추가 지시로 반영, 리뷰 확인에서는 푸시하지 않고 그 내용부터 수정·검증한 뒤 다시 확인을 받습니다.
 
 ![이슈 목록](docs/images/agent-issues.png)
 
 ### 검증 단계(VERIFYING)
 
-- **봇 검사**(`VerifyService`): 바뀐 `.js` → `node --check`(바뀐 `.jsp` 는 검사 도구가 없어 SKIP 으로 보고하고 리뷰어가 코드로 확인), 빌드(`GITLAB_VERIFY_COMMANDS` 의 `group/repo=명령`, 없으면 pom → `mvn -o -q compile`, gradle → `gradlew compileJava`). 코드를 쓴 모델의 보고와 무관하게 돕니다.
+- **봇 검사**(`VerifyService`): 바뀐 `.js` → `node --check`(바뀐 `.jsp` 는 검사 도구가 없어 SKIP 으로 보고하고 리뷰어가 코드로 확인), 빌드(`ISSUE_VERIFY_COMMANDS` 의 `group/repo=명령`, 없으면 pom → `mvn -o -q compile`, gradle → `gradlew compileJava`). 코드를 쓴 모델의 보고와 무관하게 돕니다.
 - **독립 리뷰어**: 수정 세션과 분리된 새 Claude 세션(읽기 전용)이 이슈·설계·수정 보고·검사 결과·diff 를 보고 `## 판정 PASS|FAIL / ## 근거 / ## 수정 요청` 으로 답합니다. 모델/노력은 관리 페이지 "모델"에서 **기획(분석·설계) / 개발(수정) / 테스트(리뷰어)** 를 따로 고릅니다(fable·opus·sonnet·haiku × low·medium·high, DB 저장, 다음 실행부터 적용). 고른 모델을 쓸 수 없으면(권한 없음) 실행기가 **opus 로 대체**해 같은 세션을 `--resume` 으로 이어가고 활동 로그에 경고를 남깁니다. 대시보드 스테퍼에는 단계별로 실제 쓴 모델이 표시되고, 실행 중이면 모델명 꼬리표를 단 아바타가 현재 단계 위에서 통통 튀다가 단계가 바뀌면 그 자리로 뛰어갑니다(확인 대기 중엔 그 단계 위에 조용히 서 있음).
-- FAIL 이면 보고 전체를 피드백으로 **같은 수정 세션에 자동 재수정**(최대 `GITLAB_VERIFY_MAX_RETRIES`=2회). 그래도 FAIL 이면 실패 내역과 함께 리뷰 대기로 올려 사람이 판단합니다. 결과는 대시보드 "검증" 탭과 리뷰 확인 메시지에 붙습니다.
+- FAIL 이면 보고 전체를 피드백으로 **같은 수정 세션에 자동 재수정**(최대 `ISSUE_VERIFY_MAX_RETRIES`=2회). 그래도 FAIL 이면 실패 내역과 함께 리뷰 대기로 올려 사람이 판단합니다. 결과는 대시보드 "검증" 탭과 리뷰 확인 메시지에 붙습니다.
 
 ### 브랜치 · 커밋 컨벤션
 
-아래 브랜치 규칙을 따릅니다(`gitlab.convention`).
+아래 브랜치 규칙을 따릅니다(`issue.convention`).
 
 - 브랜치 `{feature|fix|refactor|doc|hotfix}/{이슈번호}`(예 `fix/12`) — 유형은 분석 결과의 `## 작업 유형`(피드백 `작업 유형: …` 로 변경 가능). 이슈 번호가 곧 브랜치 번호입니다.
 - 모든 유형이 저장소 기본 브랜치에서 분기해 기본 브랜치로 Draft PR 을 올립니다(hotfix 도 같음). 같은 이름이 원격에 있으면 `-ai`, 또 있으면 `-ai-r<MMddHHmm>`. 기본 브랜치 직접 푸시·강제 푸시는 없습니다.
-- 커밋 첫 줄 `feat|fix|docs|style|refactor|test|chore: 제목`, MR 제목 `Draft: <커밋 제목>`. 같은 이름의 원격 브랜치가 있으면 `-ai`, 또 있으면 `-ai-r<MMddHHmm>`. 강제 푸시 없음. 커밋 작성자는 `GITLAB_GIT_USER_NAME/EMAIL`(기본 dev-agent).
+- 커밋 첫 줄 `feat|fix|docs|style|refactor|test|chore: 제목`, MR 제목 `Draft: <커밋 제목>`. 같은 이름의 원격 브랜치가 있으면 `-ai`, 또 있으면 `-ai-r<MMddHHmm>`. 강제 푸시 없음. 커밋 작성자는 `ISSUE_GIT_USER_NAME/EMAIL`(기본 dev-agent).
 
 ### 동시 처리 · 실행 상한
 
-- **동시 2건**(`GITLAB_CONCURRENCY`): 워커 풀 + 세션별 직렬 체인. 자리가 나면 READY → NEW 순으로 시작하고, 차 있으면 다음 1건을 선분석합니다.
-- **단계별 상한**: 분석 60분/80턴(`GITLAB_AGENT_TIMEOUT_MS`), **개발 4시간/600턴**(`GITLAB_AGENT_FIX_TIMEOUT_MS`), 리뷰어 60분(`GITLAB_VERIFY_REVIEWER_TIMEOUT_MS`), 무응답 20분(`GITLAB_AGENT_IDLE_TIMEOUT_MS`: 도구 호출·출력이 전혀 없으면 중단). Bash 도구 상한은 단계 상한에 맞춰 최대 50분.
+- **동시 2건**(`ISSUE_CONCURRENCY`): 워커 풀 + 세션별 직렬 체인. 자리가 나면 READY → NEW 순으로 시작하고, 차 있으면 다음 1건을 선분석합니다.
+- **단계별 상한**: 분석 60분/80턴(`ISSUE_AGENT_TIMEOUT_MS`), **개발 4시간/600턴**(`ISSUE_AGENT_FIX_TIMEOUT_MS`), 리뷰어 60분(`ISSUE_VERIFY_REVIEWER_TIMEOUT_MS`), 무응답 20분(`ISSUE_AGENT_IDLE_TIMEOUT_MS`: 도구 호출·출력이 전혀 없으면 중단). Bash 도구 상한은 단계 상한에 맞춰 최대 50분.
 - **개발 상한 초과 시** 작업트리 변경을 보존한 채 리뷰 대기로 넘기고(검증 생략), 「피드백: 이어서 진행」으로 같은 세션을 재개합니다. 변경이 없으면 FAILED.
 - **서브 에이전트 · 팀 에이전트**: 관리 페이지 "모델" 카드의 토글 두 개(둘 다 기본 허용). 서브 에이전트를 끄면 Claude 가 Agent/Task 도구를 못 쓰고, 팀 에이전트(Claude Code 실험 기능)를 끄면 팀 메시지 도구를 금지하고 자식 프로세스의 실험 플래그를 0 으로 덮습니다. 병렬로 토큰을 크게 쓰므로 사용량이 빠듯하면 팀부터 끄는 것을 권합니다.
 
@@ -222,7 +222,7 @@
 - 목록에서 ▶ 지금 실행 · ⏸ 끄기 · ✕ 삭제 · ↗ 마지막 결과. 이름을 누르면 폼에 불러와 고칩니다. "완료 알림"을 켜면 자기방으로 `[질의]` 알림이 갑니다.
 - API: `GET/POST /api/routines`, `POST /api/routines/run?id=`, `POST /api/routines/delete?id=`. 테이블 `routine`.
 
-### 이슈 초안 (리서치 → GitLab 이슈)
+### 이슈 초안 (리서치 → GitHub 이슈)
 
 이슈 본문을 직접 쓰는 대신 리서치에 맡깁니다. 리서치 폼에서 **이슈 초안** 을 켜고 보내면, 평소처럼 소스를 조사한 뒤 결과를 이슈 형식(`# 제목` / 배경 / 현재 동작 / 요구 사항 / 수정 방향 / 확인 방법 / 참고)으로 씁니다. 완료되면 결과에 **이슈로 등록** 버튼이 생기고, 누르면 프로젝트·제목·본문이 채워진 창에서 고친 뒤 등록합니다(`POST /api/issues-create`, "등록 후 바로 시작"이면 이슈 에이전트가 곧바로 분석).
 
@@ -266,7 +266,7 @@
 | 단계 | 허용 |
 |---|---|
 | 분석 / 리뷰어 | Read·Grep·Glob + `git log/show/blame`, 사용자 정의 MCP 읽기 도구 |
-| 수정 | 위 + Edit/Write, 허용 명령 접두어만(`gradlew`, `mvn`, `npm test` …, `gitlab.agent.fix-tools`) |
+| 수정 | 위 + Edit/Write, 허용 명령 접두어만(`gradlew`, `mvn`, `npm test` …, `issue.agent.fix-tools`) |
 
 git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 권한 패턴을 우회하므로 금지(`--disallowedTools`).
 금지 목록(`ClaudeCliAgent.disallowedTools`)은 허용 목록보다 우선합니다: 검증 리뷰어는 Edit/Write 류 금지, 플랫폼 관리가 아닌 세션은 `curl`·`wget` 금지(`*-tools` 설정에 넣어도 막힘), 모든 세션은 `.env` 읽기 금지(`.env.example` 은 가능), 플랫폼 관리 세션은 상태 변경 로컬 API 호출 금지.
@@ -281,7 +281,7 @@ git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 
 
 ### 준비
 
-GitHub fine-grained PAT(저장소 선택 "Only select repositories"로 대상 저장소만 · 권한 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기 · 만료 90일 안팎 · 개인 계정 저장소만) → `.env` 에 `GITLAB_ENABLED=true`, `GITHUB_TOKEN`, `GITLAB_PROJECTS`(초기값, `owner/repo`) → 재시작 → 이슈에 `ai-fix` 라벨. 토큰 만료·접근 불가는 플랫폼 탭 "설치 점검"의 GitHub 항목이 미리 알립니다(만료 14일 전부터 경고). 대상 프로젝트는 이후 관리 페이지 칩이나 `이슈 프로젝트 추가 owner/repo` 로 바꿉니다.
+GitHub fine-grained PAT(저장소 선택 "Only select repositories"로 대상 저장소만 · 권한 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기 · 만료 90일 안팎 · 개인 계정 저장소만) → `.env` 에 `ISSUE_ENABLED=true`, `GITHUB_TOKEN`, `ISSUE_PROJECTS`(초기값, `owner/repo`) → 재시작 → 이슈에 `ai-fix` 라벨. 토큰 만료·접근 불가는 플랫폼 탭 "설치 점검"의 GitHub 항목이 미리 알립니다(만료 14일 전부터 경고). 대상 프로젝트는 이후 관리 페이지 칩이나 `이슈 프로젝트 추가 owner/repo` 로 바꿉니다.
 
 ---
 
@@ -299,7 +299,7 @@ GitHub fine-grained PAT(저장소 선택 "Only select repositories"로 대상 �
 사전 요구: JDK 17, Node.js + Claude Code CLI(로그인 완료), Git. DB 는 Docker PostgreSQL 을 쓰거나 `DB_URL` 을 비워 내장 DB 를 씁니다.
 
 ```bash
-cp .env.example .env            # 1) 값 채우기 (GitLab 토큰, DB …)
+cp .env.example .env            # 1) 값 채우기 (GitHub 토큰, DB …)
 docker compose up -d postgres   # 2) DB (DB_URL 을 비우면 생략 — 내장 DB)
 gradlew.bat test bootJar        # 3) 빌드 → build/libs/dev-agent.jar  (JAVA_HOME=JDK 17)
 java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .env · logs/ · work/ · 내장 DB 가 여기에 생김)
@@ -317,7 +317,7 @@ java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .en
 
 ### 설치 점검 · 구성 묶음 · 재시작 (플랫폼 > 시스템)
 
-- **설치 점검**(`GET /api/system/doctor`, `ops/Doctor`): 실행 환경 · DB · 코딩 에이전트(CLI) · Claude 로그인 · Git · 메신저 · GitLab(토큰 확인) · 작업 디렉터리 위치 · Node.js · Git Bash. 항목마다 정상/주의/필요와 **고치는 방법 한 줄**. 토큰을 쓰지 않고 60초 캐시합니다.
+- **설치 점검**(`GET /api/system/doctor`, `ops/Doctor`): 실행 환경 · DB · 코딩 에이전트(CLI) · Claude 로그인 · Git · 메신저 · GitHub(토큰 확인) · 작업 디렉터리 위치 · Node.js · Git Bash. 항목마다 정상/주의/필요와 **고치는 방법 한 줄**. 토큰을 쓰지 않고 60초 캐시합니다.
 - **구성 묶음**(`GET /api/bundle/export`, `POST /api/bundle/import`): 스킬 · 사용자 정의 MCP 서버 · 루틴 · 에이전트 설정(모델·서브/팀) · 대상 프로젝트를 JSON 한 파일로 옮깁니다. **비밀값은 들어가지 않습니다**(MCP 인증 헤더는 저장 단계에서 `${ENV}` 자리표시자만 허용, 계정·토큰은 대상이 아님). 가져오기는 같은 이름을 덮어쓰고 지우지 않으며, 대상 프로젝트는 합칩니다.
 - **재시작 · 종료**(`POST /api/system/restart|shutdown`): 감시자(systemd)가 다시 띄웁니다(감시자 없이 `java -jar` 로 뜬 경우 재시작은 거부). 작업 중인 세션이 있으면 거부하고(`force=true` 로 강행 — 그 세션은 실패 처리), 다른 사이트의 페이지가 브라우저를 통해 보낸 요청(Origin 불일치)은 거부합니다.
 - **상태**(`GET /api/system/status`): 버전 · 실행 방식(systemd / direct) · DB 방식(embedded / external) · 작업 중 건수 · 아직 안 채운 설정. 홈 화면 맨 위 안내가 이것을 씁니다.
@@ -327,20 +327,20 @@ java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .en
 | 키 | 설명 |
 |---|---|
 | `MCP_ENABLED` / `MCP_AGENT_ENABLED` | 사용자 정의 MCP 기능 · 에이전트 실행에 MCP 도구 붙이기 |
-| `GITLAB_ENABLED` / `GITLAB_PROJECTS` / `GITLAB_LABEL` | 이슈 에이전트 · 대상 저장소 초기값 `owner/repo`(DB 우선) · 라벨(ai-fix) |
+| `ISSUE_ENABLED` / `ISSUE_PROJECTS` / `ISSUE_LABEL` | 이슈 에이전트 · 대상 저장소 초기값 `owner/repo`(DB 우선) · 라벨(ai-fix) |
 | `GITHUB_TOKEN` / `GITHUB_API_URL` | GitHub fine-grained PAT(비어도 기동, 설치 점검이 알림 — 자식 프로세스에는 전달되지 않음) · API 주소(기본 `https://api.github.com`, https 만 — 시험용 localhost http 는 경고) |
-| `GITHUB_TRUSTED_AUTHORS_ONLY` | 기본 `true`: 이슈 본문·코멘트 작성자가 저장소 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트에 반영(그 밖은 건너뛰고 로그). 라벨(`GITLAB_LABEL`)이 비면 스캔하지 않는다(설치 점검 fail) |
-| `GITLAB_SCAN_INTERVAL_MS` / `GITLAB_CONCURRENCY` / `GITLAB_PREFETCH` / `GITLAB_WAIT_REMIND_MS` | 스캔 2분 · 동시 2건 · 선분석 · 대기 리마인더 4h |
-| `GITLAB_GIT_USER_NAME` / `GITLAB_GIT_USER_EMAIL` / `GITLAB_COMMENT_ON_ISSUE` / `GITLAB_CREATE_MR` | 커밋 작성자(MR·코멘트 서명 동일) · 이슈 코멘트 · Draft MR |
-| `GITLAB_BRANCH_PREFIXES` | 브랜치 접두어(작업 유형, 기본 feature,fix,refactor,doc,hotfix) |
-| `GITLAB_AGENT_MODEL` / `GITLAB_AGENT_EFFORT` / `GITLAB_AGENT_FIX_TOOLS` / `GITLAB_AGENT_TEST_HINT` | 코딩용 모델·노력 초기값(관리 페이지 값이 우선) · 수정 단계 허용 명령 · 검증 명령 안내 |
-| `GITLAB_AGENT_TIMEOUT_MS` / `GITLAB_AGENT_MAX_TURNS` / `GITLAB_AGENT_FIX_TIMEOUT_MS` / `GITLAB_AGENT_FIX_MAX_TURNS` / `GITLAB_AGENT_IDLE_TIMEOUT_MS` | 분석 60분/80턴 · 개발 4시간/600턴 · 무응답 20분 |
-| `GITLAB_VERIFY_ENABLED` / `GITLAB_VERIFY_MAX_RETRIES` / `GITLAB_VERIFY_REVIEWER` / `GITLAB_VERIFY_MODEL` / `GITLAB_VERIFY_EFFORT` / `GITLAB_VERIFY_COMMANDS` / `GITLAB_VERIFY_REVIEWER_TIMEOUT_MS` | 검증 단계 · 자동 재수정 2회 · 독립 리뷰어 · 리뷰어 모델/노력 · 프로젝트별 검사 명령 · 리뷰어 상한 60분 |
+| `GITHUB_TRUSTED_AUTHORS_ONLY` | 기본 `true`: 이슈 본문·코멘트 작성자가 저장소 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트에 반영(그 밖은 건너뛰고 로그). 라벨(`ISSUE_LABEL`)이 비면 스캔하지 않는다(설치 점검 fail) |
+| `ISSUE_SCAN_INTERVAL_MS` / `ISSUE_CONCURRENCY` / `ISSUE_PREFETCH` / `ISSUE_WAIT_REMIND_MS` | 스캔 2분 · 동시 2건 · 선분석 · 대기 리마인더 4h |
+| `ISSUE_GIT_USER_NAME` / `ISSUE_GIT_USER_EMAIL` / `ISSUE_COMMENT_ON_ISSUE` / `ISSUE_CREATE_PR` | 커밋 작성자(MR·코멘트 서명 동일) · 이슈 코멘트 · Draft MR |
+| `ISSUE_BRANCH_PREFIXES` | 브랜치 접두어(작업 유형, 기본 feature,fix,refactor,doc,hotfix) |
+| `ISSUE_AGENT_MODEL` / `ISSUE_AGENT_EFFORT` / `ISSUE_AGENT_FIX_TOOLS` / `ISSUE_AGENT_TEST_HINT` | 코딩용 모델·노력 초기값(관리 페이지 값이 우선) · 수정 단계 허용 명령 · 검증 명령 안내 |
+| `ISSUE_AGENT_TIMEOUT_MS` / `ISSUE_AGENT_MAX_TURNS` / `ISSUE_AGENT_FIX_TIMEOUT_MS` / `ISSUE_AGENT_FIX_MAX_TURNS` / `ISSUE_AGENT_IDLE_TIMEOUT_MS` | 분석 60분/80턴 · 개발 4시간/600턴 · 무응답 20분 |
+| `ISSUE_VERIFY_ENABLED` / `ISSUE_VERIFY_MAX_RETRIES` / `ISSUE_VERIFY_REVIEWER` / `ISSUE_VERIFY_MODEL` / `ISSUE_VERIFY_EFFORT` / `ISSUE_VERIFY_COMMANDS` / `ISSUE_VERIFY_REVIEWER_TIMEOUT_MS` | 검증 단계 · 자동 재수정 2회 · 독립 리뷰어 · 리뷰어 모델/노력 · 프로젝트별 검사 명령 · 리뷰어 상한 60분 |
 | `RESEARCH_ENABLED` / `RESEARCH_TIMEOUT_MS` / `RESEARCH_MAX_TURNS` / `RESEARCH_MODEL` / `RESEARCH_EFFORT` / `RESEARCH_VERIFY` / `RESEARCH_ATTACHMENT_KEEP_DAYS` | 질의 워크플로우 · 질문 1건 상한 30분/60턴 · 기본 모델/노력(비우면 기획 모델) · 2차 검증 기본값 · 첨부 이미지 보관 일수(기본 7) |
 | `MAINTAIN_ENABLED` / `MAINTAIN_REPO_DIR` / `MAINTAIN_MODEL` / `MAINTAIN_EFFORT` / `MAINTAIN_TIMEOUT_MS` / `MAINTAIN_MAX_TURNS` / `MAINTAIN_TOOLS` | 플랫폼 관리(렌치 버튼 채팅 창) · 소스 저장소 경로(비우면 실행 디렉터리가 소스 저장소일 때만 켜짐) · 기본 모델/노력(비우면 '개발') · 요청 1건 상한 2시간/300턴 · 허용 도구(`git push` 는 넣어도 금지) |
 | `PLATFORM_MESSENGER` / `PLATFORM_CODING_AGENT` | 포트 구현체 선택(기본 none / claude-cli) |
 | `BOT_JAVA_OPTS`(환경변수) | 봇 JVM 옵션. 기본 `-XX:+UseSerialGC -Xms32m -Xmx512m -XX:TieredStopAtLevel=1`(로컬 경량 운용) |
-| `GITLAB_WORK_DIR` | 에이전트 작업 디렉터리(clone·worktree·MCP 설정·스킬 파일). **이 저장소 밖 경로로 지정** — 안에 두면 에이전트 세션이 이 저장소의 CLAUDE.md 를 읽는다 |
+| `ISSUE_WORK_DIR` | 에이전트 작업 디렉터리(clone·worktree·MCP 설정·스킬 파일). **이 저장소 밖 경로로 지정** — 안에 두면 에이전트 세션이 이 저장소의 CLAUDE.md 를 읽는다 |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` / `ADMIN_PORT` | PostgreSQL(`DB_URL` 을 **비우면 내장 DB**, 포트는 `DB_EMBEDDED_PORT` 기본 54329) · 관리 페이지 포트(8777) |
 | `ACCESS_ALLOWED_ORIGINS` | 상태를 바꾸는 요청(경로와 무관하게 `GET`·`HEAD`·`OPTIONS` 외 전부)에서 루프백 외에 허용할 `Origin`(쉼표 구분, 정확히 일치, 기본 빈 값 = 루프백만). `tailscale serve` 뒤에서 쓸 때 `https://<MagicDNS 이름>:8443`. `Origin` 이 없는 요청(curl)은 통과 |
 | `CLAUDE_EXE_COMMAND` | Claude Code 실행 파일 경로. 비우면 자동 탐색(PATH → npm 전역 → `~/.local/bin` → Homebrew) |
@@ -354,13 +354,13 @@ java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .en
 src/main/java/io/github/lib0823/devagent/
   boot/       Bootstrap(.env 틀·메신저 없음 모드·내장 DB·초기 스키마) · EmbeddedDb
   routine/    Routine · RoutineMapper · RoutineService(예약 질의: 1분 틱 → 질의 접수)
-  config/     Gw/Bot/Claude/GitLab/Mcp Properties(record)
+  config/     Gw/Platform/Claude/Issue/Mcp Properties(record)
   messenger/  MessengerPort(포트: 자기 대화 받기·보내기) · MessengerService(알림 유형 켜고 끄기) · IncomingMessage/SelfInbox/SelfMessage · none/(메신저 없음 어댑터)
   command/    MessengerCommandRouter(`이슈 …`·`질문 …` 분기) · MessengerReceiver(자기 대화 수신 루프)
   llm/        UsageService · ClaudeUsageMapper(토큰 사용량 기록)
   agent/      CodingAgent(포트) · claude/ClaudeCliAgent(claude -p, stream-json, 단계별 상한)
   mcp/        McpConfigService(mcp-servers.json·허용 도구·사용자 정의 서버) · McpServer(Mapper)
-  gitlab/     IssueAgentService(상태기계·대화·동시 처리) · IssueTexts(순수 함수) · IssueReferences(참고 저장소) · IssueProjects(대상 프로젝트)
+  issue/     IssueAgentService(상태기계·대화·동시 처리) · IssueTexts(순수 함수) · IssueReferences(참고 저장소) · IssueProjects(대상 프로젝트)
               · IssueNotifier(자기방 알림) · IssuePrompts(프롬프트)
               · VerifyService(봇 검사·리뷰어 프롬프트) · GitRunner(worktree·참고 저장소·컨벤션 브랜치·푸시 가드) · GitHubClient
               · IssueSession/IssueEvent(Mapper) · IssueEventBus(DB 기록 + SSE)

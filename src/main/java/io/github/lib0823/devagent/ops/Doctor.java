@@ -2,10 +2,11 @@ package io.github.lib0823.devagent.ops;
 
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.boot.Bootstrap;
+import io.github.lib0823.devagent.boot.LegacyEnvKeys;
 import io.github.lib0823.devagent.config.GitHubProperties;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import io.github.lib0823.devagent.platform.ChildEnv;
-import io.github.lib0823.devagent.gitlab.GitHubClient;
+import io.github.lib0823.devagent.issue.GitHubClient;
 import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.messenger.MessengerService;
 import io.github.lib0823.devagent.platform.Os;
@@ -35,7 +36,7 @@ public class Doctor {
     private final JdbcTemplate jdbc;
     private final CodingAgent agent;
     private final MessengerService messenger;
-    private final GitLabProperties gitlab;
+    private final IssueProperties issueProps;
     private final GitHubProperties github;
     private final GitHubClient githubClient;
     private final SettingService settings;
@@ -43,12 +44,12 @@ public class Doctor {
     private volatile List<Map<String, Object>> cache;
     private volatile long cachedAt;
 
-    public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, GitLabProperties gitlab, GitHubProperties github,
+    public Doctor(JdbcTemplate jdbc, CodingAgent agent, MessengerService messenger, IssueProperties issueProps, GitHubProperties github,
                   GitHubClient githubClient, SettingService settings) {
         this.jdbc = jdbc;
         this.agent = agent;
         this.messenger = messenger;
-        this.gitlab = gitlab;
+        this.issueProps = issueProps;
         this.github = github;
         this.githubClient = githubClient;
         this.settings = settings;
@@ -67,6 +68,7 @@ public class Doctor {
         out.add(tool("git", "Git", List.of("git", "--version"), "fail", (Os.isWindows() ? "저장소 clone·worktree·푸시에 필요합니다. Git 을 설치하세요." : "저장소 clone·worktree·푸시에 필요합니다. 패키지 관리자로 git 을 설치하세요(예: apt install git).")));
         out.add(messengerCheck());
         out.add(githubCheck());
+        out.add(legacyEnv());
         out.add(workDir());
         out.add(tool("node", "Node.js", List.of("node", "--version"), "warn", "JS 문법 검사(node --check)와 npx 기반 MCP 서버에 필요합니다. 없으면 그 검사만 생략됩니다."));
         if (Os.isWindows()) {
@@ -138,16 +140,16 @@ public class Doctor {
     }
 
     private Map<String, Object> githubCheck() {
-        return GitHubCheck.run(gitlab, github, githubClient, settings.getGitLabProjects(), java.time.Instant.now());
+        return GitHubCheck.run(issueProps, github, githubClient, settings.getIssueProjects(), java.time.Instant.now());
     }
 
     /** 작업 디렉터리가 CLAUDE.md 를 가진 디렉터리 아래면 에이전트 세션이 그 지침을 읽어 들인다(토큰 낭비·규칙 혼입). */
     private Map<String, Object> workDir() {
-        Path dir = Path.of(blank(gitlab.workDir()) ? "work" : gitlab.workDir()).toAbsolutePath().normalize();
+        Path dir = Path.of(blank(issueProps.workDir()) ? "work" : issueProps.workDir()).toAbsolutePath().normalize();
         for (Path p = dir.getParent(); p != null; p = p.getParent()) {
             if (Files.isRegularFile(p.resolve("CLAUDE.md"))) {
                 return check("workdir", "작업 디렉터리", "warn", dir + " — 상위(" + p + ")에 CLAUDE.md 가 있습니다",
-                        "GITLAB_WORK_DIR 을 다른 프로젝트 밖의 경로로 옮기세요(에이전트 세션이 상위 CLAUDE.md 를 읽습니다).");
+                        "ISSUE_WORK_DIR 을 다른 프로젝트 밖의 경로로 옮기세요(에이전트 세션이 상위 CLAUDE.md 를 읽습니다).");
             }
         }
         return check("workdir", "작업 디렉터리", "ok", dir.toString(), null);
@@ -190,6 +192,18 @@ public class Doctor {
             }
             return null;
         }
+    }
+
+    private Map<String, Object> legacyEnv() {
+        Map<String, String> envFile = Bootstrap.readEnv(Path.of("").toAbsolutePath().resolve(".env"));
+        return legacyEnvCheck(LegacyEnvKeys.find(envFile, System.getenv()));
+    }
+
+    static Map<String, Object> legacyEnvCheck(List<String> keys) {
+        if (keys.isEmpty()) {
+            return check("legacyEnv", "옛 설정 키", "ok", "옛 GITLAB_* 키 없음", null);
+        }
+        return check("legacyEnv", "옛 설정 키", "warn", "읽히지 않는 옛 키: " + String.join(", ", keys), LegacyEnvKeys.hint(keys));
     }
 
     static Map<String, Object> check(String key, String name, String status, String detail, String hint) {

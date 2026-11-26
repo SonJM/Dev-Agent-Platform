@@ -5,8 +5,8 @@ import io.github.lib0823.devagent.admin.SettingService;
 import io.github.lib0823.devagent.agent.CodingAgent;
 import io.github.lib0823.devagent.config.MaintainProperties;
 import io.github.lib0823.devagent.platform.ChildEnv;
-import io.github.lib0823.devagent.gitlab.IssueEvent;
-import io.github.lib0823.devagent.gitlab.IssueEventBus;
+import io.github.lib0823.devagent.issue.IssueEvent;
+import io.github.lib0823.devagent.issue.IssueEventBus;
 import io.github.lib0823.devagent.llm.UsageService;
 import io.github.lib0823.devagent.notify.NotificationService;
 import org.slf4j.Logger;
@@ -128,7 +128,7 @@ public class MaintainService {
         }
         turns.ensureTable();
         turns.ensureIndex();
-        events.ensureTable();                         // GitLab 이 꺼져 있어도 이벤트 테이블은 필요하다(멱등)
+        events.ensureTable();                         // GitHub 이 꺼져 있어도 이벤트 테이블은 필요하다(멱등)
         // 재기동 시 진행 중이던 요청: 중간 상태를 알 수 없으므로 실패로 닫는다. 작업트리의 변경과 세션은 남아 있어 이어서 요청할 수 있다
         for (MaintainTurn t : turns.findActive()) {
             boolean started = MaintainTurn.RUNNING.equals(t.getState());

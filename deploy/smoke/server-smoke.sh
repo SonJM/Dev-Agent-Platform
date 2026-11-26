@@ -139,8 +139,8 @@ D=$(printf '%q' "$REMOTE_DIR")
   cd \"\$D\" || exit 1
   if command -v setsid >/dev/null; then S=setsid; else S=; fi
   \$S nohup env -i HOME=\"\$HOME\" PATH=\"\$PATH\" LANG=\"\${LANG:-C.UTF-8}\" USER=\"\$(id -un)\" \
-      DEV_AGENT_HOME=\"\$D\" ADMIN_PORT=$SMOKE_PORT MAINTAIN_ENABLED=false GITLAB_ENABLED=false \
-      GITLAB_WORK_DIR=\"\$D/work\" DEV_AGENT_RUN_MODE=systemd \
+      DEV_AGENT_HOME=\"\$D\" ADMIN_PORT=$SMOKE_PORT MAINTAIN_ENABLED=false ISSUE_ENABLED=false \
+      ISSUE_WORK_DIR=\"\$D/work\" DEV_AGENT_RUN_MODE=systemd \
       java -Xmx512m -XX:+UseSerialGC -jar \"\$D/dev-agent.jar\" < /dev/null > \"\$D/out.log\" 2>&1 &
 )
 sleep 2

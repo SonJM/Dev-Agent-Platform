@@ -2,7 +2,7 @@ package io.github.lib0823.devagent.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import io.github.lib0823.devagent.config.McpProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,11 +36,11 @@ class McpCustomOnlyTest {
     }
 
     private McpConfigService service(boolean enabled, boolean agentEnabled, McpServer... servers) {
-        GitLabProperties gitlab = mock(GitLabProperties.class);
-        when(gitlab.workDir()).thenReturn(workDir.toString());
+        IssueProperties issueProps = mock(IssueProperties.class);
+        when(issueProps.workDir()).thenReturn(workDir.toString());
         McpServerMapper mapper = mock(McpServerMapper.class);
         when(mapper.findAll()).thenReturn(List.of(servers));
-        McpConfigService svc = new McpConfigService(new McpProperties(enabled, agentEnabled), gitlab, mapper, null);
+        McpConfigService svc = new McpConfigService(new McpProperties(enabled, agentEnabled), issueProps, mapper, null);
         svc.init();
         return svc;
     }

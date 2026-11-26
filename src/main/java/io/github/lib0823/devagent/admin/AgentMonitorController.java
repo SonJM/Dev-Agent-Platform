@@ -1,9 +1,9 @@
 package io.github.lib0823.devagent.admin;
 
-import io.github.lib0823.devagent.gitlab.IssueAgentService;
-import io.github.lib0823.devagent.gitlab.IssueEvent;
-import io.github.lib0823.devagent.gitlab.IssueEventBus;
-import io.github.lib0823.devagent.gitlab.IssueSession;
+import io.github.lib0823.devagent.issue.IssueAgentService;
+import io.github.lib0823.devagent.issue.IssueEvent;
+import io.github.lib0823.devagent.issue.IssueEventBus;
+import io.github.lib0823.devagent.issue.IssueSession;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

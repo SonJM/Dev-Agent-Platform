@@ -19,10 +19,10 @@ class BootstrapTest {
     void readEnvHandlesCommentsQuotesAndBlanks(@TempDir Path dir) throws Exception {
         Path f = dir.resolve(".env");
         Files.writeString(f, String.join("\n",
-                "# 주석", "", "GITLAB_URL=http://git.example  # 뒤 주석", "QUOTED=\"a b\"", "EMPTY=", "  SPACED = v ", "# OFF=1", "no-equals"),
+                "# 주석", "", "ISSUE_URL=http://git.example  # 뒤 주석", "QUOTED=\"a b\"", "EMPTY=", "  SPACED = v ", "# OFF=1", "no-equals"),
                 StandardCharsets.UTF_8);
         Map<String, String> m = Bootstrap.readEnv(f);
-        assertEquals("http://git.example", m.get("GITLAB_URL"));
+        assertEquals("http://git.example", m.get("ISSUE_URL"));
         assertEquals("a b", m.get("QUOTED"));
         assertEquals("", m.get("EMPTY"));
         assertEquals("v", m.get("SPACED"));
@@ -48,9 +48,9 @@ class BootstrapTest {
     @Test
     void envTemplateHasNoValuesForSecrets() {
         Map<String, String> m = Bootstrap.readEnv(Path.of("src", "main", "resources", "dist", "env.template"));
-        for (String k : List.of("GITLAB_TOKEN", "GITLAB_URL")) {
+        for (String k : List.of("GITHUB_TOKEN", "ISSUE_PROJECTS")) {
             assertEquals("", m.getOrDefault(k, ""), k + " 에 값이 들어 있다");
         }
-        assertEquals("false", m.get("GITLAB_ENABLED"));
+        assertEquals("false", m.get("ISSUE_ENABLED"));
     }
 }

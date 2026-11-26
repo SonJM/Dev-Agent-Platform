@@ -1,8 +1,8 @@
 package io.github.lib0823.devagent.command;
 
 import io.github.lib0823.devagent.messenger.MessengerService;
-import io.github.lib0823.devagent.gitlab.IssueAgentService;
-import io.github.lib0823.devagent.gitlab.IssueAgentService.ReplyOutcome;
+import io.github.lib0823.devagent.issue.IssueAgentService;
+import io.github.lib0823.devagent.issue.IssueAgentService.ReplyOutcome;
 import io.github.lib0823.devagent.research.ResearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -42,6 +42,10 @@ server:
 platform:
   messenger: ${PLATFORM_MESSENGER:none}   # none(메신저 없이 화면만) | 추가한 MessengerPort 어댑터 이름
   coding-agent: ${PLATFORM_CODING_AGENT:claude-cli}
+  # 운영 알림(M6)
+  ops:
+    notify-on-startup: true           # 기동 시 "나에게 보내기"로 시작 알림
+    alert-cooldown-minutes: 30        # 오류 알림 최소 간격(스팸 방지)
 
 mybatis:
   configuration:
@@ -54,7 +58,7 @@ claude:
   # claude.exe 를 직접 실행(cmd.exe 코드페이지 우회 → 한글 인자 안전). 비면 cli-command 기준 자동 탐색.
   exe-command: ${CLAUDE_EXE_COMMAND:}        # 비우면 자동 탐색(config/ClaudeCliLocator: PATH · npm 전역 · ~/.local/bin)
 
-# GitLab 이슈 수정 에이전트 — 라벨 이슈를 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인) → ai/ 브랜치 푸시 → 코멘트·MR.
+# GitHub 이슈 수정 에이전트 — 라벨 이슈를 1건씩: 소스 준비 → 분석/설계(자기방 확인) → 수정(자기방 확인) → ai/ 브랜치 푸시 → 코멘트·PR.
 # 사용자 확인은 자기방 메시지로만 받는다. 코딩용 Claude 는 저장소 디렉터리에서 별도 claude -p 세션.
 # 사용자 정의 MCP 연동 — 관리 화면에서 등록한 서버를 Claude Code CLI 에 --mcp-config 로 붙인다(내장 서버 없음).
 mcp:
@@ -67,57 +71,51 @@ github:
   api-url: ${GITHUB_API_URL:https://api.github.com}   # https 만 허용(시험용 localhost·127.0.0.1 http 는 허용하되 설치 점검이 경고)
   trusted-authors-only: ${GITHUB_TRUSTED_AUTHORS_ONLY:true}   # 이슈 본문·코멘트 작성자가 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트 반영
 
-gitlab:
-  enabled: ${GITLAB_ENABLED:false}
-  projects: ${GITLAB_PROJECTS:}             # 쉼표구분 "owner/repo"
-  label: ${GITLAB_LABEL:ai-fix}             # 이 라벨이 붙은 열린 이슈만 자동 처리 (비우면 열린 이슈 전부 — 비권장)
-  scan-interval-ms: ${GITLAB_SCAN_INTERVAL_MS:120000}      # 2분(프로젝트당 GitLab 호출 1회, 라벨 붙인 뒤 최대 2분 안에 큐 등록)
-  reply-poll-interval-ms: ${GITLAB_REPLY_POLL_MS:5000}     # 자기방 답변 폴링
-  work-dir: ${GITLAB_WORK_DIR:work}         # 저장소 clone 루트 (git 제외)
+issue:
+  enabled: ${ISSUE_ENABLED:false}
+  projects: ${ISSUE_PROJECTS:}             # 쉼표구분 "owner/repo"
+  label: ${ISSUE_LABEL:ai-fix}             # 이 라벨이 붙은 열린 이슈만 자동 처리 (비우면 열린 이슈 전부 — 비권장)
+  scan-interval-ms: ${ISSUE_SCAN_INTERVAL_MS:120000}      # 2분(프로젝트당 GitHub 호출 1회, 라벨 붙인 뒤 최대 2분 안에 큐 등록)
+  reply-poll-interval-ms: ${ISSUE_REPLY_POLL_MS:5000}     # 자기방 답변 폴링
+  work-dir: ${ISSUE_WORK_DIR:work}         # 저장소 clone 루트 (git 제외)
   # 브랜치/커밋 컨벤션: 브랜치 {유형}/{이슈번호}(예 fix/12), 모든 유형이 저장소 기본 브랜치에서 분기해 기본 브랜치로 Draft PR. 커밋 첫 줄 feat|fix|docs|...: 제목
   convention:
-    prefixes: ${GITLAB_BRANCH_PREFIXES:feature,fix,refactor,doc,hotfix}
-  git-user-name: ${GITLAB_GIT_USER_NAME:dev-agent}
-  git-user-email: ${GITLAB_GIT_USER_EMAIL:dev-agent@example.com}
-  comment-on-issue: ${GITLAB_COMMENT_ON_ISSUE:true}
-  create-mr: ${GITLAB_CREATE_MR:true}
-  prefetch: ${GITLAB_PREFETCH:true}
-  concurrency: ${GITLAB_CONCURRENCY:2}      # 동시에 진행할 이슈 수(수정/검증이 겹치면 Maven·Claude 가 병렬로 돈다). 프리뷰 Tomcat 은 1개 공유(순서 대기)
-  wait-remind-ms: ${GITLAB_WAIT_REMIND_MS:14400000}  # 확인 대기 4시간마다 자기방 리마인더(0=끔)         # 확인 대기 중 다음 이슈 선분석(세션별 git worktree 사용)
+    prefixes: ${ISSUE_BRANCH_PREFIXES:feature,fix,refactor,doc,hotfix}
+  git-user-name: ${ISSUE_GIT_USER_NAME:dev-agent}
+  git-user-email: ${ISSUE_GIT_USER_EMAIL:dev-agent@example.com}
+  comment-on-issue: ${ISSUE_COMMENT_ON_ISSUE:true}
+  create-pr: ${ISSUE_CREATE_PR:true}
+  prefetch: ${ISSUE_PREFETCH:true}
+  concurrency: ${ISSUE_CONCURRENCY:2}      # 동시에 진행할 이슈 수(수정/검증이 겹치면 Maven·Claude 가 병렬로 돈다). 프리뷰 Tomcat 은 1개 공유(순서 대기)
+  wait-remind-ms: ${ISSUE_WAIT_REMIND_MS:14400000}  # 확인 대기 4시간마다 자기방 리마인더(0=끔)         # 확인 대기 중 다음 이슈 선분석(세션별 git worktree 사용)
   agent:
-    model: ${GITLAB_AGENT_MODEL:opus}
-    effort: ${GITLAB_AGENT_EFFORT:high}
-    timeout-ms: ${GITLAB_AGENT_TIMEOUT_MS:3600000}         # 분석(설계·재설계) 1회 실행 상한 60분
-    max-turns: ${GITLAB_AGENT_MAX_TURNS:80}                # 분석 턴 상한
-    fix-timeout-ms: ${GITLAB_AGENT_FIX_TIMEOUT_MS:14400000} # 개발(수정·재수정) 1회 실행 상한 4시간 — 큰 이슈(마이그레이션 등)용
-    fix-max-turns: ${GITLAB_AGENT_FIX_MAX_TURNS:600}       # 개발 턴 상한(파일 수십 개 수정이면 수백 턴)
-    idle-timeout-ms: ${GITLAB_AGENT_IDLE_TIMEOUT_MS:2700000} # 무응답 상한 45분: 도구 호출·출력이 이 시간 동안 없으면 멈춘 것으로 보고 중단(0=끔). 긴 빌드는 Bash 결과가 와야 갱신되므로 빌드 시간보다 길게
+    model: ${ISSUE_AGENT_MODEL:opus}
+    effort: ${ISSUE_AGENT_EFFORT:high}
+    timeout-ms: ${ISSUE_AGENT_TIMEOUT_MS:3600000}         # 분석(설계·재설계) 1회 실행 상한 60분
+    max-turns: ${ISSUE_AGENT_MAX_TURNS:80}                # 분석 턴 상한
+    fix-timeout-ms: ${ISSUE_AGENT_FIX_TIMEOUT_MS:14400000} # 개발(수정·재수정) 1회 실행 상한 4시간 — 큰 이슈(마이그레이션 등)용
+    fix-max-turns: ${ISSUE_AGENT_FIX_MAX_TURNS:600}       # 개발 턴 상한(파일 수십 개 수정이면 수백 턴)
+    idle-timeout-ms: ${ISSUE_AGENT_IDLE_TIMEOUT_MS:2700000} # 무응답 상한 45분: 도구 호출·출력이 이 시간 동안 없으면 멈춘 것으로 보고 중단(0=끔). 긴 빌드는 Bash 결과가 와야 갱신되므로 빌드 시간보다 길게
     # 상한에 걸리면 분석은 실패(FAILED), 개발은 작업트리 변경을 보존한 채 리뷰 대기로 넘겨 「피드백: 이어서 진행」으로 같은 세션을 계속할 수 있다
     # 분석 단계: 읽기 전용
-    analyze-tools: ${GITLAB_AGENT_ANALYZE_TOOLS:Read,Grep,Glob,LS,Bash(git log:*),Bash(git show:*),Bash(git blame:*)}
+    analyze-tools: ${ISSUE_AGENT_ANALYZE_TOOLS:Read,Grep,Glob,LS,Bash(git log:*),Bash(git show:*),Bash(git blame:*)}
     # 수정 단계: 파일 편집 + 지정 빌드/테스트 명령만 (Bash(<접두어>:*) 패턴). push/commit 은 봇이 수행.
-    fix-tools: ${GITLAB_AGENT_FIX_TOOLS:Read,Grep,Glob,LS,Edit,Write,MultiEdit,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(gradlew:*),Bash(./gradlew:*),Bash(gradlew.bat:*),Bash(mvn:*),Bash(./mvnw:*),Bash(npm test:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx jest:*),Bash(node --check:*)}
-    test-hint: ${GITLAB_AGENT_TEST_HINT:Gradle 프로젝트는 gradlew test (또는 영향 모듈만 :module:test), Maven 은 mvn -q test, Node 는 npm test 를 실행}
-    max-message-chars: ${GITLAB_AGENT_MAX_MESSAGE_CHARS:3000}  # 메신저 1건 길이 상한(초과 시 분할 전송)
+    fix-tools: ${ISSUE_AGENT_FIX_TOOLS:Read,Grep,Glob,LS,Edit,Write,MultiEdit,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(gradlew:*),Bash(./gradlew:*),Bash(gradlew.bat:*),Bash(mvn:*),Bash(./mvnw:*),Bash(npm test:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx jest:*),Bash(node --check:*)}
+    test-hint: ${ISSUE_AGENT_TEST_HINT:Gradle 프로젝트는 gradlew test (또는 영향 모듈만 :module:test), Maven 은 mvn -q test, Node 는 npm test 를 실행}
+    max-message-chars: ${ISSUE_AGENT_MAX_MESSAGE_CHARS:3000}  # 메신저 1건 길이 상한(초과 시 분할 전송)
   # 검증 단계: 수정 후 봇이 직접 컴파일/JS 문법 검사(node --check)를 돌리고, 독립 리뷰어 Claude 세션이 이슈·설계·diff 를 보고 PASS/FAIL.
   # FAIL 이면 실패 내역을 피드백으로 자동 재수정(max-retries 회), 그래도 FAIL 이면 실패 내역과 함께 리뷰 대기로 올린다.
   verify:
-    enabled: ${GITLAB_VERIFY_ENABLED:true}
-    max-retries: ${GITLAB_VERIFY_MAX_RETRIES:2}
-    reviewer: ${GITLAB_VERIFY_REVIEWER:true}
-    model: ${GITLAB_VERIFY_MODEL:}                       # 비우면 agent.model
-    effort: ${GITLAB_VERIFY_EFFORT:medium}
-    command-timeout-ms: ${GITLAB_VERIFY_COMMAND_TIMEOUT_MS:900000}
+    enabled: ${ISSUE_VERIFY_ENABLED:true}
+    max-retries: ${ISSUE_VERIFY_MAX_RETRIES:2}
+    reviewer: ${ISSUE_VERIFY_REVIEWER:true}
+    model: ${ISSUE_VERIFY_MODEL:}                       # 비우면 agent.model
+    effort: ${ISSUE_VERIFY_EFFORT:medium}
+    command-timeout-ms: ${ISSUE_VERIFY_COMMAND_TIMEOUT_MS:900000}
     # 프로젝트별 검사 명령 "group/repo=명령;group/repo2=명령". 비우면 pom.xml → mvn -o -q compile, gradle → gradlew compileJava, 그 외 생략.
-    commands: ${GITLAB_VERIFY_COMMANDS:}
-    tools: ${GITLAB_VERIFY_TOOLS:Read,Grep,Glob,LS,Bash(git diff:*),Bash(git status:*),Bash(git log:*)}
-    reviewer-timeout-ms: ${GITLAB_VERIFY_REVIEWER_TIMEOUT_MS:3600000}   # 리뷰어 세션 1회 실행 상한 60분(0 이면 agent.timeout-ms)
-
-bot:
-  # M6 운영
-  ops:
-    notify-on-startup: true           # 기동 시 "나에게 보내기"로 시작 알림
-    alert-cooldown-minutes: 30        # 오류 알림 최소 간격(스팸 방지)
+    commands: ${ISSUE_VERIFY_COMMANDS:}
+    tools: ${ISSUE_VERIFY_TOOLS:Read,Grep,Glob,LS,Bash(git diff:*),Bash(git status:*),Bash(git log:*)}
+    reviewer-timeout-ms: ${ISSUE_VERIFY_REVIEWER_TIMEOUT_MS:3600000}   # 리뷰어 세션 1회 실행 상한 60분(0 이면 agent.timeout-ms)
 
 logging:
   charset:

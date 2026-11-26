@@ -1,0 +1,252 @@
+{
+  "config": {
+    "argv": [
+      "C:\\nvm4w\\nodejs\\node.exe",
+      "<repo>\\e2e\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--grep",
+      "@task:T-012",
+      "--output",
+      "<repo>/docs/tasks/results/T-012-qa/task-recheck/artifacts"
+    ],
+    "configFile": "<repo>\\e2e\\playwright.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/tasks/results/T-012-qa/task-recheck/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "core/**/*.spec.ts",
+          "tasks/**/*.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "<repo>\\docs\\tasks\\results\\T-012-qa\\task-recheck\\artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "chromium",
+        "testDir": "<repo>\\e2e",
+        "snapshotDir": "<repo>\\e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "core/**/*.spec.ts",
+          "tasks/**/*.spec.ts"
+        ],
+        "timeout": 60000,
+        "use": {
+          "baseURL": "http://127.0.0.1:8778",
+          "screenshot": "on",
+          "trace": "retain-on-failure",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.8127.18 Safari/537.36",
+          "screen": {
+            "width": 1920,
+            "height": 1080
+          },
+          "deviceScaleFactor": 1,
+          "isMobile": false,
+          "hasTouch": false,
+          "defaultBrowserType": "chromium"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": "chromium"
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/tasks/results/T-012-qa/task-recheck/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.65.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "tasks\\T-012.spec.ts",
+      "file": "tasks/T-012.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-T012-1 에이전트 화면: 세션 목록 issueNumber·PR 배지, 상세 이슈·PR 링크",
+          "ok": true,
+          "tags": [
+            "task:T-012"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9031,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-agent-list.png",
+                      "duration": 320
+                    },
+                    {
+                      "title": "shot 02-agent-detail-pr-link.png",
+                      "duration": 331
+                    },
+                    {
+                      "title": "shot 03-agent-remote-event.png",
+                      "duration": 357
+                    },
+                    {
+                      "title": "shot 04-agent-timeline-remote.png",
+                      "duration": 320
+                    }
+                  ],
+                  "startTime": "2026-11-26T02:07:30.897Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-012-qa\\task-recheck\\artifacts\\tasks-T-012-TC-T012-1-에이전트-6ec7f-sueNumber·PR-배지-상세-이슈·PR-링크-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3e3c3cd94cf3ec52e4da-03602fd9b119d347b6f7",
+          "file": "tasks/T-012.spec.ts",
+          "line": 20,
+          "column": 1
+        },
+        {
+          "title": "TC-T012-2 홈·메신저·플랫폼: 이슈 표기와 GitHub 용어",
+          "ok": true,
+          "tags": [
+            "task:T-012"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3976,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-home-sessions.png",
+                      "duration": 232
+                    },
+                    {
+                      "title": "shot 02-messenger-examples.png",
+                      "duration": 129
+                    },
+                    {
+                      "title": "shot 03-platform-project-input.png",
+                      "duration": 365
+                    },
+                    {
+                      "title": "shot 04-research.png",
+                      "duration": 155
+                    }
+                  ],
+                  "startTime": "2026-11-26T02:07:40.737Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-012-qa\\task-recheck\\artifacts\\tasks-T-012-TC-T012-2-홈·메신저·플랫폼-이슈-표기와-GitHub-용어-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3e3c3cd94cf3ec52e4da-0bf1c52a10ba8ed08461",
+          "file": "tasks/T-012.spec.ts",
+          "line": 71,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-26T02:07:27.956Z",
+    "duration": 18547.46,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.github.lib0823.devagent.config.GitLabProperties;
+import io.github.lib0823.devagent.config.IssueProperties;
 import io.github.lib0823.devagent.config.McpProperties;
 import java.nio.file.Path;
 import java.util.List;
@@ -41,15 +41,15 @@ class McpPlaceholderSecurityTest {
 
     @Test
     void rejectsAppSecretPlaceholdersInHeaders() {
-        assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-Leak: ${GITLAB_TOKEN}", null)));
+        assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-Leak: ${GITHUB_TOKEN}", null)));
         assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-Leak: ${DB_PASSWORD}", null)));
         assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-Leak: ${spring.datasource.password}", null)));
-        assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-Leak: ${gitlab.token}", null)));
+        assertNotNull(McpConfigService.validate(http("http://x/mcp", "X-Leak: ${github.token}", null)));
     }
 
     @Test
     void rejectsAppSecretPlaceholdersInUrlAndArgs() {
-        assertNotNull(McpConfigService.validate(http("http://evil/?t=${GITLAB_TOKEN}", null, null)));
+        assertNotNull(McpConfigService.validate(http("http://evil/?t=${GITHUB_TOKEN}", null, null)));
         assertNotNull(McpConfigService.validate(stdio("node", "srv.js\n--pw=${SPRING_DATASOURCE_PASSWORD}")));
         assertNotNull(McpConfigService.validate(stdio("node", "${db_password}")));
     }
@@ -78,17 +78,17 @@ class McpPlaceholderSecurityTest {
     @Test
     void envOmitsAppSecretsEvenIfAlreadyStored(@TempDir Path workDir) {
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("GITLAB_TOKEN", "gl-secret")
+                .withProperty("GITHUB_TOKEN", "gl-secret")
                 .withProperty("DB_PASSWORD", "db-secret")
                 .withProperty("spring.datasource.password", "ds-secret")
                 .withProperty("MY_API_KEY", "ok-value");
         McpServer stored = http("http://x/mcp",
-                "A: ${GITLAB_TOKEN}\nB: ${DB_PASSWORD}\nC: ${spring.datasource.password}\nD: ${MY_API_KEY}", null);
-        GitLabProperties gitlab = mock(GitLabProperties.class);
-        when(gitlab.workDir()).thenReturn(workDir.toString());
+                "A: ${GITHUB_TOKEN}\nB: ${DB_PASSWORD}\nC: ${spring.datasource.password}\nD: ${MY_API_KEY}", null);
+        IssueProperties issueProps = mock(IssueProperties.class);
+        when(issueProps.workDir()).thenReturn(workDir.toString());
         McpServerMapper mapper = mock(McpServerMapper.class);
         when(mapper.findAll()).thenReturn(List.of(stored));
-        McpConfigService svc = new McpConfigService(new McpProperties(true, true), gitlab, mapper, environment);
+        McpConfigService svc = new McpConfigService(new McpProperties(true, true), issueProps, mapper, environment);
         svc.init();
 
         Map<String, String> env = svc.env();
