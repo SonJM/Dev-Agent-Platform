@@ -3,7 +3,7 @@
 ```
 id: T-026
 담당: qa (qa)
-상태: 대기
+상태: 완료
 depends: [T-025, T-010]
 병렬: 불가
 충돌: [T-012]   # 같은 platform.html·admin.js — T-012 전에 묶음에 넣어 회귀를 잡는다
@@ -58,9 +58,13 @@ grep -rl "TC-025" e2e/core | grep -q .
 ```
 
 ## 검증 증거
-개발 에이전트가 작성.
+- 일시: 2026-11-26 09:05
+- 명령: `qa-run.sh --grep @core --output docs/tasks/results/T-026-qa`(QA_BASE_URL=http://127.0.0.1:8778), `ls e2e/tasks`, `grep -rl TC-025 e2e/core`
+- 결과: QA PASS, 10개 통과(8 TC)·skipped 0, 56.2초. `e2e/core/bundle-import.spec.ts`에 TC-025 3개(`@core`), `e2e/tasks/` 비어 있음. 8778·54329 리슨 0
+- 변경 설명서: [results/T-026-tc025-core-승격-qa.md](./results/T-026-tc025-core-승격-qa.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-26 | 대기 | PM 작성(07 §8 TC-025 승격 결정, T-012 착수 전. T-010 완료로 `T-010.spec.ts` 정리 포함) |
+| 2026-11-26 | 완료 | PM 검수 통과: 검증 명령 2개 재실행 통과, `report.json` expected 10·unexpected 0·skipped 0이 보고서와 일치, 원본 `T-025.spec.ts`(HEAD)와 새 파일 diff는 태그 3줄뿐, 지시서 본문 변경 없음. 07 §8에 TC-025 행 추가. 참고: 실행 jar는 2.0.4 시점 빌드(앱 코드 변경 없는 작업이라 인정, 최신 jar 확인은 다음 `QA 확인: 예` 실행) |

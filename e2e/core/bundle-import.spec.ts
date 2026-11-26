@@ -20,7 +20,7 @@ async function mcpNames(page: Page): Promise<string[]> {
   return body.servers.map((s) => s.name);
 }
 
-test('TC-025 stdio MCP 묶음: 확인 창·체크 전 비활성·취소 시 저장 없음·체크 후 저장', { tag: ['@task:T-025'] }, async ({ page }, testInfo) => {
+test('TC-025 stdio MCP 묶음: 확인 창·체크 전 비활성·취소 시 저장 없음·체크 후 저장', { tag: ['@core'] }, async ({ page }, testInfo) => {
   const errors = collectConsoleErrors(page);
   const name = `qa-mcp-${Date.now().toString(36)}`;
   const bundle = {
@@ -69,7 +69,7 @@ test('TC-025 stdio MCP 묶음: 확인 창·체크 전 비활성·취소 시 저�
   expect(errors).toEqual([]);
 });
 
-test('TC-025 stdio 없는 묶음(스킬 1개): 경고 없이 항목 수만, 가져오면 스킬 반영', { tag: ['@task:T-025'] }, async ({ page }, testInfo) => {
+test('TC-025 stdio 없는 묶음(스킬 1개): 경고 없이 항목 수만, 가져오면 스킬 반영', { tag: ['@core'] }, async ({ page }, testInfo) => {
   const errors = collectConsoleErrors(page);
   const name = `qa-bskill-${Date.now().toString(36)}`;
   const bundle = {
@@ -104,7 +104,7 @@ test('TC-025 stdio 없는 묶음(스킬 1개): 경고 없이 항목 수만, 가�
   expect(errors).toEqual([]);
 });
 
-test('TC-025 390px: 확인 창 가로 넘침 0, 버튼이 보인다', { tag: ['@task:T-025'] }, async ({ page }, testInfo) => {
+test('TC-025 390px: 확인 창 가로 넘침 0, 버튼이 보인다', { tag: ['@core'] }, async ({ page }, testInfo) => {
   const errors = collectConsoleErrors(page);
   const name = `qa-mcp-m-${Date.now().toString(36)}`;
   const longArg = 'x'.repeat(200);
