@@ -125,6 +125,21 @@ public class AdminController {
         return Map.of("result", issueAgent.addProject(path));
     }
 
+    /**
+     * 토큰의 내 GitHub 저장소 목록(화면 「GitHub에서 고르기」가 창을 열 때만 부른다). 실패해도 HTTP 200 에 ok=false + reason.
+     * refresh=true 면 60초 캐시를 무시한다.
+     */
+    @GetMapping("/api/issues-repos")
+    public Map<String, Object> issuesRepos(@RequestParam(defaultValue = "false") boolean refresh) {
+        return issueAgent.repoList(refresh);
+    }
+
+    /** 대상 프로젝트를 보낸 묶음(path 여러 개, 0개 허용)으로 한 번에 저장. 새 저장소만 GitHub 확인, 실패는 rejected. */
+    @PostMapping("/api/issues-projects/set")
+    public Map<String, Object> issuesProjectsSet(@RequestParam(name = "path", required = false) List<String> paths) {
+        return issueAgent.setProjects(paths);
+    }
+
     /** 대상 프로젝트 삭제. 진행 중 세션은 유지된다. */
     @PostMapping("/api/issues-projects/remove")
     public Map<String, Object> issuesProjectRemove(@RequestParam String path) {

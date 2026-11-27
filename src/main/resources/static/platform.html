@@ -48,7 +48,7 @@
               <button class="btn" id="modelSaveBtn" onclick="saveModels()">저장</button>
             </div>
           </div>
-          <div class="sec" style="margin:14px 0 6px"><span>대상 프로젝트</span><span class="n" id="projCount">0</span></div>
+          <div class="sec proj-sec" style="margin:14px 0 6px"><span>대상 프로젝트</span><span class="n" id="projCount">0</span><span class="sp"></span><button class="btn sm" id="repoOpenBtn" onclick="repoOpen()" title="토큰이 접근할 수 있는 내 GitHub 저장소 목록에서 체크로 고릅니다">GitHub에서 고르기</button></div>
           <div id="projList" class="chips" style="margin-bottom:8px"></div>
           <div class="toolbar">
             <div class="field has-ico"><span class="ico" id="icPlus"></span><input id="projIn" placeholder="추가: owner/repo" autocomplete="off"></div>
@@ -119,6 +119,29 @@
   <div class="bc-foot">
     <label class="bc-ack" id="bcAckRow" hidden><input type="checkbox" id="bcAck" onchange="$('bcOk').disabled=!this.checked"> 위 명령을 확인했고 실행을 허용합니다</label>
     <div class="bc-btns"><button class="btn" onclick="bundleCancel()">취소</button><button class="btn primary" id="bcOk" onclick="bundleCommit()">가져오기</button></div>
+  </div>
+</dialog>
+<dialog class="bundle-confirm repo-pick" id="repoDlg" aria-labelledby="rpTitle" oncancel="repoCancel()">
+  <div class="bc-head">
+    <h3 id="rpTitle">GitHub에서 대상 프로젝트 고르기</h3>
+    <div class="hint">토큰의 Repository access가 'All repositories'가 아니면 고른 저장소만 보입니다.</div>
+    <div class="rp-tools">
+      <input class="in" id="rpFilter" type="search" placeholder="이름 필터 (이 화면 안에서만)" autocomplete="off" aria-label="저장소 이름 필터" oninput="repoFilter()">
+      <button class="btn" id="rpRefresh" onclick="repoLoad(true)">새로고침</button>
+    </div>
+  </div>
+  <div class="bc-body rp-body">
+    <div id="rpStatus" role="status" aria-live="polite"></div>
+    <div id="rpList" class="rp-list"></div>
+    <div id="rpExtraBox" hidden>
+      <div class="rp-sub">목록에 없는 대상 <small>체크를 풀어야 대상에서 빠집니다</small></div>
+      <div id="rpExtra" class="rp-list"></div>
+    </div>
+  </div>
+  <div class="bc-foot">
+    <div class="rp-msg" id="rpMsg" role="status" aria-live="polite" hidden></div>
+    <div class="rp-bar"><span class="hint" id="rpCount"></span>
+      <div class="bc-btns"><button class="btn" onclick="repoCancel()">취소</button><button class="btn primary" id="rpSave" onclick="repoSave()">저장</button></div></div>
   </div>
 </dialog>
 <script src="/ui.js"></script>

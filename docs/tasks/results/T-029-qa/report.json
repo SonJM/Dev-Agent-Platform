@@ -1,0 +1,1212 @@
+{
+  "config": {
+    "argv": [
+      "C:\\nvm4w\\nodejs\\node.exe",
+      "<repo>\\e2e\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--grep",
+      "@task:T-029|@core",
+      "--output",
+      "<repo>/docs/tasks/results/T-029-qa/artifacts"
+    ],
+    "configFile": "<repo>\\e2e\\playwright.config.ts",
+    "rootDir": "<repo>/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "<repo>/docs/tasks/results/T-029-qa/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "<repo>/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "core/**/*.spec.ts",
+          "tasks/**/*.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "chromium",
+        "testDir": "<repo>\\e2e",
+        "snapshotDir": "<repo>\\e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "core/**/*.spec.ts",
+          "tasks/**/*.spec.ts"
+        ],
+        "timeout": 60000,
+        "use": {
+          "baseURL": "http://127.0.0.1:8778",
+          "screenshot": "on",
+          "trace": "retain-on-failure",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.8127.18 Safari/537.36",
+          "screen": {
+            "width": 1920,
+            "height": 1080
+          },
+          "deviceScaleFactor": 1,
+          "isMobile": false,
+          "hasTouch": false,
+          "defaultBrowserType": "chromium"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": "chromium"
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "<repo>/docs/tasks/results/T-029-qa/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.65.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "core\\access-control.spec.ts",
+      "file": "core/access-control.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-023 다른 출처의 상태 변경 요청은 경로 표기와 무관하게 403",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3705,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-before.png",
+                      "duration": 331
+                    },
+                    {
+                      "title": "shot 02-after-reload.png",
+                      "duration": 320
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:11:56.789Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-access-control-TC-023-다른-출처의-상태-변경-요청은-경로-표기와-무관하게-403-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "27bb5fc446b8925dd82c-1d398c23e67e2df0161a",
+          "file": "core/access-control.spec.ts",
+          "line": 17,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\bundle-import.spec.ts",
+      "file": "core/bundle-import.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-025 stdio MCP 묶음: 확인 창·체크 전 비활성·취소 시 저장 없음·체크 후 저장",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3635,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-dialog-unchecked.png",
+                      "duration": 290
+                    },
+                    {
+                      "title": "shot 02-cancelled.png",
+                      "duration": 258
+                    },
+                    {
+                      "title": "shot 03-dialog-checked.png",
+                      "duration": 272
+                    },
+                    {
+                      "title": "shot 04-imported.png",
+                      "duration": 289
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:01.304Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-bundle-import-TC-025--253c9-체크-전-비활성·취소-시-저장-없음·체크-후-저장-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "37b0f88a77e001ab4cd7-c3081b9c07b6894bd4a3",
+          "file": "core/bundle-import.spec.ts",
+          "line": 23,
+          "column": 1
+        },
+        {
+          "title": "TC-025 stdio 없는 묶음(스킬 1개): 경고 없이 항목 수만, 가져오면 스킬 반영",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1993,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-dialog-no-stdio.png",
+                      "duration": 242
+                    },
+                    {
+                      "title": "shot 02-skill-imported.png",
+                      "duration": 179
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:04.972Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-bundle-import-TC-025--c7a79-킬-1개-경고-없이-항목-수만-가져오면-스킬-반영-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "37b0f88a77e001ab4cd7-77ebfc2e464e7505d86f",
+          "file": "core/bundle-import.spec.ts",
+          "line": 72,
+          "column": 1
+        },
+        {
+          "title": "TC-025 390px: 확인 창 가로 넘침 0, 버튼이 보인다",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1368,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-dialog-390.png",
+                      "duration": 160
+                    },
+                    {
+                      "title": "shot 02-cancelled-390.png",
+                      "duration": 161
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:06.985Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-bundle-import-TC-025-390px-확인-창-가로-넘침-0-버튼이-보인다-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "37b0f88a77e001ab4cd7-0b3a383a799c984f237f",
+          "file": "core/bundle-import.spec.ts",
+          "line": 107,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\empty-states.spec.ts",
+      "file": "core/empty-states.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-010 세션·스레드가 없을 때 에이전트·리서치 탭이 빈 상태 안내를 보인다",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1198,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-agent-empty.png",
+                      "duration": 77
+                    },
+                    {
+                      "title": "shot 02-research-empty.png",
+                      "duration": 73
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:08.390Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-empty-states-TC-010-세-2c139--때-에이전트·리서치-탭이-빈-상태-안내를-보인다-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "86b25c00d2223647243c-43b4a6445f4e4e56838d",
+          "file": "core/empty-states.spec.ts",
+          "line": 5,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\narrow-topbar.spec.ts",
+      "file": "core/narrow-topbar.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-024 390px: 다섯 화면 가로 넘침 없음, 탭 아이콘 이동, 종 버튼 알림함",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7704,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-direct-homehtml.png",
+                      "duration": 81
+                    },
+                    {
+                      "title": "shot 02-direct-agenthtml.png",
+                      "duration": 57
+                    },
+                    {
+                      "title": "shot 03-direct-researchhtml.png",
+                      "duration": 102
+                    },
+                    {
+                      "title": "shot 04-direct-messengerhtml.png",
+                      "duration": 129
+                    },
+                    {
+                      "title": "shot 05-direct-platformhtml.png",
+                      "duration": 266
+                    },
+                    {
+                      "title": "shot 06-tab-agenthtml.png",
+                      "duration": 146
+                    },
+                    {
+                      "title": "shot 07-tab-researchhtml.png",
+                      "duration": 242
+                    },
+                    {
+                      "title": "shot 08-tab-messengerhtml.png",
+                      "duration": 218
+                    },
+                    {
+                      "title": "shot 09-tab-platformhtml.png",
+                      "duration": 355
+                    },
+                    {
+                      "title": "shot 10-notice-panel-open.png",
+                      "duration": 290
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:09.631Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-narrow-topbar-TC-024--cbd4c--가로-넘침-없음-탭-아이콘-이동-종-버튼-알림함-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a20c3827c60723dc16c7-db5097ff29752cc96db3",
+          "file": "core/narrow-topbar.spec.ts",
+          "line": 22,
+          "column": 1
+        },
+        {
+          "title": "TC-024 768px: 상단바 기존 모양 유지(탭 이름 보임, 한 줄)",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1327,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-home-768.png",
+                      "duration": 144
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:17.352Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-narrow-topbar-TC-024-768px-상단바-기존-모양-유지-탭-이름-보임-한-줄--chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a20c3827c60723dc16c7-9f33a88cb270001e40b0",
+          "file": "core/narrow-topbar.spec.ts",
+          "line": 81,
+          "column": 3
+        },
+        {
+          "title": "TC-024 1440px: 상단바 기존 모양 유지(탭 이름 보임, 한 줄)",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1504,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-home-1440.png",
+                      "duration": 128
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:18.701Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-narrow-topbar-TC-024-1440px-상단바-기존-모양-유지-탭-이름-보임-한-줄--chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a20c3827c60723dc16c7-2c74db6c6045e0e91947",
+          "file": "core/narrow-topbar.spec.ts",
+          "line": 81,
+          "column": 3
+        }
+      ]
+    },
+    {
+      "title": "core\\notifications.spec.ts",
+      "file": "core/notifications.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-009 알림함을 열면 시작 알림이 보이고 읽음 뒤 배지가 사라진다",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2041,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-badge.png",
+                      "duration": 246
+                    },
+                    {
+                      "title": "shot 02-panel-open.png",
+                      "duration": 232
+                    },
+                    {
+                      "title": "shot 03-badge-gone.png",
+                      "duration": 223
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:20.265Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-notifications-TC-009-알림함을-열면-시작-알림이-보이고-읽음-뒤-배지가-사라진다-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7418776ae0666b24f02f-c52db5eca1d24eb511df",
+          "file": "core/notifications.spec.ts",
+          "line": 5,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\removed-features.spec.ts",
+      "file": "core/removed-features.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-013 제거 대상 요소·API가 되살아나지 않고 남은 화면이 정상 동작한다 (+ TC-014 제거 API 404)",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4121,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-home.png",
+                      "duration": 127
+                    },
+                    {
+                      "title": "shot 02-messenger.png",
+                      "duration": 107
+                    },
+                    {
+                      "title": "shot 03-platform-doctor.png",
+                      "duration": 229
+                    },
+                    {
+                      "title": "shot 04-platform-ports.png",
+                      "duration": 228
+                    },
+                    {
+                      "title": "shot 05-platform-mcp-form.png",
+                      "duration": 350
+                    },
+                    {
+                      "title": "shot 06-agent.png",
+                      "duration": 88
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:22.366Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-removed-features-TC-0-7d600--정상-동작한다-TC-014-제거-API-404--chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "6a536b51e1843cfdbcee-aa63ea657bcd3c14338e",
+          "file": "core/removed-features.spec.ts",
+          "line": 72,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\routine-crud.spec.ts",
+      "file": "core/routine-crud.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-008 리서치에서 루틴을 등록하고 삭제한다(예약 전이라 실행되지 않음)",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2155,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-form-filled.png",
+                      "duration": 222
+                    },
+                    {
+                      "title": "shot 02-registered.png",
+                      "duration": 182
+                    },
+                    {
+                      "title": "shot 03-deleted.png",
+                      "duration": 163
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:26.542Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-routine-crud-TC-008-리서치에서-루틴을-등록하고-삭제한다-예약-전이라-실행되지-않음--chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "2dd6a4b012b76155f593-2c67a4fb07afbf023107",
+          "file": "core/routine-crud.spec.ts",
+          "line": 5,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\shell-tabs.spec.ts",
+      "file": "core/shell-tabs.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-006 홈에서 다섯 탭을 차례로 이동한다",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5111,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-home.png",
+                      "duration": 174
+                    },
+                    {
+                      "title": "shot 02-tab-agenthtml.png",
+                      "duration": 277
+                    },
+                    {
+                      "title": "shot 03-tab-researchhtml.png",
+                      "duration": 331
+                    },
+                    {
+                      "title": "shot 04-tab-messengerhtml.png",
+                      "duration": 337
+                    },
+                    {
+                      "title": "shot 05-tab-platformhtml.png",
+                      "duration": 526
+                    },
+                    {
+                      "title": "shot 06-home-again.png",
+                      "duration": 349
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:28.740Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-shell-tabs-TC-006-홈에서-다섯-탭을-차례로-이동한다-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8eb6966053aaa480294f-7756039b949ed1082d45",
+          "file": "core/shell-tabs.spec.ts",
+          "line": 17,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "core\\skill-crud.spec.ts",
+      "file": "core/skill-crud.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-007 플랫폼에서 스킬을 등록하고 삭제한다",
+          "ok": true,
+          "tags": [
+            "core"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3437,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-form-filled.png",
+                      "duration": 353
+                    },
+                    {
+                      "title": "shot 02-registered.png",
+                      "duration": 311
+                    },
+                    {
+                      "title": "shot 03-deleted.png",
+                      "duration": 319
+                    },
+                    {
+                      "title": "shot 04-after-reload.png",
+                      "duration": 232
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:33.894Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\core-skill-crud-TC-007-플랫폼에서-스킬을-등록하고-삭제한다-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "b6a133574d161099c5c5-61d8678e38cb48b882c2",
+          "file": "core/skill-crud.spec.ts",
+          "line": 5,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "tasks\\T-029.spec.ts",
+      "file": "tasks/T-029.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-027 ① 실제 서버 응답(토큰 없음): 안내 문구·직접 입력 칸·현재 대상",
+          "ok": true,
+          "tags": [
+            "task:T-029"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1546,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-no-token.png",
+                      "duration": 220
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:37.384Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\tasks-T-029-TC-027-①-실제-서버-응답-토큰-없음-안내-문구·직접-입력-칸·현재-대상-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c0e42fd9d0e706499a03-6712f4024adcc4af2d2c",
+          "file": "tasks/T-029.spec.ts",
+          "line": 77,
+          "column": 1
+        },
+        {
+          "title": "TC-027 ② 가로챈 목록: 표시·필터·체크·저장 본문·취소·ok:true 처리",
+          "ok": true,
+          "tags": [
+            "task:T-029"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2606,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-list.png",
+                      "duration": 191
+                    },
+                    {
+                      "title": "shot 02-checked.png",
+                      "duration": 266
+                    },
+                    {
+                      "title": "shot 03-saved.png",
+                      "duration": 234
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:38.954Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\tasks-T-029-TC-027-②-가로챈-목록-표시·필터·체크·저장-본문·취소·ok-true-처리-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c0e42fd9d0e706499a03-ca590a24267bb1cb9b9e",
+          "file": "tasks/T-029.spec.ts",
+          "line": 99,
+          "column": 1
+        },
+        {
+          "title": "TC-027 ③ 390px: 가로 넘침 0, 저장·취소 보임, 행 44px 이상",
+          "ok": true,
+          "tags": [
+            "task:T-029"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1389,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-mobile-dialog.png",
+                      "duration": 181
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:41.588Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\tasks-T-029-TC-027-③-390px-가로-넘침-0-저장·취소-보임-행-44px-이상-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c0e42fd9d0e706499a03-262afe67dad6ef65c5b0",
+          "file": "tasks/T-029.spec.ts",
+          "line": 149,
+          "column": 1
+        },
+        {
+          "title": "TC-027 ④ 현재 대상 조회 500·enabled:false: 원인 문구와 저장 비활성",
+          "ok": true,
+          "tags": [
+            "task:T-029"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2044,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-current-fail.png",
+                      "duration": 279
+                    },
+                    {
+                      "title": "shot 02-agent-off.png",
+                      "duration": 241
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:42.997Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\tasks-T-029-TC-027-④-현재-대상-a5616-enabled-false-원인-문구와-저장-비활성-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c0e42fd9d0e706499a03-b6fc2cdf80bc613b6979",
+          "file": "tasks/T-029.spec.ts",
+          "line": 181,
+          "column": 1
+        },
+        {
+          "title": "TC-027 ⑤ 저장 응답 ok:false: 성공 토스트 없음, 오류가 창 안에, 창 유지",
+          "ok": true,
+          "tags": [
+            "task:T-029"
+          ],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1876,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "steps": [
+                    {
+                      "title": "shot 01-save-error.png",
+                      "duration": 213
+                    }
+                  ],
+                  "startTime": "2026-11-27T04:12:45.063Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "<repo>\\docs\\tasks\\results\\T-029-qa\\artifacts\\tasks-T-029-TC-027-⑤-저장-응답-ok-false-성공-토스트-없음-오류가-창-안에-창-유지-chromium\\test-finished-1.png"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c0e42fd9d0e706499a03-21c60b624b3b5fa5bd06",
+          "file": "tasks/T-029.spec.ts",
+          "line": 207,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-27T04:11:54.065Z",
+    "duration": 54944.714,
+    "expected": 18,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

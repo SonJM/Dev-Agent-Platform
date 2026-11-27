@@ -204,7 +204,8 @@ public class ClaudeCliAgent implements CodingAgent {
     private static final List<String> MAINTAIN_DENIED_APIS = List.of(
             "api/maintain", "api/system/restart", "api/system/shutdown", "api/system/import",
             "api/issues-reply", "api/issues-create", "api/issues-command",
-            "api/mcp-servers", "api/agent-subagents", "api/agent-teams", "api/agent-models", "api/issues-projects");
+            "api/mcp-servers", "api/agent-subagents", "api/agent-teams", "api/agent-models", "api/issues-projects",
+            "api/issues-repos");
     /**
      * 내용을 화면에 찍는 명령 — .env 를 인자로 받으면 막는다. Read(…/.env) 금지도 Claude Code 가 인식하는 파일 명령에 적용되지만
      * 명시적으로 한 번 더 둔다. 파일명을 적지 않는 `grep -r`, 따옴표(`".env"`), glob(`.env*`)은 걸리지 않는다.

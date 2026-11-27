@@ -31,3 +31,5 @@ run/
 # embedded PostgreSQL (DB_URL empty): data + extracted binaries
 pgdata-embedded/
 pg-bin/
+
+.taste-skill/

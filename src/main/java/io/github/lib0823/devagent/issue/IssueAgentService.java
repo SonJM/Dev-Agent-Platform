@@ -1583,6 +1583,14 @@ public class IssueAgentService {
         return projectReg.removeProject(path);
     }
 
+    public Map<String, Object> repoList(boolean refresh) {
+        return projectReg.repoList(refresh);
+    }
+
+    public Map<String, Object> setProjects(List<String> paths) {
+        return projectReg.setProjects(paths);
+    }
+
     // ---------------------------------------------------------------- 유틸
 
     /**

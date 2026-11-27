@@ -29,10 +29,10 @@ final class GitHubCheck {
     static final String NAME = "GitHub";
 
     private static final String TOKEN_HOWTO = "GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens 에서 발급하세요"
-            + "(저장소 선택은 \"Only select repositories\"로 대상 저장소만, 권한은 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기, "
-            + "만료 90일 안팎, 개인 계정 저장소만 — 조직 저장소는 대상이 아닙니다). 값은 서버 .env 의 GITHUB_TOKEN 에 넣고 재시작합니다.";
+            + "(저장소 선택은 \"All repositories\" — 개인 계정 저장소 전부, 조직 저장소는 대상이 아닙니다. 권한은 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기, "
+            + "만료 90일 안팎. 토큰이 새면 개인 저장소 전부가 노출되니 서버 .env(권한 600)에만 둡니다). 값은 서버 .env 의 GITHUB_TOKEN 에 넣고 재시작합니다.";
     private static final String REISSUE = "토큰을 다시 발급해 .env 의 GITHUB_TOKEN 을 고치고 재시작하세요. " + TOKEN_HOWTO;
-    private static final String REPO_HINT = "토큰의 저장소 선택에 이 저장소를 더하세요(조직 저장소는 대상이 아닙니다 — 개인 계정 저장소만).";
+    private static final String REPO_HINT = "토큰의 저장소 선택이 \"All repositories\"인지, 대상 저장소가 개인 계정 소유인지 확인하세요(조직 저장소는 대상이 아닙니다).";
     private static final DateTimeFormatter EXPIRY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
 
     private GitHubCheck() {

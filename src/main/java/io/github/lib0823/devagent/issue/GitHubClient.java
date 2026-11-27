@@ -36,6 +36,8 @@ public class GitHubClient {
     static final int READ_TIMEOUT_MS = 20_000;
     private static final int MAX_PER_PAGE = 100;
     private static final int MAX_MESSAGE_CHARS = 200;
+    /** 내 저장소 목록 쪽 수 상한(쪽당 100개 → 1,000개). */
+    static final int MAX_REPO_PAGES = 10;
     static final String API_VERSION = "2022-11-28";
     /** 응답 본문 상한(바이트). 이보다 크면 연결 실패로 취급한다(메모리 보호). */
     static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
@@ -77,7 +79,11 @@ public class GitHubClient {
     }
 
     /** 저장소 정보. id 는 표시용(호출에는 쓰지 않는다), path 는 owner/repo. */
-    public record Project(long id, String path, String defaultBranch, String httpUrl, String webUrl) {
+    public record Project(long id, String path, String defaultBranch, String httpUrl, String webUrl, String ownerType) {
+        /** 개인(User) 소유 저장소인가 — 새 대상 프로젝트는 개인 저장소만 받는다(OI-42 ①). */
+        public boolean isUserOwned() {
+            return "User".equals(ownerType);
+        }
     }
 
     public record Issue(long iid, String title, String description, String webUrl,
@@ -114,7 +120,8 @@ public class GitHubClient {
         }
         String path = text(p, "full_name", repo);
         return new Project(p.get("id").asLong(), path, text(p, "default_branch", "main"),
-                text(p, "clone_url", props.cloneUrl(path)), text(p, "html_url", props.repoUrl(path)));
+                text(p, "clone_url", props.cloneUrl(path)), text(p, "html_url", props.repoUrl(path)),
+                text(p.path("owner"), "type", ""));
     }
 
     /** 원격에 브랜치가 있는지. 404 → false(그 밖의 실패는 예외). */
@@ -152,6 +159,62 @@ public class GitHubClient {
             }
         }
         return out;
+    }
+
+    /** 내 저장소 한 건(목록용). updatedAt 은 GitHub 의 ISO 문자열 그대로. */
+    public record Repo(String path, String defaultBranch, boolean isPrivate, boolean archived, boolean fork,
+                       String updatedAt, String webUrl) {
+    }
+
+    /** 내 저장소 목록. truncated 는 상한({@value #MAX_REPO_PAGES}쪽)에서 잘렸음. */
+    public record RepoList(List<Repo> repos, boolean truncated) {
+    }
+
+    /** 토큰이 설정돼 있는지(값은 노출하지 않는다). */
+    public boolean hasToken() {
+        return props.hasToken();
+    }
+
+    /**
+     * 토큰의 내 소유 저장소(최근 갱신 순). 쪽당 100개, 최대 {@value #MAX_REPO_PAGES}쪽. 다음 쪽이 없으면(100개 미만이거나 Link 에 next 없음) 멈춘다.
+     * 소유자가 개인 계정(User)이 아닌 항목(조직)은 안전을 위해 버린다. 화면이 창을 열 때만 부른다.
+     */
+    public RepoList ownRepos() {
+        if (!props.hasToken()) {
+            throw new GitHubException(GitHubException.Kind.UNAUTHORIZED, -1, "GitHub 토큰이 설정되지 않았습니다");
+        }
+        List<Repo> out = new ArrayList<>();
+        boolean truncated = false;
+        for (int page = 1; page <= MAX_REPO_PAGES; page++) {
+            Raw raw = send(HttpMethod.GET, "/user/repos?affiliation=owner&sort=updated&per_page=" + MAX_PER_PAGE + "&page={p}", null, page);
+            JsonNode arr = raw.body();
+            int received = arr != null && arr.isArray() ? arr.size() : 0;
+            for (int i = 0; i < received; i++) {
+                Repo r = toRepo(arr.get(i));
+                if (r != null) {
+                    out.add(r);
+                }
+            }
+            if (received < MAX_PER_PAGE || !hasNextLink(raw.headers().getFirst(HttpHeaders.LINK))) {
+                break;
+            }
+            truncated = page == MAX_REPO_PAGES;
+        }
+        return new RepoList(out, truncated);
+    }
+
+    private static boolean hasNextLink(String link) {
+        return link != null && link.contains("rel=\"next\"");
+    }
+
+    private static Repo toRepo(JsonNode n) {
+        String path = text(n, "full_name", "");
+        if (path.isEmpty() || !"User".equals(text(n.path("owner"), "type", ""))) {
+            return null;                                    // 조직 소유 등은 제외(OI-42 ①)
+        }
+        return new Repo(path, text(n, "default_branch", "main"), n.path("private").asBoolean(false),
+                n.path("archived").asBoolean(false), n.path("fork").asBoolean(false),
+                text(n, "updated_at", ""), text(n, "html_url", ""));
     }
 
     // ---------------------------------------------------------------- 이슈

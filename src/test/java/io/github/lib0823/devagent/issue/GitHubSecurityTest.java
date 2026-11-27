@@ -152,6 +152,29 @@ class GitHubSecurityTest {
     }
 
     @Test
+    void ownReposErrorsNeverCarryTheToken() {
+        for (int status : new int[]{401, 403, 500}) {
+            server.on("GET /user/repos", Reply.json(status, "{\"message\":\"denied " + TOKEN + "\"}"));
+
+            GitHubException e = assertThrows(GitHubException.class, () -> client(true).ownRepos());
+
+            assertFalse(e.getMessage().contains(TOKEN), e.getMessage());
+            assertTrue(e.getMessage().contains("***"), e.getMessage());
+        }
+        assertEquals("Bearer " + TOKEN, server.last().authorization());          // 토큰은 헤더로만 간다
+    }
+
+    @Test
+    void ownReposWithoutTokenFailsBeforeAnyRequest() {
+        GitHubClient c = new GitHubClient(RestClient.builder(), new GitHubProperties("", server.url()));
+
+        GitHubException e = assertThrows(GitHubException.class, c::ownRepos);
+
+        assertEquals(GitHubException.Kind.UNAUTHORIZED, e.kind());
+        assertTrue(server.requests().isEmpty());
+    }
+
+    @Test
     void insecureApiUrlNeverReceivesTokenOrRequests() {
         GitHubProperties insecure = new GitHubProperties(TOKEN, "http://git.example.invalid");
         GitHubClient c = new GitHubClient(RestClient.builder(), insecure);

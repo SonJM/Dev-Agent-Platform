@@ -56,7 +56,7 @@ public final class FakeGitHubServer implements AutoCloseable {
         return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
-    /** key 예: {@code "GET /repos/own/repo"} (질의 문자열 제외). */
+    /** key 예: {@code "GET /repos/own/repo"} (질의 문자열 제외) 또는 {@code "GET /user/repos?page=2"} (질의 포함 키가 우선). */
     public FakeGitHubServer on(String key, Reply reply) {
         replies.put(key, reply);
         return this;
@@ -74,7 +74,11 @@ public final class FakeGitHubServer implements AutoCloseable {
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         String pq = ex.getRequestURI().getRawPath() + (ex.getRequestURI().getRawQuery() == null ? "" : "?" + ex.getRequestURI().getRawQuery());
         requests.add(new Request(ex.getRequestMethod(), pq, ex.getRequestHeaders().getFirst("Authorization"), body));
-        Reply r = replies.get(ex.getRequestMethod() + " " + ex.getRequestURI().getRawPath());
+        String base = ex.getRequestMethod() + " " + ex.getRequestURI().getRawPath();
+        Reply r = replies.get(base + (ex.getRequestURI().getRawQuery() == null ? "" : "?" + ex.getRequestURI().getRawQuery()));
+        if (r == null) {
+            r = replies.get(base);                  // 질의 문자열을 포함한 키가 없으면 경로만으로
+        }
         if (r == null) {
             r = Reply.json(404, "{\"message\":\"Not Found\"}");
         }

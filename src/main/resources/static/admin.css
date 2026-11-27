@@ -101,3 +101,36 @@ dialog.bundle-confirm [hidden] { display: none !important; }
 .bundle-confirm .bc-btns { display: flex; justify-content: flex-end; gap: 8px; }
 .bundle-confirm .bc-btns .btn { min-height: 44px; }
 .bundle-confirm .bc-btns .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 대상 프로젝트 카드 머리: 개수 배지를 제목 옆에, 버튼은 오른쪽 끝(T-029 R6) */
+.sec.proj-sec { justify-content: flex-start; }
+.sec.proj-sec .sp { flex: 1; }
+
+/* GitHub 저장소 고르기 창(platform.html #repoDlg, T-029) — bundle-confirm 창 모양을 재사용 */
+dialog.repo-pick { height: min(720px, calc(100vh - 48px)); }
+.repo-pick .bc-head { padding-bottom: 8px; }
+.repo-pick .rp-tools { display: flex; gap: 8px; margin-top: 10px; }
+.repo-pick .rp-tools .in { flex: 1; min-width: 0; min-height: 44px; }
+.repo-pick .rp-tools .btn { min-height: 44px; }
+.repo-pick .rp-body { flex: 1; gap: 8px; }
+.repo-pick .rp-list { display: flex; flex-direction: column; gap: 6px; }
+.repo-pick .rp-row { display: grid; grid-template-columns: 24px minmax(0,1fr); column-gap: 10px; align-items: center; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface2); cursor: pointer; min-width: 0; }
+.repo-pick .rp-row:hover { background: var(--raised); }
+.repo-pick .rp-row.off { opacity: .6; cursor: not-allowed; }
+.repo-pick .rp-row input { width: 20px; height: 20px; margin: 0; }
+.repo-pick .rp-nm { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
+.repo-pick .rp-nm a { color: inherit; }
+.repo-pick .rp-meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12px; color: var(--muted); min-width: 0; }
+.repo-pick .rp-sub { font-size: 12.5px; font-weight: 600; margin: 8px 0 2px; }
+.repo-pick .rp-sub small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.repo-pick .rp-skel { height: 44px; border-radius: 10px; background: var(--surface2); animation: rpPulse 1.2s ease-in-out infinite; }
+@keyframes rpPulse { 50% { opacity: .5; } }
+.repo-pick .rp-msg { font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-all; max-height: 96px; overflow-y: auto; }
+.repo-pick .rp-msg.err { color: var(--err); } .repo-pick .rp-msg.ok { color: var(--ok); }
+.repo-pick .rp-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.repo-pick .rp-bar .bc-btns { margin-left: auto; }
+.repo-pick .rp-bar .hint.over { color: var(--err); font-weight: 600; }
+@media (min-width: 768px) { .repo-pick .rp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; } .repo-pick .rp-nm { flex: 1 1 200px; } .repo-pick .rp-meta { flex: 0 1 auto; } }
+@media (max-width: 600px) {
+  dialog.repo-pick { width: calc(100vw - 16px); max-width: none; height: 90vh; max-height: 90vh; }
+}

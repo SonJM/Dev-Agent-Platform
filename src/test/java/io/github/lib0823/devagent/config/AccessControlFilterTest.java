@@ -90,6 +90,18 @@ class AccessControlFilterTest {
     }
 
     @Test
+    void tc026_projectsSetFromOtherOriginIsRejectedAndSameOriginPasses() throws Exception {
+        AccessControlFilter f = filter(new AccessProperties(""));
+        MockHttpServletResponse rs = new MockHttpServletResponse();
+        MockFilterChain bad = run(f, req("POST", "/api/issues-projects/set", "https://evil.example"), rs);
+        MockFilterChain ok = run(f, req("POST", "/api/issues-projects/set", "http://localhost:" + PORT), new MockHttpServletResponse());
+
+        assertEquals(403, rs.getStatus());
+        assertEquals(false, passed(bad));
+        assertTrue(passed(ok));
+    }
+
+    @Test
     void TC003_headAndOptionsPass() throws Exception {
         AccessControlFilter f = filter(new AccessProperties(""));
         assertTrue(passed(run(f, req("HEAD", "/api/x", "https://evil.example"), new MockHttpServletResponse())));

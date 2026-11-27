@@ -281,7 +281,7 @@ git commit/push 는 Claude 가 아니라 봇이 합니다. PowerShell 도구는 
 
 ### 준비
 
-GitHub fine-grained PAT(저장소 선택 "Only select repositories"로 대상 저장소만 · 권한 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기 · 만료 90일 안팎 · 개인 계정 저장소만) → `.env` 에 `ISSUE_ENABLED=true`, `GITHUB_TOKEN`, `ISSUE_PROJECTS`(초기값, `owner/repo`) → 재시작 → 이슈에 `ai-fix` 라벨. 토큰 만료·접근 불가는 플랫폼 탭 "설치 점검"의 GitHub 항목이 미리 알립니다(만료 14일 전부터 경고). 대상 프로젝트는 이후 관리 페이지 칩이나 `이슈 프로젝트 추가 owner/repo` 로 바꿉니다.
+GitHub fine-grained PAT(Repository access "All repositories"(개인 계정 저장소 전부, 조직 저장소 제외) · 권한 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기 · 만료 90일 안팎. 토큰이 새면 개인 저장소 전부가 노출된다. 서버 .env(권한 600)에만 두고, 앱은 대상 프로젝트로 고른 저장소만 처리한다) → `.env` 에 `ISSUE_ENABLED=true`, `GITHUB_TOKEN`, `ISSUE_PROJECTS`(초기값, `owner/repo`) → 재시작 → 이슈에 `ai-fix` 라벨. 토큰 만료·접근 불가는 플랫폼 탭 "설치 점검"의 GitHub 항목이 미리 알립니다(만료 14일 전부터 경고). 대상 프로젝트는 이후 플랫폼 탭 「GitHub에서 고르기」, 직접 입력(칩) 또는 `이슈 프로젝트 추가 owner/repo` 로 바꿉니다(대상 상한 50개).
 
 ---
 
@@ -327,7 +327,7 @@ java -jar build/libs/dev-agent.jar   # 4) 실행 (작업 디렉터리 = 홈: .en
 | 키 | 설명 |
 |---|---|
 | `MCP_ENABLED` / `MCP_AGENT_ENABLED` | 사용자 정의 MCP 기능 · 에이전트 실행에 MCP 도구 붙이기 |
-| `ISSUE_ENABLED` / `ISSUE_PROJECTS` / `ISSUE_LABEL` | 이슈 에이전트 · 대상 저장소 초기값 `owner/repo`(DB 우선) · 라벨(ai-fix) |
+| `ISSUE_ENABLED` / `ISSUE_PROJECTS` / `ISSUE_LABEL` | 이슈 에이전트 · 대상 저장소 초기값 `owner/repo`(DB 우선, 상한 50개) · 라벨(ai-fix). 화면용 API: `GET /api/issues-repos?refresh=`(내 소유 저장소 목록, 60초 캐시, 최대 1,000개), `POST /api/issues-projects/set`(form `path` 여러 개 — 대상 프로젝트 일괄 저장) |
 | `GITHUB_TOKEN` / `GITHUB_API_URL` | GitHub fine-grained PAT(비어도 기동, 설치 점검이 알림 — 자식 프로세스에는 전달되지 않음) · API 주소(기본 `https://api.github.com`, https 만 — 시험용 localhost http 는 경고) |
 | `GITHUB_TRUSTED_AUTHORS_ONLY` | 기본 `true`: 이슈 본문·코멘트 작성자가 저장소 OWNER/MEMBER/COLLABORATOR 일 때만 처리·프롬프트에 반영(그 밖은 건너뛰고 로그). 라벨(`ISSUE_LABEL`)이 비면 스캔하지 않는다(설치 점검 fail) |
 | `ISSUE_SCAN_INTERVAL_MS` / `ISSUE_CONCURRENCY` / `ISSUE_PREFETCH` / `ISSUE_WAIT_REMIND_MS` | 스캔 2분 · 동시 2건 · 선분석 · 대기 리마인더 4h |

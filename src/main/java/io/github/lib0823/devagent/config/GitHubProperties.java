@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import java.net.URI;
 
 /**
- * GitHub 연동 설정 (prefix: github). 토큰은 fine-grained PAT(개인 계정의 대상 저장소만)이고 서버 .env 의 GITHUB_TOKEN 에만 둔다.
+ * GitHub 연동 설정 (prefix: github). 토큰은 fine-grained PAT(Repository access "All repositories" — 개인 계정 저장소 전부, 앱은 대상 프로젝트만 처리)이고 서버 .env 의 GITHUB_TOKEN 에만 둔다.
  * 토큰이 비어도 기동된다(Doctor 가 원인을 알려 준다).
  */
 @ConfigurationProperties(prefix = "github")

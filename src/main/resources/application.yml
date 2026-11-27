@@ -65,7 +65,7 @@ mcp:
   enabled: ${MCP_ENABLED:true}               # 사용자 정의 MCP 기능 전체(테이블 준비·설정 파일 생성)
   agent-enabled: ${MCP_AGENT_ENABLED:true}   # 이슈 에이전트(분석/수정) 실행에 붙일지
 
-# GitHub 연동(이슈·PR·git 인증). 토큰은 fine-grained PAT(개인 계정의 대상 저장소만) — 서버 .env 의 GITHUB_TOKEN 에만 둔다. 비어도 기동된다(설치 점검이 알려 줌)
+# GitHub 연동(이슈·PR·git 인증). 토큰은 fine-grained PAT("All repositories" — 앱은 대상 프로젝트로 고른 저장소만 처리) — 서버 .env 의 GITHUB_TOKEN 에만 둔다. 비어도 기동된다(설치 점검이 알려 줌)
 github:
   token: ${GITHUB_TOKEN:}
   api-url: ${GITHUB_API_URL:https://api.github.com}   # https 만 허용(시험용 localhost·127.0.0.1 http 는 허용하되 설치 점검이 경고)

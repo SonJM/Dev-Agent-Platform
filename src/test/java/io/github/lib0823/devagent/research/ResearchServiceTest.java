@@ -1,12 +1,16 @@
 package io.github.lib0823.devagent.research;
 
+import io.github.lib0823.devagent.admin.SettingService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /** 질의 워크플로우의 순수 함수: 메신저 명령 파싱, 결과 문서 절 추출, 평문 변환. */
 class ResearchServiceTest {
@@ -55,5 +59,16 @@ class ResearchServiceTest {
         assertTrue(plain.contains("총 55개 job"));
         assertTrue(plain.contains("stat 계열"));
         assertEquals("", ResearchService.plain("|---|---|"));
+    }
+
+    /** TC-026(T-028): 질의 대상은 대상 프로젝트 목록 안으로만 제한된다(목록 밖 저장소는 거부). */
+    @Test
+    void tc026_researchRejectsProjectsOutsideTargetList() {
+        SettingService settings = mock(SettingService.class);
+        when(settings.getIssueProjects()).thenReturn(new java.util.ArrayList<>(List.of("own/repo")));
+        ResearchService svc = new ResearchService(null, null, null, null, null, null, null, settings, null, null, null, null, 8777);
+
+        assertEquals(List.of("own/repo"), svc.normalizeProjects(List.of("OWN/repo"), false));
+        assertThrows(IllegalArgumentException.class, () -> svc.normalizeProjects(List.of("evil/repo"), false));
     }
 }

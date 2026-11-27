@@ -397,5 +397,107 @@ async function projectRemove(path) {
   catch(e) { toast('삭제 실패', 'err'); }
   loadProjects();
 }
+// ---- GitHub 저장소 고르기 창 (T-029): 창을 열 때 한 번만 GET /api/issues-repos, 폴링 없음.
+// 서버가 돌려준 문자열(저장소 이름·기본 브랜치·reason·result·rejected)은 전부 esc 하거나 textContent 로만 넣는다.
+const GH_URL_PREFIX = 'https://github.com/';
+let repoSeq = 0;      // 늦게 도착한 응답이 새 요청 결과를 덮지 않게 하는 순번
+let repoMax = 50;     // 서버가 알려 준 대상 상한(max)
+let repoAbort = null;
+function repoUrlOk(u) { return typeof u === 'string' && u.startsWith(GH_URL_PREFIX); }
+function repoRow(path, checked, disabled, r) {
+  const url = r && repoUrlOk(r.webUrl) ? r.webUrl : '';
+  const name = url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(path)}</a>` : esc(path);
+  let meta = '';
+  if (r) {
+    meta = `${r.private ? '<span class="badge wait">비공개</span>' : ''}${r.archived ? '<span class="badge gray">보관됨</span>' : ''}${r.fork ? '<span class="badge info">포크</span>' : ''}`
+      + (r.defaultBranch ? `<span>${esc(r.defaultBranch)}</span>` : '') + (r.updatedAt ? `<span>${esc(ago(r.updatedAt))}</span>` : '');
+  }
+  return `<label class="rp-row${disabled ? ' off' : ''}" data-n="${esc(path.toLowerCase())}"><input type="checkbox" data-p="${esc(path)}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="repoCount()">`
+    + `<span class="rp-nm">${name}</span>${meta ? `<span class="rp-meta">${meta}</span>` : ''}</label>`;
+}
+function repoOpen() {
+  $('rpFilter').value = ''; $('rpMsg').hidden = true; $('rpMsg').textContent = '';
+  $('repoDlg').showModal(); repoLoad(false);
+}
+function repoCancel() { if (repoAbort) repoAbort.abort(); $('repoDlg').close(); }
+let repoBlock = '';    // 현재 대상을 모를 때 창 안에 보일 원인 문구(비어 있지 않으면 저장 불가, 06 §3.6 ⑨)
+let repoSaving = false;
+const RP_BLOCK_FAIL = '현재 대상 프로젝트를 불러오지 못해 저장할 수 없습니다. 창을 닫고 다시 열어 주세요.';
+const RP_BLOCK_OFF = '이슈 에이전트가 꺼져 있어(ISSUE_ENABLED) 대상 프로젝트를 바꿀 수 없습니다.';
+async function repoLoad(refresh) {
+  if (repoSaving) return;
+  const seq = ++repoSeq; if (repoAbort) repoAbort.abort(); repoAbort = new AbortController();
+  const sig = repoAbort.signal;
+  $('rpStatus').innerHTML = ''; $('rpExtraBox').hidden = true; repoBlock = '';
+  $('rpList').innerHTML = '<div class="rp-skel"></div>'.repeat(4);
+  $('rpSave').disabled = true; $('rpRefresh').disabled = true;
+  const [rr, pr] = await Promise.allSettled([
+    fetch('/api/issues-repos' + (refresh ? '?refresh=true' : ''), {signal: sig}).then(x => x.json()),
+    fetch('/api/issues-projects', {signal: sig}).then(x => { if (!x.ok) throw new Error('http ' + x.status); return x.json(); })]);
+  if (seq !== repoSeq) return;
+  if ((rr.status === 'rejected' && rr.reason && rr.reason.name === 'AbortError')) return;
+  let current = [];
+  const pj = pr.status === 'fulfilled' ? pr.value : null;
+  if (!pj || !Array.isArray(pj.projects)) repoBlock = RP_BLOCK_FAIL;
+  else if (pj.enabled === false) repoBlock = RP_BLOCK_OFF;
+  else current = pj.projects.map(p => p && p.path).filter(p => typeof p === 'string');
+  let repos = null, status = '';
+  if (rr.status === 'fulfilled' && rr.value && rr.value.ok) {
+    if (rr.value.max) repoMax = rr.value.max;
+    repos = Array.isArray(rr.value.repos) ? rr.value.repos : [];
+    if (rr.value.truncated) status = `<div class="callout warn"><span>저장소가 많아 일부만 표시합니다(최대 1,000개까지). 없는 저장소는 아래 직접 입력으로 추가하세요.</span></div>`;
+  } else {
+    const reason = rr.status === 'fulfilled' && rr.value && rr.value.reason;
+    status = `<div class="callout err"><span>${esc(reason || '저장소 목록을 불러오지 못했습니다. 잠시 뒤 「새로고침」을 눌러 주세요.')} 직접 입력은 그대로 쓸 수 있습니다.</span></div>`;
+  }
+  if (repoBlock) status += `<div class="callout err"><span>${esc(repoBlock)}</span></div>`;
+  repoRender(repos, current, status);
+}
+function repoRender(repos, current, status) {
+  const list = (repos || []).filter(r => r && typeof r.path === 'string');
+  const inList = new Set(list.map(r => r.path.toLowerCase()));
+  const cur = new Set(current.map(p => p.toLowerCase()));
+  const extra = current.filter(p => !inList.has(p.toLowerCase()));
+  $('rpStatus').innerHTML = status;
+  $('rpList').innerHTML = list.map(r => { const sel = !!r.selected || cur.has(r.path.toLowerCase()); return repoRow(r.path, sel, r.archived && !sel, r); }).join('')
+    || (repos ? '<div class="md-empty">표시할 저장소가 없습니다.</div>' : '');
+  $('rpExtra').innerHTML = extra.map(p => repoRow(p, true, false, null)).join('');
+  $('rpExtraBox').hidden = !extra.length;
+  $('rpRefresh').disabled = repoSaving; repoFilter(); repoCount();
+}
+function repoFilter() {
+  const q = $('rpFilter').value.trim().toLowerCase();
+  document.querySelectorAll('#repoDlg .rp-row').forEach(el => { el.hidden = !!q && !el.dataset.n.includes(q); });
+}
+function repoChecked() { return [...document.querySelectorAll('#repoDlg input[data-p]:checked')].map(i => i.dataset.p); }
+function repoCount() {
+  const n = repoChecked().length, over = n > repoMax;
+  $('rpCount').textContent = over ? `${n}개 선택 — 최대 ${repoMax}개까지 저장할 수 있습니다. 체크를 줄여 주세요.` : `${n}개 선택 (최대 ${repoMax}개)`;
+  $('rpCount').classList.toggle('over', over);
+  $('rpSave').disabled = over || !!repoBlock || repoSaving;
+}
+function repoMsg(text, kind, rejected) {
+  const m = $('rpMsg'); m.textContent = text; m.className = 'rp-msg ' + kind; m.hidden = false;
+  (rejected || []).forEach(x => { const d = document.createElement('div'); d.textContent = `${x.path} — ${x.reason}`; m.appendChild(d); });
+}
+async function repoSave() {
+  if (repoSaving || repoBlock) return;
+  const paths = repoChecked();
+  if (!paths.length && !confirm('체크한 저장소가 없습니다. 대상 프로젝트를 모두 비울까요? (진행 중인 세션은 유지됩니다)')) return;
+  repoSaving = true; $('rpSave').disabled = true; $('rpRefresh').disabled = true; $('rpSave').textContent = '저장 중…';
+  try {
+    const body = new URLSearchParams(); paths.forEach(p => body.append('path', p));
+    const res = await fetch('/api/issues-projects/set', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+    let r = {}; try { r = await res.json(); } catch (e) { r = {}; }
+    if (!res.ok || r.ok === false) { repoMsg(typeof r.result === 'string' && r.result ? r.result : '저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'err'); return; }
+    const rej = Array.isArray(r.rejected) ? r.rejected : [];
+    const sum = typeof r.result === 'string' && r.result ? r.result : (rej.length ? '일부 저장소를 저장하지 못했습니다.' : '저장했습니다.');
+    toast(sum + (rej.length ? ' — ' + rej.map(x => `${x.path}: ${x.reason}`).join(', ') : ''), rej.length ? 'err' : 'ok');
+    loadProjects();
+    if (!rej.length) { $('repoDlg').close(); return; }
+    repoMsg(sum, 'err', rej);
+  } catch (e) { repoMsg('저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'err'); }
+  finally { repoSaving = false; $('rpSave').textContent = '저장'; $('rpRefresh').disabled = false; repoCount(); }
+}
 on('projIn', 'keydown', e => { if (e.key==='Enter') projectAdd(); });
 on('issueCmd', 'keydown', e => { if(e.key==='Enter') issueCommand(); });

@@ -93,10 +93,19 @@ class ClaudeCliAgentTest {
     void t024MaintainDeniesCredentialWideningApisOnly() {
         java.util.List<String> d = deny(Stage.FIX, true);
         for (String api : java.util.List.of("api/mcp-servers", "api/agent-subagents", "api/agent-teams",
-                "api/agent-models", "api/issues-projects")) {
+                "api/agent-models", "api/issues-projects", "api/issues-repos")) {
             assertTrue(d.contains("Bash(curl *" + api + "*)"), api + " " + d);
         }
         assertTrue(d.stream().noneMatch(p -> p.contains("api/skills") || p.contains("api/system/status")), d.toString());
+    }
+
+    @Test
+    void tc026MaintainDenyPatternCoversProjectsSetEndpoint() {
+        // 금지 패턴은 부분 문자열("curl *api/issues-projects*")이라 하위 경로 set 도 덮는다
+        java.util.List<String> d = deny(Stage.FIX, true);
+        String pattern = d.stream().filter(p -> p.contains("api/issues-projects")).findFirst().orElseThrow();
+        String needle = pattern.substring(pattern.indexOf("*api/") + 1, pattern.lastIndexOf('*'));
+        assertTrue("curl -s -X POST http://localhost:8777/api/issues-projects/set -d path=a/b".contains(needle), pattern);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package io.github.lib0823.devagent.admin;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.lib0823.devagent.issue.IssueProjects;
 import io.github.lib0823.devagent.mcp.McpConfigService;
 import io.github.lib0823.devagent.mcp.McpServer;
 import io.github.lib0823.devagent.research.ResearchService;
@@ -36,12 +37,15 @@ public class BundleController {
     private final McpConfigService mcp;
     private final RoutineService routines;
     private final SettingService settings;
+    private final IssueProjects issueProjects;
 
-    public BundleController(SkillService skills, McpConfigService mcp, RoutineService routines, SettingService settings) {
+    public BundleController(SkillService skills, McpConfigService mcp, RoutineService routines, SettingService settings,
+                            IssueProjects issueProjects) {
         this.skills = skills;
         this.mcp = mcp;
         this.routines = routines;
         this.settings = settings;
+        this.issueProjects = issueProjects;
     }
 
     @GetMapping("/api/bundle/export")
@@ -181,10 +185,11 @@ public class BundleController {
             }
         }
         boolean settingsApplied = false;
+        String projectsNote = null;
         JsonNode st = b.path("settings");
         if (st.isObject()) {
             try {
-                applySettings(st);
+                projectsNote = applySettings(st);
                 settingsApplied = true;
             } catch (RuntimeException e) {
                 errors.add("설정: " + e.getMessage());
@@ -192,12 +197,14 @@ public class BundleController {
         }
         out.put("ok", errors.isEmpty());
         out.put("result", "가져오기 완료 — 스킬 " + nSkill + " · MCP 서버 " + nMcp + " · 루틴 " + nRoutine
-                + (settingsApplied ? " · 에이전트 설정" : "") + (errors.isEmpty() ? "" : " (거부 " + errors.size() + "건)"));
+                + (settingsApplied ? " · 에이전트 설정" : "") + (errors.isEmpty() ? "" : " (거부 " + errors.size() + "건)")
+                + (projectsNote == null ? "" : " · " + projectsNote));
         out.put("errors", errors);
         return out;
     }
 
-    private void applySettings(JsonNode st) {
+    /** 설정을 적용하고, 대상 프로젝트를 합쳤으면 그 결과 한 줄(없으면 null)을 돌려준다. */
+    private String applySettings(JsonNode st) {
         SettingService.AgentModels cur = settings.getAgentModels();
         SettingService.AgentModels next = new SettingService.AgentModels(
                 model(st, "designModel", cur.designModel()), effort(st, "designEffort", cur.designEffort()),
@@ -210,17 +217,15 @@ public class BundleController {
         if (st.hasNonNull("teams")) {
             settings.setAgentTeams(st.get("teams").asBoolean());
         }
-        // 대상 프로젝트는 합친다(이 PC 에만 있는 프로젝트를 지우지 않는다). 형식만 확인 — 존재 여부는 스캔 때 드러난다.
+        // 대상 프로젝트는 합친다(이 PC 에만 있는 프로젝트를 지우지 않는다). 새 대상은 일괄 저장과 같은 규칙(IssueProjects)으로 확인한다.
         if (st.path("projects").isArray()) {
-            List<String> merged = new ArrayList<>(settings.getIssueProjects());
+            List<String> incoming = new ArrayList<>();
             for (JsonNode p : st.path("projects")) {
-                String path = p.asText("").strip();
-                if (path.matches("[\\w.-]+(/[\\w.-]+)+") && !merged.contains(path)) {
-                    merged.add(path);
-                }
+                incoming.add(p.asText("").strip());
             }
-            settings.setIssueProjects(merged);
+            return issueProjects.mergeProjects(incoming);
         }
+        return null;
     }
 
     private static String model(JsonNode st, String key, String cur) {
