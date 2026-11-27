@@ -200,12 +200,13 @@ public class ClaudeCliAgent implements CodingAgent {
      * `api/maintain` 은 조회 GET 까지 막지만 관리 세션이 자기 상태를 볼 일은 없다.
      * 부분 문자열 비교라 `//`·`/./`·문자열 조합으로 우회할 수 있다 — 실질적 차단은 요청 토큰(OI-22 ②) 몫.
      * mcp-servers·agent-*·issues-projects 는 다음 세션의 도구·모델·대상 범위를 넓히는 설정 API 라 막는다(T-024, OI-33).
+     * issues-start 는 대상을 자동으로 넓히며 처리를 시작하고, issues-list 는 비공개 저장소의 이슈를 읽는다(T-032, 2.4.0).
      */
     private static final List<String> MAINTAIN_DENIED_APIS = List.of(
             "api/maintain", "api/system/restart", "api/system/shutdown", "api/system/import",
             "api/issues-reply", "api/issues-create", "api/issues-command",
             "api/mcp-servers", "api/agent-subagents", "api/agent-teams", "api/agent-models", "api/issues-projects",
-            "api/issues-repos");
+            "api/issues-repos", "api/issues-start", "api/issues-list");
     /**
      * 내용을 화면에 찍는 명령 — .env 를 인자로 받으면 막는다. Read(…/.env) 금지도 Claude Code 가 인식하는 파일 명령에 적용되지만
      * 명시적으로 한 번 더 둔다. 파일명을 적지 않는 `grep -r`, 따옴표(`".env"`), glob(`.env*`)은 걸리지 않는다.

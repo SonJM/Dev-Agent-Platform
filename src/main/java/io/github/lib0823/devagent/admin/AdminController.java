@@ -156,10 +156,22 @@ public class AdminController {
         return Map.of("result", issueAgent.injectReply(text, sessionId, note));
     }
 
-    /** 대상 프로젝트의 열린 이슈(최근 갱신 순 50건) + 에이전트 세션 상태. 에이전트 화면 "이슈 목록" 창이 열 때만 부른다. */
+    /**
+     * 대상 프로젝트 또는 내 소유 저장소의 열린 이슈(최근 갱신 순 50건) + 에이전트 세션 상태(2.4.0). 에이전트 화면 "이슈 목록" 창이
+     * 열 때·저장소를 고를 때만 부른다. 다른 사람·조직 저장소는 조회하지 않는다.
+     */
     @GetMapping("/api/issues-list")
     public Map<String, Object> issuesList(@RequestParam String project) {
         return issueAgent.openIssueList(project);
+    }
+
+    /**
+     * 이슈 목록의 시작·다시 시작(2.4.0). 검사를 모두 통과한 뒤에만 대상 프로젝트에 추가하고 시작한다. 상태를 바꾸는 요청이라
+     * Origin 확인은 AccessControlFilter 가 일괄로 한다.
+     */
+    @PostMapping("/api/issues-start")
+    public Map<String, Object> issuesStart(@RequestParam String project, @RequestParam long number) {
+        return issueAgent.startIssue(project, number);
     }
 
     /**

@@ -19,8 +19,50 @@
   .cmdbtns .btn { flex: 1; justify-content: center; padding: 0 6px; gap: 5px; }
   /* ---------- 이슈 목록 ---------- */
   dialog.newissue.wide { width: min(760px, calc(100vw - 32px)); }
-  .ilhead { display: flex; gap: 8px; align-items: center; }
-  .ilhead select { flex: 1; }
+  /* 이슈 목록 창(2.4.0): 저장소 | 이슈 두 칸, 767px 이하는 두 단계. 클래스는 ilx- 접두 */
+  dialog.newissue.ilx { width: min(960px, calc(100vw - 32px)); height: min(80vh, 720px); padding: 16px 18px; overflow: hidden; }
+  dialog.ilx[open] { display: flex; flex-direction: column; }
+  .ilx [hidden] { display: none !important; }
+  .ilx-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .ilx-top h3 { margin: 0; }
+  .ilx-off { margin: auto; max-width: 420px; }
+  .ilx-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; }
+  .ilx-left, .ilx-right { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .ilx-left { padding-right: 4px; }
+  .ilx-lhead { display: flex; gap: 6px; }
+  .ilx-lhead input { flex: 1; min-width: 0; }
+  .ilx-note { margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+  .ilx-note.err { color: var(--err); }
+  .ilx-repos { margin-top: 8px; flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+  .ilx-repo { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 6px; padding: 6px 10px; text-align: left; border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+  .ilx-repo:hover { background: var(--surface2); }
+  .ilx-repo.on { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); font-weight: 600; }
+  .ilx-repo .mk { width: 12px; flex: none; color: var(--accent); font-size: 12px; }
+  .ilx-repo .star { width: 14px; flex: none; color: var(--warn); }
+  .ilx-repo .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .ilx-rhead { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+  .ilx-rhead h4 { margin: 0; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+  .ilx-back { display: none; min-height: 44px; flex: none; }
+  .ilx-status { margin-top: 4px; font-size: 12.5px; color: var(--text2); line-height: 1.5; overflow-wrap: anywhere; }
+  .ilx-status .star { color: var(--warn); }
+  .ilx-msg { margin-top: 4px; font-size: 12.5px; line-height: 1.5; color: var(--text2); overflow-wrap: anywhere; }
+  .ilx-msg.err { color: var(--err); }
+  .ilist .irow .why { margin-top: 3px; font-size: 11.5px; line-height: 1.45; color: var(--err); overflow-wrap: anywhere; }
+  .ilx .ilist { flex: 1; min-height: 0; max-height: none; margin-top: 10px; }
+  .ilx .ilist .irow .btn[disabled] { pointer-events: auto; }
+  @media (max-width: 767px) {
+    dialog.newissue.ilx { width: calc(100vw - 16px); max-width: none; height: 90vh; height: 90dvh; max-height: none; padding: 12px; }
+    .ilx-cols { display: block; }
+    .ilx-cols[data-step="repos"] .ilx-right, .ilx-cols[data-step="issues"] .ilx-left { display: none; }
+    .ilx-cols > section { height: 100%; }
+    .ilx-left { padding-right: 0; }
+    .ilx-back { display: inline-flex; }
+    .ilx-top .btn { min-height: 44px; }
+    .ilx-lhead .btn, .ilx-lhead input { min-height: 44px; }
+    .ilx .ilist .irow { grid-template-columns: 40px minmax(0, 1fr) auto; }
+    .ilx .ilist .irow .tt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+    .ilx .ilist .irow .btn { min-height: 44px; min-width: 44px; }
+  }
   .ilist { margin-top: 12px; max-height: min(60vh, 520px); overflow: auto; display: flex; flex-direction: column; gap: 6px; }
   .ilist .irow { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--line); }
   .ilist .irow .no { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
@@ -327,14 +369,25 @@
     </main>
   </div>
 </div>
-<dialog class="newissue wide" id="ilDlg">
-  <h3>이슈 목록</h3>
-  <div class="ilhead">
-    <select class="in" id="ilProj" onchange="loadIssueList()"></select>
-    <button class="btn" id="ilReload" onclick="loadIssueList()">새로고침</button>
-    <button class="btn" onclick="$('ilDlg').close()">닫기</button>
+<dialog class="newissue ilx" id="ilDlg" aria-labelledby="ilHeading">
+  <div class="ilx-top"><h3 id="ilHeading">이슈 목록</h3><button class="btn" id="ilClose" type="button">닫기</button></div>
+  <div class="md-empty ilx-off" id="ilOff" hidden></div>
+  <div class="ilx-cols" id="ilCols" data-step="repos">
+    <section class="ilx-left" aria-label="저장소">
+      <div class="ilx-lhead">
+        <input class="in" id="ilFilter" type="search" autocomplete="off" placeholder="저장소 이름 거르기" aria-label="저장소 이름 거르기">
+        <button class="btn" id="ilReload" type="button" title="GitHub 에서 저장소 목록을 다시 읽습니다">새로고침</button>
+      </div>
+      <div class="ilx-note" id="ilNote" role="status"></div>
+      <div class="ilx-repos" id="ilRepos"></div>
+    </section>
+    <section class="ilx-right" aria-label="이슈">
+      <div class="ilx-rhead"><button class="btn ilx-back" id="ilBack" type="button">← 저장소</button><h4 id="ilTitle">이슈</h4></div>
+      <div class="ilx-status" id="ilStatus"></div>
+      <div class="ilx-msg" id="ilMsg" role="status" hidden></div>
+      <div class="ilist" id="ilist"></div>
+    </section>
   </div>
-  <div class="ilist" id="ilist"></div>
 </dialog>
 <dialog class="newissue" id="niDlg">
   <h3>새 이슈 등록</h3>
@@ -749,43 +802,202 @@ async function abortSession() {
   const r = await (await fetch(`/api/agent/sessions/${sel.id}/abort`, {method:'POST'})).json();
   toast(r.result); setTimeout(loadOverview, 700);
 }
-// 이슈 목록: 창을 열거나 프로젝트를 바꿀 때만 GitHub 을 조회한다(주기 갱신 없음). 골라서 시작/다시 시작은 「@AI 이슈 owner/repo#n」 과 같은 경로.
+// 이슈 목록 창(2.4.0, T-033): 왼쪽 저장소(대상 ★ 먼저 + 내 저장소) · 오른쪽 이슈. 창을 열 때 저장소·대상 두 조회(allSettled),
+// 저장소를 고를 때만 이슈 조회. 폴링·UI.every 없음, 창이 닫혀 있으면 요청 없음. 시작·다시 시작은 POST /api/issues-start.
+const IL_LAST_KEY = 'agent.ilRepo';
+const IL_NO_REPOS = '고를 저장소가 없습니다 — 플랫폼 탭 「연동」에서 GitHub 토큰을 확인하세요';
 let ilData = null;
-function openIssueList() {
-  if (!projects.length) { toast('대상 프로젝트가 없습니다. 플랫폼 탭에서 먼저 등록해 주세요.', 'err'); return; }
-  const cur = $('ilProj').value || projFilter;
-  $('ilProj').innerHTML = projects.map(p => `<option value="${esc(p)}" ${p===cur?'selected':''}>${esc(p)}</option>`).join('');
-  $('ilDlg').showModal(); loadIssueList();
+const il = { repos: [], targets: [], list: [], sel: '', filter: '', repoOk: false, reason: '', truncated: false, seq: 0, ctrl: null, rseq: 0, rctrl: null };
+
+async function ilJson(url, signal) {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
 }
-async function loadIssueList() {
-  const box = $('ilist'); box.innerHTML = '<div class="skel"></div><div class="skel" style="width:70%"></div>';
-  let d; try { d = await (await fetch('/api/issues-list?project='+encodeURIComponent($('ilProj').value))).json(); }
-  catch(e) { box.innerHTML = `<div class="md-empty">목록을 가져오지 못했습니다: ${esc(String(e))}</div>`; return; }
-  if (!d.ok) { box.innerHTML = `<div class="md-empty">${esc(d.result||'목록을 가져오지 못했습니다.')}</div>`; return; }
-  ilData = d;
+function ilBuildList() {
+  const tset = new Set(il.targets.map(p => p.toLowerCase()));
+  const mine = new Map(il.repos.map(r => [r.path.toLowerCase(), r]));
+  const out = il.targets.map(p => { const r = mine.get(p.toLowerCase()); return { path: p, target: true, mine: !!r, isPrivate: !!(r && r.private), archived: !!(r && r.archived) }; });
+  il.repos.forEach(r => { if (!tset.has(r.path.toLowerCase())) out.push({ path: r.path, target: false, mine: true, isPrivate: !!r.private, archived: !!r.archived }); });
+  return out;
+}
+function ilName(e) { return e.mine ? e.path.split('/').slice(1).join('/') || e.path : e.path; }
+function ilEntry() { return il.list.find(e => e.path.toLowerCase() === il.sel.toLowerCase()); }
+function ilSetStep(step) { $('ilCols').dataset.step = step; }
+function ilMsg(text, isErr) {
+  const el = $('ilMsg');
+  el.textContent = text || ''; el.hidden = !text; el.className = 'ilx-msg' + (isErr ? ' err' : '');
+}
+
+function ilRenderRepos() {
+  il.list = ilBuildList();
+  const q = il.filter.trim().toLowerCase();
+  const shown = il.list.map((e, i) => ({ e, i })).filter(x => !q || x.e.path.toLowerCase().includes(q));
+  const note = $('ilNote');
+  note.className = 'ilx-note' + (il.repoOk ? '' : ' err');
+  note.textContent = il.repoOk ? (il.truncated ? '일부만 표시합니다(저장소가 많아 목록이 잘렸습니다).' : '') : (il.reason || '저장소 목록을 불러오지 못했습니다.');
+  const box = $('ilRepos');
+  if (!il.list.length) { box.innerHTML = `<div class="md-empty">${esc(IL_NO_REPOS)}</div>`; return; }
+  if (!shown.length) { box.innerHTML = '<div class="md-empty">일치하는 저장소가 없습니다.</div>'; return; }
+  const cur = il.sel.toLowerCase();
+  box.innerHTML = shown.map(({ e, i }) => {
+    const on = e.path.toLowerCase() === cur;
+    return `<button type="button" class="ilx-repo ${on ? 'on' : ''}" data-i="${i}" title="${esc(e.path)}"${on ? ' aria-current="true"' : ''}>
+      <span class="mk">${on ? '▸' : ''}</span><span class="star">${e.target ? '★' : ''}</span><span class="nm">${esc(ilName(e))}</span>
+      ${e.isPrivate ? '<span class="badge gray">비공개</span>' : ''}${e.archived ? '<span class="badge wait">보관됨</span>' : ''}</button>`;
+  }).join('');
+}
+function ilStatus(d) {
+  const el = $('ilStatus'), e = ilEntry();
+  if (!d || !e) { el.textContent = ''; return; }
+  const archived = !!(d.archived || e.archived), target = !!(d.target ?? e.target);
+  if (archived && !target) el.textContent = '보관된 저장소는 시작할 수 없습니다';
+  else if (target) el.innerHTML = `<span class="star">★</span> 대상 — '${esc(d.label || '')}' 라벨 이슈 자동 처리 중${archived ? ' · 보관된 저장소는 시작할 수 없습니다' : ''}`;
+  else el.textContent = '대상 아님 — 시작하면 대상에 추가됩니다';
+}
+function ilRenderIssues(d) {
+  const box = $('ilist'), archived = !!(d.archived || (ilEntry() || {}).archived);
   if (!d.issues.length) { box.innerHTML = '<div class="md-empty">열린 이슈가 없습니다.</div>'; return; }
   box.innerHTML = d.issues.map((it, i) => {
-    const st = it.state ? `<span class="badge ${cls(it.state)}">${KOR[it.state]||it.state}</span>` : '';
+    const st = it.state ? `<span class="badge ${cls(it.state)}">${esc(KOR[it.state] || it.state)}</span>` : '';
+    const blk = it.blocked ? `<span class="badge err" title="${esc(it.blocked)}">처리 안 함</span>` : '';
+    const why = it.blocked ? `<div class="why">${esc(it.blocked)}</div>` : '';
     // 완료(DONE)는 다시 시작을 두지 않는다: 올라간 브랜치·PR 과 겹치는 두 번째 PR 이 생긴다 → 미흡하면 새 이슈로
-    const act = it.active || it.state === 'DONE' ? `<button class="btn sm" onclick="gotoIssue(${it.sessionId})">보기</button>`
-      : `<button class="btn sm ${it.state?'':'primary'}" onclick="startIssue(${i}, this)">${it.state?'다시 시작':'시작'}</button>`;
+    let act = '';
+    if (it.active || it.state === 'DONE') act = `<button class="btn sm" data-act="go" data-i="${i}">보기</button>`;
+    else if (it.blocked) act = '';
+    else if (archived) act = `<button class="btn sm" disabled title="보관된 저장소는 시작할 수 없습니다">${it.state ? '다시 시작' : '시작'}</button>`;
+    else act = `<button class="btn sm ${it.state ? '' : 'primary'}" data-act="start" data-i="${i}">${it.state ? '다시 시작' : '시작'}</button>`;
+    const url = String(it.webUrl || ''), title = esc(it.title) || '(제목 없음)';
+    const link = url.startsWith('https://github.com/') ? `<a href="${esc(url)}" target="_blank" rel="noopener">${title}</a>` : title;
     return `<div class="irow">
-      <span class="no">#${it.iid}</span>
-      <div style="min-width:0"><div class="tt" title="${esc(it.title)}"><a href="${esc(it.webUrl)}" target="_blank" rel="noopener">${esc(it.title)||'(제목 없음)'}</a></div>
-        <div class="meta">${st}${(it.labels||[]).map(l => `<span class="lb ${l===d.label?'on':''}">${esc(l)}</span>`).join('')}<span>${esc(it.author||'')}</span></div></div>
+      <span class="no">#${esc(it.iid)}</span>
+      <div style="min-width:0"><div class="tt" title="${esc(it.title)}">${link}</div>
+        <div class="meta">${st}${blk}${(it.labels || []).map(l => `<span class="lb ${l === d.label ? 'on' : ''}">${esc(l)}</span>`).join('')}<span>${esc(it.author || '')}</span></div>${why}</div>
       ${act}</div>`;
   }).join('');
 }
-function gotoIssue(id) { $('ilDlg').close(); selectSession(id); }
-async function startIssue(i, btn) {
-  const it = ilData.issues[i], ref = ilData.project + '#' + it.iid;
-  if (it.state && !confirm(`${ref} 를 처음부터 다시 시작할까요?\n이전 세션의 설계·활동 기록은 지워집니다.`)) return;
-  btn.disabled = true;
+
+async function ilLoadIssues() {
+  const e = ilEntry(), box = $('ilist');
+  ilData = null; ilStatus(null);
+  $('ilTitle').textContent = e ? '이슈 (' + ilName(e) + ')' : '이슈';
+  if (!e) { box.innerHTML = '<div class="md-empty">저장소를 고르세요.</div>'; return; }
+  if (il.ctrl) il.ctrl.abort();
+  const ctrl = il.ctrl = new AbortController(), my = ++il.seq;
+  box.innerHTML = '<div class="skel"></div><div class="skel" style="width:70%"></div><div class="skel" style="width:85%"></div>';
+  let d;
+  try { d = await ilJson('/api/issues-list?project=' + encodeURIComponent(e.path), ctrl.signal); }
+  catch (err) {
+    if (my !== il.seq || (err && err.name === 'AbortError')) return;
+    box.innerHTML = '<div class="md-empty">목록을 가져오지 못했습니다. 잠시 뒤 다시 시도해 주세요.</div>'; return;
+  }
+  if (my !== il.seq) return;
+  if (!d.ok) { box.innerHTML = `<div class="md-empty">${esc(d.result || '목록을 가져오지 못했습니다.')}</div>`; return; }
+  ilData = d; ilStatus(d); ilRenderIssues(d);
+}
+function ilPick(path, step) {
+  il.sel = path; ilMsg('');
+  try { localStorage.setItem(IL_LAST_KEY, path); } catch (e) {}
+  ilRenderRepos(); ilSetStep(step || 'issues'); ilLoadIssues();
+}
+function ilInitialSel() {
+  let last = ''; try { last = localStorage.getItem(IL_LAST_KEY) || ''; } catch (e) {}
+  const has = p => p && il.list.find(e => e.path.toLowerCase() === p.toLowerCase());
+  const hit = has(last) || has(projFilter) || il.list.find(e => e.target) || il.list[0];
+  return hit ? hit.path : '';
+}
+function ilApplyTargets(pj) {
+  if (!pj) return;
+  projects = (pj.projects || []).map(p => p.path);
+  il.targets = projects.slice(); renderFilter(); renderList();
+}
+async function openIssueList() {
+  il.ctrl && il.ctrl.abort(); il.rctrl && il.rctrl.abort(); il.rseq++;
+  const ctrl = il.ctrl = new AbortController();
+  $('ilReload').disabled = false; ilMsg('');
+  il.repos = []; il.targets = projects.slice(); il.sel = ''; il.filter = ''; il.repoOk = false; il.reason = ''; il.truncated = false; ilData = null;
+  $('ilFilter').value = ''; $('ilOff').hidden = true; $('ilCols').hidden = false; ilSetStep('repos');
+  $('ilNote').textContent = ''; $('ilStatus').textContent = ''; $('ilTitle').textContent = '이슈'; $('ilist').innerHTML = '';
+  $('ilRepos').innerHTML = '<div class="skel"></div><div class="skel" style="width:70%"></div><div class="skel" style="width:85%"></div>';
+  $('ilDlg').showModal();
+  const [rp, pj] = await Promise.allSettled([ilJson('/api/issues-repos', ctrl.signal), ilJson('/api/issues-projects', ctrl.signal)]);
+  if (ctrl.signal.aborted) return;
+  const pjv = pj.status === 'fulfilled' ? pj.value : null;
+  if (pjv && pjv.enabled === false) { $('ilCols').hidden = true; $('ilOff').hidden = false; $('ilOff').textContent = '이슈 에이전트가 꺼져 있습니다(ISSUE_ENABLED).'; return; }
+  ilApplyTargets(pjv);
+  if (rp.status === 'fulfilled' && rp.value.ok) { il.repoOk = true; il.repos = rp.value.repos || []; il.truncated = !!rp.value.truncated; }
+  else il.reason = rp.status === 'fulfilled' ? String(rp.value.reason || '') : '저장소 목록을 불러오지 못했습니다.';
+  il.list = ilBuildList();
+  il.sel = ilInitialSel();
+  ilRenderRepos(); ilLoadIssues();
+}
+async function ilReloadRepos() {
+  const b = $('ilReload');
+  if (il.rctrl) il.rctrl.abort();
+  const ctrl = il.rctrl = new AbortController(), my = ++il.rseq;
+  b.disabled = true;
   try {
-    const r = await (await fetch('/api/issues-command?cmd='+encodeURIComponent(ref), {method:'POST'})).json();
-    const msg = (r.result||'').split('\n')[0]; toast(msg, /큐에 넣었습니다/.test(msg)?'ok':'err');
-  } catch(e) { toast('시작 실패: '+e, 'err'); }
-  setTimeout(() => { loadOverview(); loadIssueList(); }, 700);
+    const d = await ilJson('/api/issues-repos?refresh=true', ctrl.signal);
+    if (my !== il.rseq) return;
+    il.repoOk = !!d.ok; il.repos = d.ok ? (d.repos || []) : il.repos; il.truncated = !!d.truncated; il.reason = d.ok ? '' : String(d.reason || '');
+  } catch (err) {
+    if (my !== il.rseq || (err && err.name === 'AbortError')) return;
+    il.repoOk = false; il.reason = '저장소 목록을 불러오지 못했습니다.';
+  } finally { b.disabled = false; }
+  if ($('ilDlg').open) ilRenderRepos();
+}
+function ilClosed() {
+  il.seq++; il.rseq++;
+  if (il.ctrl) { il.ctrl.abort(); il.ctrl = null; }
+  if (il.rctrl) { il.rctrl.abort(); il.rctrl = null; }
+}
+$('ilDlg').addEventListener('close', ilClosed);
+$('ilClose').addEventListener('click', () => $('ilDlg').close());
+$('ilBack').addEventListener('click', () => ilSetStep('repos'));
+$('ilReload').addEventListener('click', ilReloadRepos);
+$('ilFilter').addEventListener('input', e => { il.filter = e.target.value; ilRenderRepos(); });
+$('ilRepos').addEventListener('click', e => {
+  const b = e.target.closest('.ilx-repo'); if (!b) return;
+  const en = il.list[+b.dataset.i]; if (en) ilPick(en.path);
+});
+$('ilist').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b || !ilData) return;
+  const it = ilData.issues[+b.dataset.i]; if (!it) return;
+  if (b.dataset.act === 'go') { gotoIssue(it.sessionId); return; }
+  startIssue(it, b);
+});
+function gotoIssue(id) { $('ilDlg').close(); selectSession(id); }
+
+function ilStartConfirm(it, d) {
+  const ref = d.project + '#' + it.iid, parts = [];
+  if (it.state) parts.push(`${ref} 를 처음부터 다시 시작할까요?\n이전 세션의 설계·활동 기록은 지워집니다.`);
+  if (!d.target) {
+    const n = d.issues.filter(x => (x.labels || []).includes(d.label)).length;
+    parts.push(`${d.project} 를 대상 프로젝트에 추가하고 #${it.iid} 을 시작합니다. 대상이 되면 '${d.label || ''}' 라벨 이슈(지금 목록에 ${n}건)도 자동으로 처리됩니다.`);
+  }
+  return parts.length ? parts.join('\n\n') : '';
+}
+async function startIssue(it, btn) {
+  const d = ilData, msg = ilStartConfirm(it, d);
+  if (msg && !confirm(msg)) return;
+  btn.disabled = true; ilMsg('');
+  let ok = false, r = {};
+  try {
+    const res = await fetch('/api/issues-start', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ project: d.project, number: String(it.iid) }) });
+    try { r = await res.json(); } catch (e) { r = {}; }
+    ok = res.ok && r.ok === true;
+    if (!res.ok && !r.result) r = { result: '시작하지 못했습니다(HTTP ' + res.status + ').' };
+  } catch (e) { r = { result: '시작하지 못했습니다. 잠시 뒤 다시 시도해 주세요.' }; }
+  const line = String(r.result || (ok ? '큐에 넣었습니다.' : '시작하지 못했습니다.')).split('\n')[0];
+  toast(line, ok ? 'ok' : 'err');
+  const cur = ilEntry();
+  if ($('ilDlg').open && cur && cur.path.toLowerCase() === String(d.project).toLowerCase()) ilMsg(line, !ok);
+  if (r.added === true) {
+    try { ilApplyTargets(await ilJson('/api/issues-projects')); ilRenderRepos(); } catch (e) { /* ★ 는 다음에 창을 열 때 */ }
+  }
+  setTimeout(() => { loadOverview(); if ($('ilDlg').open) ilLoadIssues(); }, 700);
 }
 $('fbIn').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendFeedback(); } });
 

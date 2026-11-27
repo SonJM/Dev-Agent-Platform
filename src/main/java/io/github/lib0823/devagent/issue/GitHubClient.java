@@ -87,7 +87,12 @@ public class GitHubClient {
     }
 
     public record Issue(long iid, String title, String description, String webUrl,
-                        List<String> labels, String author, String authorAssociation, String createdAt) {
+                        List<String> labels, String author, String authorAssociation, String createdAt, String state) {
+        /** GitHub 이슈 상태가 closed 인가(목록 API 는 열린 것만 주므로 단건 조회에서만 의미 있다). */
+        public boolean isClosed() {
+            return "closed".equalsIgnoreCase(state);
+        }
+
         public String ref(String projectPath) {
             return projectPath + "#" + iid;
         }
@@ -437,7 +442,8 @@ public class GitHubClient {
             n.path("labels").forEach(l -> labels.add(l.isTextual() ? l.asText() : l.path("name").asText()));
         }
         return new Issue(n.path("number").asLong(), text(n, "title", ""), text(n, "body", ""),
-                text(n, "html_url", ""), labels, text(n.path("user"), "login", "?"), text(n, "author_association", ""), text(n, "created_at", ""));
+                text(n, "html_url", ""), labels, text(n.path("user"), "login", "?"), text(n, "author_association", ""), text(n, "created_at", ""),
+                text(n, "state", "open"));
     }
 
     private static String text(JsonNode n, String field, String dflt) {

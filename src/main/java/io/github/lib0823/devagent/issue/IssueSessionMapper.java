@@ -145,6 +145,18 @@ public interface IssueSessionMapper {
     @Update("UPDATE issue_session SET state = #{to}, updated_at = now() WHERE id = #{id} AND state = #{from}")
     int claimState(@Param("id") long id, @Param("from") String from, @Param("to") String to);
 
+    /**
+     * 종료된 세션(DONE/ABORTED/FAILED)의 수동 재시작(원자적): 종료 상태일 때만 NEW 로 되돌리고 작업 결과 필드를 비운다.
+     * 반환 0 이면 그 사이 다른 요청이 이미 재시작했거나 진행 중이라는 뜻 — 호출측은 아무것도 지우지 않고 거부한다.
+     */
+    @Update("""
+            UPDATE issue_session SET
+                state = 'NEW', claude_session_id = NULL, branch_name = NULL, design_text = NULL, change_summary = NULL,
+                commit_sha = NULL, pr_url = NULL, last_error = NULL, feedback_rounds = 0, issue_title = #{title}, updated_at = now()
+            WHERE id = #{id} AND state IN ('DONE', 'ABORTED', 'FAILED')
+            """)
+    int restartIfFinished(@Param("id") long id, @Param("title") String title);
+
     @Select("SELECT " + COLS + " FROM issue_session ORDER BY updated_at DESC LIMIT #{limit}")
     List<IssueSession> recent(@Param("limit") int limit);
 

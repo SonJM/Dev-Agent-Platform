@@ -220,12 +220,14 @@ class RepoPickerTest {
     }
 
     @Test
-    void tc026_failuresAreNotCached() {
+    void tc026_failuresAreCachedOnlyBrieflyAndRetriedAfterwards() {
         server.on(PAGE_KEY + "1", Reply.json(401, "{\"message\":\"x\"}"));
         projects.repoList(false);
         server.on(PAGE_KEY + "1", Reply.json(200, page("a", 1)));
 
-        Map<String, Object> res = projects.repoList(false);
+        assertEquals(false, projects.repoList(false).get("ok"));      // R2: 30초 안에는 실패를 그대로(GitHub 재호출 없음)
+        now.addAndGet(IssueProjects.REPO_FAILURE_CACHE_MS + 1);
+        Map<String, Object> res = projects.repoList(false);           // 30초 뒤에는 다시 시도
 
         assertEquals(true, res.get("ok"));
     }

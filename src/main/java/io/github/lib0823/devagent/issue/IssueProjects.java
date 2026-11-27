@@ -63,7 +63,14 @@ public class IssueProjects {
         }
     }
 
+    /** 목록 조회 실패 결과 유지 시간(밀리초). */
+    static final long REPO_FAILURE_CACHE_MS = 30_000L;
+
+    private record FailCache(long at, RuntimeException error) {
+    }
+
     private volatile RepoCache repoCache;
+    private volatile FailCache repoFailure;
     private long lastAttemptAt;
     /** 시험용으로 바꿀 수 있는 시계. */
     LongSupplier clock = System::currentTimeMillis;
@@ -114,33 +121,75 @@ public class IssueProjects {
     }
 
     /** 대상 프로젝트 추가: GitHub 에서 조회해 실제 경로(full_name)로 정규화해 저장. 반환: 결과 메시지. */
-    public synchronized String addProject(String path) {
+    public String addProject(String path) {
+        return addProjectChecked(path, true).message();
+    }
+
+    /**
+     * addProject 의 결과. added=이번 호출로 목록에 넣었음, present=호출 뒤 목록에 있음(이미 있었던 경우 포함).
+     * 호출측이 문구 정규식 없이 성공을 구조로 판정하게 한다.
+     */
+    public record AddResult(boolean added, boolean present, String message) {
+    }
+
+    /**
+     * 대상 프로젝트 추가(존재·개인 소유·상한 검사 한 곳). scan=false 면 추가 뒤 스캔을 걸지 않는다 —
+     * 호출측이 직접 시작한 뒤 스캔을 걸어 두 경로가 같은 이슈를 두고 겹치지 않게 할 때 쓴다(T-032).
+     */
+    public synchronized AddResult addProjectChecked(String path, boolean scan) {
         String p = path == null ? "" : path.strip().replaceAll("^/+|/+$", "");
         if (p.isEmpty() || !p.contains("/")) {
-            return "프로젝트 경로는 owner/repo 형식이어야 합니다.";
+            return new AddResult(false, false, "프로젝트 경로는 owner/repo 형식이어야 합니다.");
         }
         GitHubClient.Project gp;
         try {
             gp = github.project(p);
         } catch (RuntimeException e) {
-            return "GitHub 에서 '" + p + "' 를 찾지 못했습니다: " + e.getMessage();
+            return new AddResult(false, false, "GitHub 에서 '" + p + "' 를 찾지 못했습니다: " + e.getMessage());
         }
         List<String> cur = projects();
         if (cur.stream().anyMatch(c -> c.equalsIgnoreCase(gp.path()))) {
-            return gp.path() + " 는 이미 대상 프로젝트입니다.";
+            return new AddResult(false, true, gp.path() + " 는 이미 대상 프로젝트입니다.");
         }
         if (!gp.isUserOwned()) {
-            return gp.path() + ": " + ORG_REJECTED;
+            return new AddResult(false, false, gp.path() + ": " + ORG_REJECTED);
         }
         if (cur.size() >= MAX_PROJECTS) {
-            return "대상 프로젝트는 최대 " + MAX_PROJECTS + "개입니다. 먼저 일부를 빼세요.";
+            return new AddResult(false, false, "대상 프로젝트는 최대 " + MAX_PROJECTS + "개입니다. 먼저 일부를 빼세요.");
         }
         cur.add(gp.path());
         settings.setIssueProjects(cur);
         projectCache.put(gp.path(), gp);
         log.info("이슈 에이전트 대상 프로젝트 추가: {} (id={})", gp.path(), gp.id());
-        onAdded.run();
-        return gp.path() + " 를 대상 프로젝트에 추가했습니다. 라벨 '" + props.label() + "' 이슈를 바로 스캔합니다. (현재 " + cur.size() + "개)";
+        if (scan) {
+            onAdded.run();
+        }
+        return new AddResult(true, true, gp.path() + " 를 대상 프로젝트에 추가했습니다. 라벨 '" + props.label() + "' 이슈를 바로 스캔합니다. (현재 " + cur.size() + "개)");
+    }
+
+    /** 내 저장소 목록 조회 결과: 찾았으면 path(정규 경로)·archived, 못 찾았거나 목록을 못 읽었으면 failure(사람이 읽는 문구). */
+    public record OwnRepo(String path, boolean archived, String failure) {
+        public boolean found() {
+            return failure == null;
+        }
+    }
+
+    /**
+     * 내 저장소 목록(repoList(false) — 60초 캐시 재사용, 새 GitHub 호출 경로 없음)에서 path 를 대소문자 무시로 찾는다.
+     * 목록에 없으면 다른 사람·조직 저장소로 보고 GitHub 이슈 조회까지 가지 않게 failure 를 돌려준다.
+     */
+    @SuppressWarnings("unchecked")
+    public OwnRepo findOwnRepo(String path) {
+        Map<String, Object> list = repoList(false);
+        if (!Boolean.TRUE.equals(list.get("ok"))) {
+            return new OwnRepo(null, false, String.valueOf(list.get("reason")));
+        }
+        for (Map<String, Object> r : (List<Map<String, Object>>) list.get("repos")) {
+            if (path.equalsIgnoreCase(String.valueOf(r.get("path")))) {
+                return new OwnRepo(String.valueOf(r.get("path")), Boolean.TRUE.equals(r.get("archived")), null);
+            }
+        }
+        return new OwnRepo(null, false, "'" + path + "' 는 대상 프로젝트도, 내 GitHub 저장소 목록에도 없습니다.");
     }
 
     /** 대상 프로젝트 삭제. 진행 중/대기 중 세션은 건드리지 않는다(끝까지 진행). 새 이슈 스캔·수동 시작만 막힌다. */
@@ -216,10 +265,20 @@ public class IssueProjects {
             }
             throw new RefreshTooSoon();
         }
+        FailCache f = repoFailure;
+        if (!refresh && f != null && now - f.at() < REPO_FAILURE_CACHE_MS) {
+            throw f.error();   // 실패도 잠시 기억 — 화면 목록 조회가 GitHub 호출 한도를 두드리지 않게
+        }
         lastAttemptAt = now;
-        GitHubClient.RepoList fresh = github.ownRepos();
-        repoCache = new RepoCache(now, fresh);
-        return fresh;
+        try {
+            GitHubClient.RepoList fresh = github.ownRepos();
+            repoCache = new RepoCache(now, fresh);
+            repoFailure = null;
+            return fresh;
+        } catch (RuntimeException e) {
+            repoFailure = new FailCache(now, e);
+            throw e;
+        }
     }
 
     private static Map<String, Object> repoFailure(Map<String, Object> out, String reason) {

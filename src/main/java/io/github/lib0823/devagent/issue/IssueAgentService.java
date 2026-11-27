@@ -430,22 +430,27 @@ public class IssueAgentService {
             out.put("result", "이슈 에이전트가 비활성 상태입니다 (ISSUE_ENABLED=false).");
             return out;
         }
-        String resolved = projectReg.resolveProject(project == null ? "" : project.strip());
-        if (resolved == null) {
-            out.put("result", "대상 프로젝트에서 '" + project + "' 를 찾지 못했습니다.");
+        Located loc = locate(project);
+        if (loc.failure() != null) {
+            out.put("result", loc.failure());
             return out;
         }
         try {
-            GitHubClient.Project p = projectReg.project(resolved);
+            // 대상이면 캐시된 저장소 정보로 정규 경로를, 아니면 내 저장소 목록의 경로를 그대로 쓴다(projectCache 에 남기지 않는다)
+            String path = loc.target() ? projectReg.project(loc.path()).path() : loc.path();
             List<Map<String, Object>> list = new ArrayList<>();
-            for (GitHubClient.Issue is : github.recentOpenIssues(p.path(), 50)) {
+            for (GitHubClient.Issue is : github.recentOpenIssues(path, 50)) {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("iid", is.iid());
                 m.put("title", is.title());
                 m.put("labels", is.labels());
                 m.put("author", is.author());
                 m.put("webUrl", is.webUrl());
-                IssueSession s = sessions.findByIssue(p.path(), is.iid());
+                String blocked = untrustedReason(is);
+                if (blocked != null) {
+                    m.put("blocked", blocked);
+                }
+                IssueSession s = sessions.findByIssue(path, is.iid());
                 if (s != null) {
                     m.put("sessionId", s.getId());
                     m.put("state", s.getState());
@@ -454,14 +459,141 @@ public class IssueAgentService {
                 list.add(m);
             }
             out.put("ok", true);
-            out.put("project", p.path());
+            out.put("project", path);
+            out.put("target", loc.target());
+            out.put("archived", loc.archived());
             out.put("label", props.label());
             out.put("issues", list);
         } catch (RuntimeException e) {
-            log.warn("GitHub 이슈 목록 조회 실패 project={}: {}", resolved, e.toString());
+            log.warn("GitHub 이슈 목록 조회 실패 project={}: {}", loc.path(), e.toString());
             out.put("result", "이슈 목록 조회 실패: " + e.getMessage());
         }
         return out;
+    }
+
+    /** 이슈 목록·시작이 다루는 저장소 판정 결과. failure 가 null 이 아니면 대상도 내 저장소도 아니다. */
+    private record Located(String path, boolean target, boolean archived, String failure) {
+    }
+
+    /**
+     * project 가 대상 프로젝트이면 그 경로, 아니면 내 저장소 목록(60초 캐시)에서 찾은 정규 경로. 둘 다 아니거나 목록을 못 읽으면 failure.
+     * 목록에 없는 저장소(다른 사람·조직)는 여기서 끊어 GitHub 이슈 조회를 하지 않는다.
+     */
+    private Located locate(String project) {
+        String p = project == null ? "" : project.strip();
+        String resolved = projectReg.resolveProject(p);
+        if (resolved != null) {
+            return new Located(resolved, true, false, null);
+        }
+        if (!validRepoPath(p)) {
+            return new Located(null, false, false, "대상 프로젝트에서 '" + p + "' 를 찾지 못했습니다. 저장소는 owner/repo 형식이어야 합니다.");
+        }
+        IssueProjects.OwnRepo own = projectReg.findOwnRepo(p);
+        if (!own.found()) {
+            return new Located(null, false, false, own.failure());
+        }
+        return new Located(own.path(), false, own.archived(), null);
+    }
+
+    private static boolean validRepoPath(String p) {
+        try {
+            GitHubClient.ownerRepo(p);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 에이전트 화면 「이슈 목록」의 시작·다시 시작(T-032). 순서: ① 대상/내 저장소 판정 ② 보관 저장소 거부(대상 아닐 때)
+     * ③ 이슈 조회(없음·닫힘·PR)·신뢰 작성자·진행 중 세션 확인 — 여기까지 실패하면 대상 목록을 바꾸지 않는다 ④ 대상이 아니면 추가
+     * (addProject 와 같은 검사) ⑤ 수동 시작. 추가 뒤 스캔은 ⑤가 끝난 다음에 건다: 스캔이 먼저 같은 이슈를 집으면 ⑤가
+     * 「이미 진행 중」으로 실패하므로 추가(스캔 보류) → 수동 시작 → 스캔 순서로 하고, 스캔은 기존 세션이 있으면 건너뛴다.
+     * 반환: ok(큐에 넣었음)/result/added(이번에 대상에 추가했음)/ref.
+     */
+    public Map<String, Object> startIssue(String project, long number) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", false);
+        out.put("added", false);
+        out.put("result", checkAndStart(project, number, out));
+        return out;
+    }
+
+    private String checkAndStart(String project, long number, Map<String, Object> out) {
+        if (!props.enabled()) {
+            return "이슈 에이전트가 비활성 상태입니다 (ISSUE_ENABLED=false).";
+        }
+        if (number <= 0) {
+            return "이슈 번호는 양의 정수여야 합니다.";
+        }
+        Located loc = locate(project);
+        if (loc.failure() != null) {
+            return loc.failure();
+        }
+        if (!loc.target() && loc.archived()) {
+            return loc.path() + " 는 보관(archived)된 저장소라 대상 프로젝트로 추가하지 않습니다.";
+        }
+        String ref = loc.path() + "#" + number;
+        GitHubClient.Issue is;
+        try {
+            is = github.issue(loc.path(), number);
+        } catch (RuntimeException e) {
+            log.warn("GitHub 이슈 조회 실패 ref={}: {}", ref, e.toString());
+            return "이슈 조회 실패: " + e.getMessage();
+        }
+        String why = rejectionReason(loc.path(), ref, is);
+        if (why != null) {
+            return why;
+        }
+        boolean added = false;
+        if (!loc.target()) {
+            IssueProjects.AddResult ar = projectReg.addProjectChecked(loc.path(), false);
+            if (!ar.present()) {
+                return ar.message();
+            }
+            added = ar.added();
+        }
+        return startAfterAdd(loc.path(), is, ref, added, out);
+    }
+
+    /** ③의 이슈 단위 검사: 닫힘·신뢰 작성자·진행 중 세션. 통과하면 null. */
+    private String rejectionReason(String path, String ref, GitHubClient.Issue is) {
+        if (is.isClosed()) {
+            return ref + " 는 닫힌 이슈입니다.";
+        }
+        String untrusted = untrustedReason(is);
+        if (untrusted != null) {
+            return ref + " 는 처리하지 않습니다: " + untrusted;
+        }
+        IssueSession existing = sessions.findByIssue(path, is.iid());
+        if (existing != null && existing.isActive()) {
+            return existing.ref() + " 는 이미 진행 중입니다 (상태 " + existing.getState() + ").";
+        }
+        return null;
+    }
+
+    /** ⑤ 수동 시작과 그 뒤 스캔. 추가(added)는 시작이 실패해도 남으므로 문구로 알린다. */
+    private String startAfterAdd(String path, GitHubClient.Issue is, String ref, boolean added, Map<String, Object> out) {
+        out.put("added", added);
+        out.put("ref", ref);
+        try {
+            IssueSession queued = sessions.findByIssue(path, is.iid());
+            if (queued != null && IssueSession.NEW.equals(queued.getState())) {
+                // ④~⑤ 사이 주기 스캔이 같은 이슈를 먼저 큐에 넣었다 — 이미 의도한 결과이므로 성공으로 알린다
+                out.put("ok", true);
+                return (added ? path + " 를 대상 프로젝트에 추가했습니다. " : "") + ref + " 는 이미 큐에 있습니다.";
+            }
+            StartResult r = enqueueManual(projectReg.project(path), is, ref);
+            out.put("ok", r.ok());
+            return (added ? path + " 를 대상 프로젝트에 추가했습니다. " : "") + r.message();
+        } catch (RuntimeException e) {
+            log.warn("이슈 시작 실패 ref={}: {}", ref, e.toString());
+            return (added ? path + " 는 대상 프로젝트에 추가했지만 " : "") + "시작하지 못했습니다: " + e.getMessage();
+        } finally {
+            if (added) {
+                submit(this::scan);
+            }
+        }
     }
 
     /**
@@ -597,39 +729,45 @@ public class IssueAgentService {
             if (why != null) {
                 return p.path() + "#" + iid + " 는 처리하지 않습니다: " + why;
             }
-            IssueSession existing = sessions.findByIssue(p.path(), iid);
-            if (existing != null) {
-                if (existing.isActive()) {
-                    return existing.ref() + " 는 이미 진행 중입니다 (상태 " + existing.getState() + ").";
-                }
-                // 종료된 세션 재시작: 상태만 NEW 로 되돌린다
-                existing.setState(IssueSession.NEW);
-                existing.setClaudeSessionId(null);
-                existing.setBranchName(null);
-                existing.setDesignText(null);
-                existing.setChangeSummary(null);
-                existing.setCommitSha(null);
-                existing.setPrUrl(null);
-                existing.setLastError(null);
-                existing.setFeedbackRounds(0);
-                existing.setIssueTitle(is.title());
-                sessions.update(existing);
-                events.clear(existing.getId());
-                events.emit(existing.getId(), IssueEvent.INFO, "수동 재시작 (이슈 " + spec.strip() + ")");
-            } else {
-                IssueSession ns = newSession(p, is);
-                sessions.insertIgnore(ns);
-                if (ns.getId() > 0) {
-                    events.emit(ns.getId(), IssueEvent.INFO, "수동 시작 (이슈 " + spec.strip() + ")");
-                }
-            }
-            submit(this::startNextIfIdle);
-            int active = activeCount();
-            return p.path() + "#" + iid + " (" + is.title() + ") 를 큐에 넣었습니다."
-                    + (active >= concurrency ? " 현재 " + active + "건 진행 중(동시 " + concurrency + "건)이라 자리가 나면 시작합니다." : " 곧 분석을 시작합니다.");
+            return enqueueManual(p, is, spec.strip()).message();
         } catch (RuntimeException e) {
             return "이슈 조회 실패: " + e.getMessage();
         }
+    }
+
+    /** 수동 시작의 결과. ok=이슈를 큐에 넣었음(문구 정규식 없이 호출측이 구조로 판정). */
+    private record StartResult(boolean ok, String message) {
+    }
+
+    /**
+     * 이미 검사를 통과한 이슈를 큐에 넣는다. 종료된 세션이 있으면 처음부터 다시(NEW), 진행 중이면 거부, 없으면 새로 만든다.
+     * 메신저 {@code 이슈 owner/repo#n} 명령(startManual)과 화면 시작(startIssue)이 함께 쓴다.
+     */
+    private StartResult enqueueManual(GitHubClient.Project p, GitHubClient.Issue is, String spec) {
+        IssueSession existing = sessions.findByIssue(p.path(), is.iid());
+        if (existing != null) {
+            if (existing.isActive()) {
+                return new StartResult(false, existing.ref() + " 는 이미 진행 중입니다 (상태 " + existing.getState() + ").");
+            }
+            // 종료된 세션 재시작: 종료 상태일 때만 바꾸는 조건부 갱신(겹친 요청·그 사이 시작된 세션을 덮어쓰지 않는다)
+            String from = existing.getState();
+            if (sessions.restartIfFinished(existing.getId(), is.title()) == 0) {
+                return new StartResult(false, existing.ref() + " 는 이미 진행 중입니다 (다른 요청이 먼저 시작했습니다).");
+            }
+            events.clear(existing.getId());
+            events.emit(existing.getId(), IssueEvent.INFO, "수동 재시작 (이슈 " + spec + ")");
+            events.emit(existing.getId(), IssueEvent.STATE, from + " → " + IssueSession.NEW, IssueSession.NEW);
+        } else {
+            IssueSession ns = newSession(p, is);
+            sessions.insertIgnore(ns);
+            if (ns.getId() > 0) {
+                events.emit(ns.getId(), IssueEvent.INFO, "수동 시작 (이슈 " + spec + ")");
+            }
+        }
+        submit(this::startNextIfIdle);
+        int active = activeCount();
+        return new StartResult(true, p.path() + "#" + is.iid() + " (" + is.title() + ") 를 큐에 넣었습니다."
+                + (active >= concurrency ? " 현재 " + active + "건 진행 중(동시 " + concurrency + "건)이라 자리가 나면 시작합니다." : " 곧 분석을 시작합니다."));
     }
 
     public String statusText() {

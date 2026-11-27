@@ -109,6 +109,16 @@ class ClaudeCliAgentTest {
     }
 
     @Test
+    void tc030_6MaintainDenyPatternCoversIssuesStartAndIssuesList() {
+        java.util.List<String> d = deny(Stage.FIX, true);
+        for (String api : java.util.List.of("api/issues-start", "api/issues-list")) {
+            String pattern = d.stream().filter(p -> p.contains(api)).findFirst().orElseThrow();
+            String needle = pattern.substring(pattern.indexOf("*api/") + 1, pattern.lastIndexOf('*'));
+            assertTrue(("curl -s -X POST http://localhost:8777/" + api + " -d project=a/b").contains(needle), pattern);
+        }
+    }
+
+    @Test
     void t023NonMaintainSessionsDenyCurlAndWget() {
         for (Stage s : Stage.values()) {
             java.util.List<String> d = deny(s, false);
