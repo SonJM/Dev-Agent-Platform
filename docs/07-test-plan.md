@@ -1,7 +1,7 @@
 # 07. 테스트 계획서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.27 · 2026-11-27 · 상태: Draft
+> 버전 0.28 · 2026-11-27 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md), [05. API 명세서](./05-api-specification.md), [06. 기능 정의서](./06-functional-specification.md)
 
 ---
@@ -34,7 +34,7 @@
 |---|---|---|
 | 개발 PC (Windows) | `gradlew.bat test`, QA는 [04 §8](./04-project-structure.md#8-로컬-실행)대로 8778 포트·내장 DB | 빈 DB에서 시작. 테스트가 만든 스킬·루틴은 테스트가 지운다 |
 | Linux 확인 | **서버에서 직접**(개발 PC에 Docker 없음 — OI-12 결정). SSH 접속 대상은 환경변수 `DEV_AGENT_SSH`, 원격 명령은 로그인 셸로 실행. 격리된 `DEV_AGENT_HOME`·포트 18777·내장 DB. 기존 서비스·컨테이너·공유 DB는 건드리지 않는다. `DEV_AGENT_SSH`가 없는 세션에서는 실행할 수 없다(보류) | 빈 DB(내장), 실행 뒤 디렉터리 삭제 |
-| 서버(정식) | 사용자가 `deploy/README.md`의 확인 항목으로 수동 확인. **unit이나 `deploy/bin/` 스크립트를 바꾼 반영 때는 "멈춘 상태에서 `systemctl start` 한 번 → `active` 확인"을 반드시 넣는다**(`/run/dev-agent/`가 비어 있는 첫 시작). `start-server-check.sh`(TC-001 계열)는 `resolve-db.sh`만 시험해 systemd의 읽기 순서(예: `EnvironmentFile`을 `ExecStartPre` 전에 읽음)를 못 잡는다 — 2026-11-26 첫 반영의 "Failed to load environment files" 결함(ce29249)이 그 예다. 자동 TC는 두지 않는다(서버 root·실제 unit이 필요). 2026-11-26 PM 판단 | 공유 PostgreSQL의 전용 DB |
+| 서버(정식) | 사용자가 `deploy/README.md`의 확인 항목으로 수동 확인. **unit이나 `deploy/bin/` 스크립트를 바꾼 반영 때는 "멈춘 상태에서 `systemctl start` 한 번 → `active` 확인"을 반드시 넣는다**(`/run/dev-agent/`가 비어 있는 첫 시작). `start-server-check.sh`(TC-001 계열)는 `resolve-db.sh`만 시험해 systemd의 읽기 순서(예: `EnvironmentFile`을 `ExecStartPre` 전에 읽음)를 못 잡는다 — 2026-11-26 첫 반영의 "Failed to load environment files" 결함(ce29249)이 그 예다. **종료·재시작 경로(`SystemController`, 종료 스레드, 종료 코드)를 바꾼 반영 때는 화면/API 「재시작」으로 `ExecMainStatus=10`·`NRestarts` 증가·새 `MainPID`·`/api/system/status` 200을 확인한다** — 개발 PC의 `DEV_AGENT_RUN_MODE=systemd` 기동은 종료 코드가 스레드 경합에 따라 달라 대신할 수 없다(2026-11-27 2.3.0 반영에서 PC 10 / 서버 0, T-031). 자동 TC는 두지 않는다(서버 root·실제 unit이 필요). 2026-11-26 PM 판단 | 공유 PostgreSQL의 전용 DB |
 
 ### 데이터 규모 가정
 
@@ -79,13 +79,15 @@ QA seed(`e2e/seed/seed.ts`)는 스킬 60건(가정의 2배), 루틴 30건(상한
 | TC-025 | FR-604 (OI-32) | E2E | 앱 기동, T-025 반영 | 플랫폼 탭 「가져오기」에 ① stdio MCP 1개(명령·인자 포함)가 든 묶음 ② stdio MCP가 없는 묶음(스킬 1개)을 차례로 고른다. ①에서 확인 체크 없이 가져오기 시도 → 취소, 다시 골라 체크 후 가져오기. 390px에서 ① 확인 창 | ①: 확인 창에 서버 이름·`command`·`args`와 경고가 보이고 체크 전에는 가져오기 불가, 취소 뒤 `/api/mcp-servers`에 그 서버 없음, 체크 후 가져오기하면 있음. ②: 경고 없이 항목 수만 보이고 가져오기 → 스킬 반영. 390: 확인 창 가로 넘침 0, 버튼이 보인다(06 §3.6). 시험 데이터는 끝나면 지운다 | 예 (`@core` — [T-026 qa 보고서](./tasks/results/T-026-tc025-core-승격-qa.md), 최초 확인 [T-025 qa 보고서](./tasks/results/T-025-묶음-가져오기-확인-qa.md)) |
 | TC-026 | FR-301, FR-307 (OI-09 변경·OI-42) | Unit | 가짜 HTTP | ① 내 저장소 목록 조회(2쪽 이상, `Link` 다음 쪽, 조직 소유·보관 저장소 섞임) ② 토큰 없음 / 401 / 403 ③ `/api/issues-projects/set`에 기존 대상 일부 + 새 저장소 + 접근 불가 저장소 + 잘못된 표기 + 상한 초과 ④ R1 구성 묶음 가져오기의 대상 프로젝트(기존 + 새 + 상한 초과 + 토큰 없음) ⑤ R2 조직 소유 저장소를 `/add`·`set`·가져오기로 추가 ⑥ R3 `set`에 `path` 101개 이상 ⑦ R4 `refresh=true`를 마지막 조회 시도 10초 안에 다시(캐시 있음/없음, 직전 실패 포함) | ① `affiliation=owner`·`per_page=100` 요청, 쪽을 이어 붙이고 10쪽에서 멈춤(`truncated`), 항목에 기본 브랜치·비공개·보관·포크·최근 갱신, 현재 대상이면 `selected`. ② 원인 문구가 구분되고 토큰이 응답·로그·예외 메시지에 없음. ③ 새 저장소만 GitHub 확인, 접근 불가·잘못된 표기는 `rejected`(나머지는 저장), 빠진 것은 `removed`, 상한 초과는 전체 거부, 저장 뒤 스캔은 한 번. 참고 저장소는 여전히 대상 목록 밖이면 무시(`IssueReferences.isTarget`). ④ `BundleController`가 `IssueProjects.mergeProjects`를 거치고 직접 저장하지 않음, 기존 대상 유지 + 새 대상만 확인, 합계 상한 초과면 목록 그대로, 토큰 없음이면 새 대상 전부 거부, 추가 시 스캔 한 번, 결과 한 줄이 가져오기 응답에. ⑤ "조직 저장소는 대상으로 할 수 없습니다"로 거부, 이미 저장된 대상은 다시 검사하지 않음. ⑥ 표기 검사 전에 전체 거부(아무것도 저장하지 않음, `rejected` 비움). ③의 상한 초과와 ⑥은 `ok:false`, 그 밖의 처리(일부 거부 포함)는 `ok:true`(T-030). ⑦ GitHub를 다시 부르지 않고 캐시를 주거나 `ok:false` "잠시 뒤 다시". 플랫폼 관리 세션 금지 패턴이 `api/issues-repos`도 덮음 | 예 (T-028 단위 테스트 — `RepoPickerTest`, `BundleProjectsTest`, `ClaudeCliAgentTest`) |
 | TC-027 | FR-301, FR-306 (06 §3.6 저장소 고르기) | E2E | 앱 기동(토큰 없음), T-029 반영 | 플랫폼 → 「GitHub에서 고르기」 ① 실제 서버 응답(토큰 없음) ② 브라우저 요청 가로채기로 `/api/issues-repos` 응답을 흉내(저장소 3개 — 비공개 1·보관 1, 현재 대상 `qa-group/qa-sample`은 목록에 없음)하고 필터·체크·저장(`/api/issues-projects/set` 요청도 가로채 본문 확인) ③ 390px에서 ② 창 ④ 가로채기로 `/api/issues-projects`를 500으로, 또 `enabled:false`로 ⑤ 가로채기로 `/set` 응답을 `ok:false`로 | ①: 창 안에 토큰 없음 문구, 직접 입력 칸 보임, 콘솔 오류 0. `ISSUE_ENABLED=true`면 「목록에 없는 대상」에 `qa-group/qa-sample` 체크, `false`면 이슈 에이전트 꺼짐 안내와 「저장」 비활성(06 §3.6 ⑨). ②: 배지·기본 브랜치·최근 갱신 표시, 보관 저장소 체크 불가, 필터가 행을 거름, 저장 요청 본문 = 체크한 저장소 + 체크를 풀지 않은 「목록에 없는 대상」, 취소하면 요청 없음. ④: 원인 문구와 「저장」 비활성(목록은 보여도 됨). ⑤: 성공 토스트 없음, 창 안에 서버 `result` 오류, 창 유지. ③: 창 가로 넘침 0, 「저장」·「취소」 보임(06 §3.6). 실제 대상 목록은 바꾸지 않는다(다음 핵심 TC가 `qa-group/qa-sample`을 쓴다) | 예 ([T-029 qa 보고서](./tasks/results/T-029-github-저장소-고르기-화면-qa.md), 2026-11-27 5건 통과. 핵심 묶음 아님) |
+| TC-028 | FR-102 | Unit | — | 데몬 스레드 안에서 재시작·종료용 종료 스레드를 만든다(`System.exit`은 부르지 않음) | 종료 스레드가 비데몬(`isDaemon()==false`), 이름 `system-exit`. 재시작 10·종료 0이 같은 경로. 데몬 속성을 물려받으면 컨텍스트가 닫힌 뒤 JVM이 0으로 먼저 끝난다(2026-11-27 서버 실측) | 예 (T-031 단위 테스트 — `admin/`) |
+| TC-029 | FR-605 (OI-43) | Unit | — | 구독 API 조회 실패 문구 만들기에 `NoSuchFileException`(절대 경로)·`AccessDeniedException`·JSON 해석 예외·accessToken 없음·`HTTP 401`·`HTTP 429`·메시지에 경로가 든 기타 예외를 넣는다 | 결과 문구에 `user.home` 값·넣은 절대 경로가 없다. 인증 파일 단계는 고정 표기(`~/.claude/.credentials.json` 또는 "인증 파일") + 원인 종류, `HTTP 401` 등 원인 구분은 남는다. 429는 여전히 5분 물러선다 | 예 (T-031 단위 테스트 — `UsageServiceTest`) |
 
 ## 5. 요구사항 → TC 추적표
 
 | 요구사항 | 우선순위 | TC | 상태 |
 |---|---|---|---|
 | FR-101 | Must | TC-001 | 통과 (2026-11-24, T-001 서버 smoke). 재확인 통과 (2026-11-25, T-022 서버 smoke — 2.0.3, 프리뷰·심 제거 뒤) |
-| FR-102 | Must | TC-005 (+ 서버 수동) | TC-005 통과 (T-001). 서버 수동: 부분 통과 (2026-11-26, 1단계 — systemd 아래 기동·`supervised=true`). 화면 「재시작」(종료 코드 10 → 재기동) 미확인([04 §9](./04-project-structure.md#9-배포) 남은 확인 ④) |
+| FR-102 | Must | TC-005, TC-028 (+ 서버 수동) | TC-005 통과 (T-001). TC-028 대기 (T-031). 서버 수동: 부분 통과 (2026-11-26, 1단계 — systemd 아래 기동·`supervised=true`). 화면 「재시작」 **실패** (2026-11-27, 2.3.0 — 종료 코드 0으로 꺼지고 재기동 안 됨, T-031에서 수정) → 2.3.1 반영 때 재확인([04 §9](./04-project-structure.md#9-배포) 남은 확인 ④) |
 | FR-103 | Must | 미커버(자동) — 서버 수동 확인 | 부분 통과 (2026-11-26, 1단계 — PC에서 `https://<MagicDNS 이름>:8443` 200, tailnet 전용). 모바일 기기 확인 대기 |
 | FR-104 | Must | TC-002, TC-003, TC-007, TC-023 | 통과 (2026-11-24, T-002 완료 — TC-002·TC-003 단위, TC-007·TC-023 qa, TC-023은 T-015로 `@core` 승격). 서버(serve 뒤) 확인 통과 (2026-11-26, 1단계 — HTTPS 경유 POST: 다른 Origin 403, 설정 Origin 200, `http://` 같은 이름 403) |
 | ~~FR-105~~ | — | (폐기) | — |
@@ -109,7 +111,7 @@ QA seed(`e2e/seed/seed.ts`)는 스킬 60건(가정의 2배), 루틴 30건(상한
 | FR-601, FR-602 | Must | TC-010 (빈 상태만. 실행 흐름은 수동) | 통과 (2026-11-24, T-004) |
 | FR-603 | Must | TC-008 | 통과 (2026-11-24, T-004) |
 | FR-604 | Must | TC-007, TC-025 (묶음 가져오기 확인 — T-025) | TC-007 통과 (2026-11-24, T-004), TC-025 통과 (2026-11-25, T-025 QA PASS) |
-| FR-605 | Must | TC-009 | 통과 (2026-11-24, T-004) |
+| FR-605 | Must | TC-009, TC-029 | TC-009 통과 (2026-11-24, T-004). TC-029 대기 (T-031, OI-43 ①) |
 | FR-606 | Should | 미커버 — QA 환경에서 꺼 둔다 | — |
 | FR-607 | Must | TC-006 | 통과 (2026-11-24, T-004) |
 
@@ -215,3 +217,4 @@ TC-024는 [T-027](./tasks/T-027-tc024-core-승격.md)로 묶음에 들어갔다(
 | 2026-11-27 | 0.25 | T-029 검수(반려): TC-027 ① 기대를 `ISSUE_ENABLED` 값에 따라 나눔, ④ 현재 대상 조회 실패·꺼짐 ⑤ 저장 `ok:false` 추가. TC-026에 `ok` 기대(T-030) |
 | 2026-11-27 | 0.26 | T-030 완료: 추적표 TC-026 통과 254건(`ok` 3건 추가), T-029 재검수 통과 — TC-027 qa 확인 대기 |
 | 2026-11-27 | 0.27 | T-029 완료(QA PASS 18 — TC-027 5건 + `@core` 13): TC-027 자동화 열·추적표 통과 |
+| 2026-11-27 | 0.28 | 서버 2.3.0 반영 중 「재시작」 결함(종료 코드 0) 실측 → T-031: TC-028(종료 스레드 비데몬)·TC-029(`/api/usage` 문구에 경로 없음, OI-43 ①) 추가, §3 서버(정식)에 재시작·종료 코드 수동 확인 규칙, 추적표 FR-102·FR-605 |

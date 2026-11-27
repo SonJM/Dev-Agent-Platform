@@ -1,7 +1,7 @@
 # 04. 프로젝트 구조 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.20 · 2026-11-27 · 상태: Draft
+> 버전 0.21 · 2026-11-27 · 상태: Draft
 > 선행 문서: [02. 아키텍처 설계서](./02-architecture.md)
 
 코드 작업 규칙과 함정의 기준은 저장소 루트 `CLAUDE.md`다(개발 에이전트는 작업 전에 읽는다). 이 문서는 전환으로 바뀌는 구조와 실행·배포 정보만 적는다.
@@ -175,7 +175,8 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 필요한 비밀값(이름만) | `DB_USERNAME`·`DB_PASSWORD`, `GITHUB_TOKEN`(3), `TELEGRAM_BOT_TOKEN`(4) — 서버의 `.env`(권한 600) |
 | 서버 적용 | `deploy/README.md` 절차대로 한다. 2026-11-26 첫 반영은 메인 세션이 SSH로 단계마다 사용자 승인을 받아 진행했고 sudo 단계는 사용자가 별도 터미널에서 했다(같은 방식 유지). 공유 DB의 compose·컨테이너는 고치지 않는다. 예외는 기동 확인 스크립트뿐이다: 격리된 디렉터리·다른 포트·내장 DB로 짧게 띄웠다 내리고 흔적을 지운다. 기존 서비스·컨테이너는 건드리지 않는다 |
 | 1단계 반영 결과 (2026-11-26) | jar 2.2.0, systemd(`DEV_AGENT_RUN_MODE=systemd`, 상태 API `supervised=true`), JDK 21, DB 외부(공유 PostgreSQL 전용 DB·role). 기동 약 4초, 메모리 약 267MB, Hikari 활성 연결 1. `deploy/README.md` §8 확인: 8777은 127.0.0.1에만 리슨, 5432·54329 리슨 없음, 내장 DB 흔적 없음 / 다른 DB 4개·role 5개가 기동 전 기록과 차이 없음 / 전용 role로 다른 DB 접속 시 "permission denied for database"(CONNECT 없음 — OI-24) / java 환경의 DB 계열 키는 `DB_URL` 하나. PC에서 `https://<MagicDNS 이름>:8443` 200. HTTPS 경유 상태 변경 POST: 다른 사이트 Origin 403, `https://<MagicDNS 이름>:8443` 200, `http://<MagicDNS 이름>:8443` 403 |
-| 1단계 남은 확인 | ① 화면·SSE·리서치 이미지 첨부를 기기에서 확인(사용자 진행 중) ② 모바일(390px) 확인 — T-020 반영 뒤가 의미 있다 ③ DB 이름 오타 실패 시험(종료 코드 2 → `start-limit-hit`으로 멈추고 내장 DB로 뜨지 않음 — 사용자가 고른 유일한 위험 시험, 미실행) ④ 화면 「재시작」 버튼(종료 코드 10 → systemd 재기동, FR-102) ⑤ 첫 `pg_dump` 백업(전용 DB만, `deploy/README.md`) ⑥ `tailscale serve`가 앱에 넘기는 `Host` 값 기록(OI-21 판단 자료, 미실측) ⑦ 에이전트 1회 실행 — GitHub 연동(3단계 할 일) 뒤. **생략(사용자 결정)**: DB 컨테이너 중지 시험, 서버 재부팅 시험 |
+| 2.3.0 반영 (2026-11-27, 진행 중) | 메인 세션이 SSH로 반영. 발견 2건: ① **화면 「재시작」이 앱을 끄기만 한다** — journal 「화면 요청으로 재시작합니다」 → `Deactivated successfully`, `ExecMainStatus=0`(10이어야 `Restart=on-failure`가 다시 띄운다). 사용자가 `systemctl start`로 다시 켰다. 원인은 종료 스레드가 요청 스레드의 데몬 속성을 물려받아 JVM이 0으로 먼저 끝나는 것 — 개발 PC에서는 10이 나와(경합) 이전 확인에서 못 잡았다. 수정 T-031(2.3.1). ② **GitHub 토큰 401 Bad credentials** — 서버 `.env`의 `GITHUB_TOKEN`이 무효한 classic 토큰이었다. 사용자가 Fine-grained("All repositories", 위 「GitHub 연동」)로 다시 넣는 중(코드 결함 아님). 실제 GitHub 목록 확인은 토큰 교체 뒤 |
+| 1단계 남은 확인 | ① 화면·SSE·리서치 이미지 첨부를 기기에서 확인(사용자 진행 중) ② 모바일(390px) 확인 — T-020 반영 뒤가 의미 있다 ③ DB 이름 오타 실패 시험(종료 코드 2 → `start-limit-hit`으로 멈추고 내장 DB로 뜨지 않음 — 사용자가 고른 유일한 위험 시험, 미실행) ④ 화면 「재시작」 버튼(종료 코드 10 → systemd 재기동, FR-102) — **2.3.0에서 실패**(아래 「2.3.0 반영」), T-031(2.3.1) 반영 때 `NRestarts` 증가·새 `MainPID`·`/api/system/status` 200으로 재확인(07 §3) ⑤ 첫 `pg_dump` 백업(전용 DB만, `deploy/README.md`) ⑥ `tailscale serve`가 앱에 넘기는 `Host` 값 기록(OI-21 판단 자료, 미실측) ⑦ 에이전트 1회 실행 — GitHub 연동(3단계 할 일) 뒤. **생략(사용자 결정)**: DB 컨테이너 중지 시험, 서버 재부팅 시험 |
 
 ---
 
@@ -203,3 +204,4 @@ qa가 개발 PC(Windows)에서 앱을 띄울 때 쓴다. T-004에서 실제로 �
 | 2026-11-26 | 0.18 | 서버 첫 반영(1단계) 결과(모드 C): §9 `EnvironmentFile=-`(첫 시작 실패 수정 ce29249), 실행 계정 위험(docker·lxd 그룹, 사용자 감수), DB 연결 제한·CONNECT 회수, GitHub 연동 꺼 둠, 접근 경로(https만, `ACCESS_ALLOWED_ORIGINS`), 서버 적용 방식, 1단계 반영 결과·남은 확인 |
 | 2026-11-27 | 0.19 | T-028 검수(OI-09 결정 변경): §9 GitHub 연동의 토큰 범위("All repositories")·대상 프로젝트 바꾸는 방법, 「GitHub 토큰 범위 위험 (감수)」 행 추가 |
 | 2026-11-27 | 0.20 | T-029 qa 제안(모드 C): §8 스크린샷·보고서 로컬 경로 가림 대상에 `/api/usage` 추가 |
+| 2026-11-27 | 0.21 | 서버 2.3.0 반영 중 발견(모드 C): §9 「2.3.0 반영」 행(「재시작」 종료 코드 0 결함 → T-031, GitHub 토큰 401 — 사용자 교체 중), 「1단계 남은 확인」 ④에 실패·재확인 방법 |
