@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 앱 자체의 상태와 수명: 버전·실행 방식·작업 중 여부({@code /api/system/status}), 설치 점검({@code /api/system/doctor}),
@@ -106,15 +107,22 @@ public class SystemController {
             return result(false, "작업 중인 세션이 " + busy + "건 있습니다. 끝난 뒤 다시 시도하세요.");
         }
         log.info("화면 요청으로 재시작합니다(작업 중 {}건)", busy);
-        exitLater(EXIT_RESTART);
+        if (!exitLater(EXIT_RESTART)) {
+            return result(true, "이미 종료 중입니다.");
+        }
         return result(true, "재시작합니다. 10초쯤 뒤 화면이 다시 연결됩니다.");
     }
 
-    /** 종료(감시자도 함께 끝난다). */
+    /**
+     * 종료(감시자도 함께 끝난다). 알려진 한계: 컨텍스트 닫기 중 예외가 나면 {@code SpringApplication.exit} 가 코드 0 을 1 로 바꿔
+     * systemd {@code Restart=on-failure} 가 다시 띄울 수 있다(코드는 그대로 둠).
+     */
     @PostMapping("/api/system/shutdown")
     public Map<String, Object> shutdown() {
         log.info("요청으로 종료합니다");
-        exitLater(0);
+        if (!exitLater(0)) {
+            return result(true, "이미 종료 중입니다.");
+        }
         return result(true, "종료합니다.");
     }
 
@@ -133,16 +141,43 @@ public class SystemController {
         return RunMode.supervised(runMode());
     }
 
-    private void exitLater(int code) {
+    /** 종료 스레드를 한 번만 만든다. 이미 요청됐으면 false(연타해도 스레드·컨텍스트 닫기가 겹치지 않는다). */
+    private boolean exitLater(int code) {
+        if (!claimExit(exiting)) {
+            return false;
+        }
+        newExitThread(EXIT_DELAY_MS, code, () -> SpringApplication.exit(ctx, () -> code), System::exit).start();
+        return true;
+    }
+
+    static boolean claimExit(AtomicBoolean flag) {
+        return flag.compareAndSet(false, true);
+    }
+
+    private final AtomicBoolean exiting = new AtomicBoolean();
+    private static final long EXIT_DELAY_MS = 400;
+
+    /**
+     * 종료 스레드를 만든다(시작은 호출부). 요청 스레드(Tomcat, 데몬)에서 만들면 데몬 속성을 물려받아, 컨텍스트가 닫혀
+     * 비데몬 스레드가 모두 끝난 JVM 이 종료 코드 0 으로 먼저 끝나 버린다 → 명시적으로 비데몬.
+     * {@code closeContext} 는 컨텍스트를 닫고 종료 코드를 돌려주며, {@code exiter} 는 보통 {@code System::exit}(테스트는 가짜).
+     * 닫기가 Error 등을 던져도 {@code exiter} 는 반드시 불리고, 그때 넘기는 코드는 요청 코드({@code requestedCode})다.
+     */
+    static Thread newExitThread(long delayMs, int requestedCode,
+                                java.util.function.IntSupplier closeContext, java.util.function.IntConsumer exiter) {
         Thread t = new Thread(() -> {
+            int code = requestedCode;
             try {
-                Thread.sleep(400);          // 응답이 나간 뒤에
+                Thread.sleep(delayMs);      // 응답이 나간 뒤에
+                code = closeContext.getAsInt();
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
+            } finally {
+                exiter.accept(code);
             }
-            System.exit(SpringApplication.exit(ctx, () -> code));
         }, "system-exit");
-        t.start();
+        t.setDaemon(false);
+        return t;
     }
 
     private static Map<String, Object> result(boolean ok, String message) {

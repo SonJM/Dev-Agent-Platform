@@ -112,7 +112,7 @@ public class UsageService {
                 if (res.statusCode() != 200) {
                     throw new IllegalStateException("HTTP " + res.statusCode());
                 }
-                com.fasterxml.jackson.databind.JsonNode n = JSON.readTree(res.body());
+                com.fasterxml.jackson.databind.JsonNode n = parseUsageBody(res.body());
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("fiveHour", window(n.path("five_hour")));
                 out.put("sevenDay", window(n.path("seven_day")));
@@ -134,16 +134,52 @@ public class UsageService {
                 saveSnapshot(out);
                 return out;
             } catch (Exception e) {
-                planError = e.getClass().getSimpleName() + ": " + e.getMessage();
+                planError = planErrorText(e);                        // 응답에 실리므로 경로·내용 없이
                 // 실패는 캐시 유무와 무관하게 물러선다: 429(과다 호출)는 5분, 그 외는 1분
-                planRetryAt = System.currentTimeMillis() + (String.valueOf(e.getMessage()).contains("429") ? 300_000 : 60_000);
-                log.debug("구독 사용률 조회 실패(추정치로 폴백): {}", planError);
+                planRetryAt = System.currentTimeMillis() + retryDelayMs(e);
+                log.debug("구독 사용률 조회 실패(추정치로 폴백): {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 if (planCache == null) {
                     planCache = loadSnapshot();                      // 재시작 직후 실패: 마지막으로 받아 둔 값(창이 아직 안 바뀌었으면)
                 }
                 return fresh(planCache);                             // 있으면 이전 값(5시간 창이 리셋됐으면 버린다)
             }
         }
+    }
+
+    /** 구독 API 응답 본문 해석. 실패는 인증 파일 단계와 구분되게 고정 문구로 바꿔 던진다(본문은 문구에 싣지 않고 cause 로만). */
+    static com.fasterxml.jackson.databind.JsonNode parseUsageBody(String body) {
+        try {
+            return JSON.readTree(body);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("구독 API 응답 형식 오류", e);
+        }
+    }
+
+    private static final String CREDENTIALS_LABEL ="인증 파일(~/.claude/.credentials.json)";
+
+    /**
+     * 화면에 보이는 조회 실패 문구. 인증 파일 단계의 실패는 예외 메시지(절대 경로·계정 이름이 든다)를 싣지 않고 고정 표기와
+     * 원인 종류만, 이 클래스가 직접 던지는 IllegalStateException(accessToken 없음·HTTP 코드)은 그대로, 나머지는 클래스 이름만.
+     */
+    static String planErrorText(Exception e) {
+        if (e instanceof java.nio.file.NoSuchFileException) {
+            return CREDENTIALS_LABEL + " 없음";
+        }
+        if (e instanceof com.fasterxml.jackson.core.JsonProcessingException) {
+            return CREDENTIALS_LABEL + " 형식 오류";
+        }
+        if (e instanceof java.nio.file.FileSystemException) {
+            return CREDENTIALS_LABEL + " 읽기 실패";
+        }
+        if (e instanceof IllegalStateException) {
+            return e.getClass().getSimpleName() + ": " + e.getMessage();
+        }
+        return e.getClass().getSimpleName();
+    }
+
+    /** 조회 실패 뒤 물러서는 시간: 429(과다 호출)는 5분, 그 외는 1분. 원래 예외 메시지로 판별한다. */
+    static long retryDelayMs(Exception e) {
+        return String.valueOf(e.getMessage()).contains("429") ? 300_000 : 60_000;
     }
 
     /** 구독 사용률 캐시 시간. API 가 자주 부르면 429 를 내므로 길게 잡는다(화면은 1분마다 묻지만 실제 호출은 3분에 한 번). */

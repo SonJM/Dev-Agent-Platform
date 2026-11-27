@@ -37,4 +37,67 @@ class UsageServiceTest {
                 UsageService.parseReset("limit will reset at 9am", late));
         assertNull(UsageService.parseReset("no time here", now));
     }
+
+    // ---- TC-029: planError 에 로컬 경로가 실리지 않는다
+
+    private static final String HOME = System.getProperty("user.home");
+    private static final String SECRET_PATH = HOME + java.io.File.separator + ".claude" + java.io.File.separator + ".credentials.json";
+
+    private static void assertNoPath(String text) {
+        assertFalse(text.contains(HOME), text);
+        assertFalse(text.contains(SECRET_PATH), text);
+    }
+
+    @Test
+    void tc029_missingCredentialsFileHasFixedText() {
+        String t = UsageService.planErrorText(new java.nio.file.NoSuchFileException(SECRET_PATH));
+        assertNoPath(t);
+        assertTrue(t.contains("~/.claude/.credentials.json") && t.contains("없음"), t);
+    }
+
+    @Test
+    void tc029_unreadableCredentialsFileHasFixedText() {
+        String t = UsageService.planErrorText(new java.nio.file.AccessDeniedException(SECRET_PATH));
+        assertNoPath(t);
+        assertTrue(t.contains("읽기 실패"), t);
+    }
+
+    @Test
+    void tc029_malformedCredentialsJsonHasFixedText() {
+        Exception e = new com.fasterxml.jackson.core.JsonParseException(null, "Unexpected character at " + SECRET_PATH);
+        String t = UsageService.planErrorText(e);
+        assertNoPath(t);
+        assertTrue(t.contains("형식 오류"), t);
+    }
+
+    @Test
+    void tc029_malformedApiResponseBodyIsNotReportedAsCredentialsError() {
+        IllegalStateException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> UsageService.parseUsageBody("not json {" + SECRET_PATH));
+        String t = UsageService.planErrorText(e);
+        assertNoPath(t);
+        assertFalse(t.contains("인증 파일"), t);
+        assertTrue(t.contains("응답 형식 오류"), t);
+    }
+
+    @Test
+    void tc029_tokenMissingAndHttpStatusKeepCauseText() {
+        assertEquals("IllegalStateException: credentials 에 accessToken 없음", UsageService.planErrorText(new IllegalStateException("credentials 에 accessToken 없음")));
+        assertEquals("IllegalStateException: HTTP 401", UsageService.planErrorText(new IllegalStateException("HTTP 401")));
+        assertTrue(UsageService.planErrorText(new IllegalStateException("HTTP 429")).contains("HTTP 429"));
+    }
+
+    @Test
+    void tc029_otherExceptionsShowClassNameOnly() {
+        String t = UsageService.planErrorText(new java.io.IOException("boom " + SECRET_PATH));
+        assertNoPath(t);
+        assertEquals("IOException", t);
+    }
+
+    @Test
+    void tc029_backoffIsFiveMinutesOnlyFor429() {
+        assertEquals(300_000, UsageService.retryDelayMs(new IllegalStateException("HTTP 429")));
+        assertEquals(60_000, UsageService.retryDelayMs(new IllegalStateException("HTTP 401")));
+        assertEquals(60_000, UsageService.retryDelayMs(new java.io.IOException()));
+    }
 }
