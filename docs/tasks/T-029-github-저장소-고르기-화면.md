@@ -3,7 +3,7 @@
 ```
 id: T-029
 담당: frontend-dev (frontend-dev)
-상태: 대기
+상태: 반려
 depends: [T-028]
 병렬: 불가
 충돌: [T-028]
@@ -70,7 +70,10 @@ grep -nE "issues-repos|issues-projects/set" src/main/resources/static/admin.js
 ```
 
 ## 검증 증거
-개발 에이전트가 작성: 실행한 명령, 결과 요약(통과/실패 수), 일시.
+- 일시: 2026-11-27 12:50
+- 명령: `node --check admin.js`·`ui.js`; `grep -nE "issues-repos|issues-projects/set" admin.js`; `./gradlew.bat bootJar`; Playwright 확인 스크립트(8778, 응답 가로채기); taste inspect
+- 결과: node --check 통과, grep 3곳, bootJar 성공. 390/768/1440 넘침 없음·터치 44px 미만 0·콘솔 오류 0·XSS 미실행, 토큰 없음 안내 표시. inspect 6 FAIL 모두 기존(OI-35·OI-40), 이번 변경분 0
+- 변경 설명서: [results/T-029-github-저장소-고르기-화면.md](./results/T-029-github-저장소-고르기-화면.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
@@ -78,3 +81,5 @@ grep -nE "issues-repos|issues-projects/set" src/main/resources/static/admin.js
 | 2026-11-27 | 대기 | PM 작성(사용자 요청 — GitHub 저장소 고르기, 06 §3.6). QA 확인: 예(TC-027) |
 | 2026-11-27 | 대기 | PM 보완(T-028 검수): 범위 3에 서버 문자열 출력 이스케이프·`webUrl` 링크 조건(security-reviewer LOW3). 참고 — T-028 재작업으로 「새로고침」은 10초 안에 다시 누르면 서버가 캐시를 준다(목록이 안 바뀌어도 정상), 조직 저장소·100개 넘는 요청은 서버가 거부한다 |
 | 2026-11-27 | 대기 | depends 해소(T-028 완료) — 착수 가능 |
+| 2026-11-27 | 검수 요청 | frontend-dev 구현 완료 |
+| 2026-11-27 | 반려 | PM 검수: 검증 명령 재실행 통과(node --check 2개, grep 3곳, bootJar 성공), 지시서 변조 없음, 설명서 그림 3·파일 지도 일치. typescript-reviewer(1회) Block으로 반려. **재작업**(06 §3.6 ②·⑨·⑩ 갱신분 기준): **R1(HIGH)** `/api/issues-projects` 조회가 실패(네트워크·`!res.ok`·JSON 아님)하거나 `enabled:false`면 창 안 원인 문구 + 「저장」 비활성(`catch(()=>({}))`로 삼키지 말 것, 06 ⑨ 문구). **R2(MEDIUM)** 두 조회를 `Promise.allSettled`로 나눠, `/api/issues-repos` 예외는 ⑤ 실패 문구로만 처리하고 저장 가능 여부는 R1(현재 대상을 아는가)로만 정한다 — 현재 대상을 모르면 어떤 경로로도 「저장」이 켜지지 않는다. **R3(MEDIUM)** 저장 응답은 HTTP 상태(`res.ok`)와 `ok`(T-030이 추가, 05 §2.3)를 확인해 실패면 성공 토스트 없이 서버 `result`를 창 안 오류로 보이고 창 유지(06 ⑩). `ok`가 없는 응답(T-030 이전)은 `rejected` 기준 기존 동작. **R4(LOW④)** 결과 문구는 서버 `result`만 쓰고 추가·삭제 수를 덧붙이지 않는다(`result`가 없을 때만 대체 문구). **R5(LOW⑤)** 토스트 종류는 `ui.css`에 있는 `ok`·`err`만(거부가 있으면 `err`) — `ui.css`에 새 종류를 만들지 않는다. **R6(LOW⑥)** `platform.html` 51행 카드 머리의 `#projCount` 배지 위치를 맞춘다(`.sec`는 사이드바 제목용 클래스라 `ui.css`를 고치지 말고 `admin.css`에 범위를 좁힌 규칙). **R7(LOW⑧)** 저장 중에는 「새로고침」도 비활성, 저장이 끝나기 전 `repoRender`/`repoCount`가 「저장」을 다시 켜지 않게(저장 중 표시). **R8(LOW⑦, 한 줄)** `path`가 문자열이 아닌 항목은 렌더에서 건너뛴다. 테스트: Playwright 확인 스크립트에 R1(500·`enabled:false`)·R2(`issues-repos` 네트워크 실패)·R3(`ok:false`·HTTP 500) 가로채기 확인을 더하고 결과를 설명서 `## 검증`에 적는다(TC-027 ④⑤와 같은 상황). 스크린샷 재촬영·`.gitignore`는 메인 세션이 따로 맡긴 작업으로 처리. **제안 처리**: ① 토큰/꺼짐 때 현재 대상 미표시 → 서버 변경은 **기각**(현재 대상 표시는 `enabled`일 때만 의미 — 꺼진 상태의 대상 편집은 데이터 손실 위험이 더 크다). 대신 R1로 저장을 막고 안내. 참고: `enabled`는 토큰이 아니라 `ISSUE_ENABLED` 값이다 — 토큰만 없고 `ISSUE_ENABLED=true`면 현재 대상이 보인다. ② 보관 저장소 해석(현재 대상이면 해제 가능) **채택** → 06 ② 반영 ③ truncated "1,000개" 문구 채택. 재검수는 T-030 완료 뒤 함께 |
