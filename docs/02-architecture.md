@@ -1,7 +1,7 @@
 # 02. 아키텍처 설계서
 
 > Dev Agent — 개인 개발 서버용 에이전트 운용 플랫폼으로의 전환(2.0)
-> 버전 0.12 · 2026-11-26 · 상태: Draft
+> 버전 0.13 · 2026-11-27 · 상태: Draft
 > 선행 문서: [01. 요구사항 정의서](./01-requirements.md)
 
 현재 구조의 상세는 `CLAUDE.md`·`README.md`가 기준이다. 이 문서는 **목표 구조와 바뀌는 부분의 결정**만 적는다.
@@ -266,6 +266,7 @@ sequenceDiagram
 - 결정: **①**. 1인용이고 대상 저장소 몇 개만 다룬다. 저장소를 골라 권한(Contents·Issues·Pull requests 읽기/쓰기, Metadata 읽기)만 줄 수 있다. GitHub App은 설치·키 관리·토큰 갱신 구현이 필요해 1인용에는 과하다.
 - 결과: 토큰 만료 시 사용자가 다시 발급해 `.env`를 고친다(Doctor가 알린다). 조직 저장소는 조직 정책에 따라 fine-grained PAT가 막힐 수 있다(OI-09).
 - 확정(2026-11-25, 사용자, OI-09 ①): fine-grained PAT, **저장소 선택은 대상 저장소만**(전체 저장소 아님). 권한은 Contents·Issues·Pull requests 읽기/쓰기 + Metadata 읽기. 만료는 90일 안팎 — 만료가 다가오면 Doctor가 알린다(T-010). **조직 저장소는 대상이 아니다**(개인 계정 저장소만). 토큰 값은 서버 `.env`(`GITHUB_TOKEN`)에만 두고 저장소·문서·로그에 쓰지 않는다. 대상 저장소를 늘리면 토큰의 저장소 선택도 사용자가 고친다.
+- **결정 변경(2026-11-27, 사용자, OI-09)**: Repository access를 **"All repositories"**(개인 계정 저장소 전부)로 — 위 "대상 저장소만"을 대체한다. 이유: 화면에서 내 저장소 목록(`GET /api/issues-repos`, 소유 저장소만·조직 제외)을 불러와 골라 대상 프로젝트로 한 번에 저장한다(T-028·T-029, OI-42). 권한 종류·만료·조직 저장소 제외·토큰 보관 위치는 그대로. **처리 범위는 토큰 범위가 아니라 앱의 대상 프로젝트 목록**(`bot_setting.projects`, 상한 50)이 정한다 — 스캔·수동 시작·이슈 등록·리서치·참고 저장소 모두 목록 밖은 처리하지 않는다(§6). 대상 추가 경로(직접 입력·메신저·일괄 저장·구성 묶음 가져오기)는 모두 `IssueProjects`를 거쳐 새 저장소를 GitHub로 확인하고 조직 소유는 거부한다(T-028 재작업 R1·R2). 감수한 위험: 토큰이 새면 개인 저장소 전부가 노출된다([04 §9](./04-project-structure.md#9-배포) 「GitHub 토큰 범위 위험」). 대상 저장소를 늘릴 때 토큰을 고칠 필요는 없어졌다.
 
 #### D-7. 사내 문서 RAG: 제거 권고
 - 판단 근거(코드 확인): ① 적재 원본이 사내 MkDocs 사이트의 `search_index.json`이다(`docs.search-index-url`, 기본 꺼짐). ② 주 사용처가 제거 대상인 멘션 초안·`@AI` 응답이다(`MentionService`). ③ 이슈 에이전트 쪽 사용은 "사내 문서 검색 안내"(curl)뿐이다. ④ 구현체가 하나(`mkdocs-keyword`)인 포트 `KnowledgeSource`만 남는다.
@@ -324,13 +325,14 @@ flowchart TB
 - Host 헤더 검사는 하지 않는다: 앱은 루프백에만 있고(서버에는 브라우저가 없다), tailnet 쪽은 serve가 MagicDNS 이름의 인증서로 TLS를 끝내므로 다른 이름으로는 연결이 성립하지 않는다.
   - **재검토 중(OI-21)**: 이 근거는 서버에서만 성립한다. 앱과 브라우저가 같은 호스트에 있는 경우(개발 PC, 소스 실행)에는 DNS rebinding으로 다른 사이트가 `GET` 응답(세션 diff·이벤트·리서치 문서·이슈 목록·로그·구성 묶음)을 읽을 수 있다(T-002 보안 검토 M-1, 기존 문제).
 - 에이전트 세션의 로컬 API 호출(OI-22): Origin 확인은 브라우저를 통한 요청만 막는다. 에이전트 CLI가 허용 도구 `curl`로 Origin 없이 상태 변경 API(`/api/maintain/push`, `/api/issues-reply` 등)를 부르는 것은 막지 못한다 — 프롬프트 인젝션 시 `git push` 금지·사람 확인 단계를 우회할 수 있다(T-002 보안 검토 M-2, 기존 문제).
-  - **도구 금지로 줄임(OI-22 ①·OI-30 ①, T-023, 2.0.2)**: 모든 세션의 `--disallowedTools`는 `ClaudeCliAgent.disallowedTools(stage, maintain, subagents, teams)` 한 곳에서 만든다(금지가 허용보다 우선 — `.env`로 허용 도구에 넣어도 막힌다). 공통: `PowerShell`, `.env` 읽기(`Read(./.env)`·`Read(**/.env)`·`Read(//**/.env)` + 파일 출력 명령 `cat`·`head`·`tail`·`less`·`more`·`grep`·`sort` × `.env` 인자, `.env.example`·`env.template`은 통과). FIX 단계가 아니고 플랫폼 관리도 아닌 세션(이슈 분석·설계 수정·변경 요약, 리서치 작성·검증자·수정, 검증 리뷰어 — ANALYZE·VERIFY, OI-34 ①, T-024 2.0.3): `Edit`·`Write`·`MultiEdit`·`NotebookEdit`(새 단계가 생기면 기본이 금지). 플랫폼 관리가 아닌 세션(이슈 분석·수정, 리서치, 검증): `Bash(curl:*)`·`Bash(wget:*)`. 플랫폼 관리 세션: `Bash(git push:*)` + 상태 변경 API(`api/maintain`, `api/system/restart`·`shutdown`·`import`, `api/issues-reply`·`issues-create`·`issues-command`)와 다음 세션의 권한을 넓히는 설정 API(`api/mcp-servers`, `api/agent-subagents`·`agent-teams`·`agent-models`, `api/issues-projects` — OI-33 ①, T-024)가 든 curl(`Bash(curl *<경로>*)`) — 스킬 등록·삭제와 상태 조회는 허용. 패턴 문법(중간 `*`, `//` 절대 경로)은 Claude Code 권한 문서 기준이며 CLI 실측은 하지 않았다.
+  - **도구 금지로 줄임(OI-22 ①·OI-30 ①, T-023, 2.0.2)**: 모든 세션의 `--disallowedTools`는 `ClaudeCliAgent.disallowedTools(stage, maintain, subagents, teams)` 한 곳에서 만든다(금지가 허용보다 우선 — `.env`로 허용 도구에 넣어도 막힌다). 공통: `PowerShell`, `.env` 읽기(`Read(./.env)`·`Read(**/.env)`·`Read(//**/.env)` + 파일 출력 명령 `cat`·`head`·`tail`·`less`·`more`·`grep`·`sort` × `.env` 인자, `.env.example`·`env.template`은 통과). FIX 단계가 아니고 플랫폼 관리도 아닌 세션(이슈 분석·설계 수정·변경 요약, 리서치 작성·검증자·수정, 검증 리뷰어 — ANALYZE·VERIFY, OI-34 ①, T-024 2.0.3): `Edit`·`Write`·`MultiEdit`·`NotebookEdit`(새 단계가 생기면 기본이 금지). 플랫폼 관리가 아닌 세션(이슈 분석·수정, 리서치, 검증): `Bash(curl:*)`·`Bash(wget:*)`. 플랫폼 관리 세션: `Bash(git push:*)` + 상태 변경 API(`api/maintain`, `api/system/restart`·`shutdown`·`import`, `api/issues-reply`·`issues-create`·`issues-command`)와 다음 세션의 권한을 넓히는 설정 API(`api/mcp-servers`, `api/agent-subagents`·`agent-teams`·`agent-models`, `api/issues-projects` — OI-33 ①, T-024 · 비공개 저장소 이름을 돌려주는 조회 `api/issues-repos` — T-028)가 든 curl(`Bash(curl *<경로>*)`) — 스킬 등록·삭제와 상태 조회는 허용. 패턴 문법(중간 `*`, `//` 절대 경로)은 Claude Code 권한 문서 기준이며 CLI 실측은 하지 않았다.
   - 남는 위험: 같은 OS 계정의 셸 우회(스크립트 언어·다른 HTTP 도구·`awk` 등), 파일명 없는 `grep -r`·따옴표(`".env"`)·glob(`.env*`)으로 `.env` 읽기, 관리 세션 금지 패턴의 부분 문자열 우회(`//`·`/./`·문자열 조합), 관리 세션의 금지 목록 밖 상태 변경 POST(`messenger-notify`·`platform/test`·`research*`·`routines*`·세션 중단 등 — OI-33 ②·③을 고르지 않아 남김), Bash로 파일을 쓰는 읽기 전용 세션(분석·리서치·검증 — 프롬프트 금지에 의존). 실질적 차단은 요청 토큰(OI-22 ②)이 필요하다.
 - 자식 프로세스 환경(OI-27, T-021): 앱이 띄우는 자식(Claude CLI 세션, 검증 빌드, git, 도구 버전 확인)은 모두 `platform/ChildEnv.clean`을 거쳐 앱 비밀 환경변수(`ChildEnv.SECRET_KEYS` — DB 접속값, `SPRING_DATASOURCE_*`, 저장소 토큰)를 물려받지 않는다. 앱이 일부러 넣는 값(git 인증 헤더, 사용자 정의 MCP의 `${ENV}` 값)은 정리 뒤에 넣는다. 사용자 정의 MCP의 자리표시자는 대문자 환경변수 이름(`[A-Z][A-Z0-9_]*`)만 받고 `SECRET_KEYS`의 이름은 저장·실행 때 모두 거부한다(Spring 속성명·앱 비밀이 MCP 헤더·URL로 나가는 경로 차단, 구성 묶음 import도 같은 검증).
   - 남는 위험: 같은 OS 계정이므로 `.env` 파일 직접 읽기(T-023 도구 금지로 줄였으나 셸 우회는 남음 — 위 OI-22 항목), 개발 PC 내장 DB의 127.0.0.1 trust 인증(서버는 공유 PostgreSQL `scram-sha-256`이라 해당 없음)은 이 정리로 막지 못한다. 구성 묶음의 stdio MCP는 가져오면 임의 명령을 실행하는 구성이다(화면 경고 — OI-32).
 - 외부 이슈 입력과 대상 저장소(T-010, 2.1.0): GitHub 이슈 본문·코멘트는 에이전트 프롬프트에 들어가는 외부 입력이다.
   - 신뢰 작성자 한정: `github.trusted-authors-only`(환경변수 `GITHUB_TRUSTED_AUTHORS_ONLY`, 기본 켜짐)면 `author_association`이 OWNER·MEMBER·COLLABORATOR인 글만 받는다 — 본문 작성자가 아니면 스캔은 건너뛰고(이슈당 로그 1회), 수동 시작은 사유를 답하고, 분석 단계는 방어적으로 실패한다. 코멘트도 같은 기준으로 거른다(`GitHubClient.issueNotes`).
   - git 하드닝(`GitRunner`): 모든 호출에 `core.hooksPath=/dev/null`·`core.fsmonitor=false`·`core.sshCommand=false`·`credential.helper=`(빈 값)을 `-c`로 덮고, diff·show는 `--no-ext-diff --no-textconv`. 대상 저장소의 훅·외부 diff 도구가 앱 계정으로 실행되지 않는다. 토큰 환경변수는 원격 명령(clone·fetch·push·ls-remote)에만 주고, 인증 헤더는 GitHub 호스트로 한정한다. 세션·참고 worktree를 만지기 전에 `.git` 파일이 기준 clone의 `worktrees/<이름>`을 가리키고 역참조가 같은지 확인한다.
+  - 처리 범위(T-028, OI-09 변경): 토큰은 개인 저장소 전부에 닿지만 앱은 대상 프로젝트 목록 안의 저장소만 처리한다 — 스캔·수동 시작·이슈 등록(`IssueProjects.resolveProject`), 리서치(`ResearchService.normalizeProjects`), 참고 저장소(`IssueReferences.isTarget`). 목록 조회 `GET /api/issues-repos`는 GitHub 호출 횟수를 줄이려고 60초 캐시·새로고침 10초 간격을 두고, status·Doctor·스케줄러는 부르지 않는다.
   - 남는 위험: 라벨을 붙인 뒤 본문이 바뀌는 경우는 막지 않는다 — 본문을 고칠 수 있는 사람(작성자·쓰기 권한자)이 신뢰 범위 안이므로 신뢰 작성자 한정으로 충분하다고 본다(`OI-36` 결정 ②, 2026-11-26 사용자). 신뢰 작성자 본인의 계정이 탈취되면 막지 못한다. 쓰기 권한은 Doctor가 확인하지 못한다(첫 Draft PR이 곧 확인).
 - 서버의 로컬 프로세스는 신뢰한다(지금과 같은 전제).
 - 비밀값: `.env`(권한 600)와 환경변수로만. GitHub 토큰·Telegram 봇 토큰은 로그·응답·구성 묶음에 싣지 않는다.
@@ -355,3 +357,4 @@ flowchart TB
 | 2026-11-25 | 0.10 | T-023 완료: §6에 세션별 도구 금지(`disallowedTools` — VERIFY 편집 도구, 비관리 세션 curl·wget, 관리 세션 상태 변경 API curl, 전 세션 `.env` 읽기)와 남는 위험(OI-33·34) |
 | 2026-11-25 | 0.11 | T-024 완료: §6 편집 도구 금지를 FIX·관리 세션 외 전부로, 관리 세션 금지 경로에 권한 확대 설정 API 5개, 남는 위험 정리. OI-09 결정: D-6에 토큰 범위(대상 저장소만·권한·만료 90일·조직 저장소 제외) |
 | 2026-11-26 | 0.12 | T-010 완료(2.1.0): §6에 외부 이슈 입력의 신뢰 작성자 한정(`github.trusted-authors-only`)과 git 하드닝, 남는 위험(OI-36 결정 ②) |
+| 2026-11-27 | 0.13 | T-028 검수(OI-09 결정 변경): D-6에 "All repositories" 결정 변경·처리 범위는 대상 목록·추가 경로 일원화, §6에 처리 범위 확인 지점·목록 조회 호출 제한, 관리 세션 금지 경로 `api/issues-repos`(재작업 R5 반영분) |

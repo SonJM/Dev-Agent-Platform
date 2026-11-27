@@ -3,7 +3,7 @@
 ```
 id: T-028
 담당: backend-dev (backend-dev)
-상태: 대기
+상태: 완료
 depends: []
 병렬: 불가
 충돌: [T-029]   # T-029가 이 작업의 API를 쓴다 — T-028 완료 뒤 착수
@@ -77,9 +77,14 @@ grep -n "version = '2.3.0'" build.gradle
 ```
 
 ## 검증 증거
-개발 에이전트가 작성: 실행한 명령, 결과 요약(통과/실패 수), 일시.
+- 일시: 2026-11-27 12:20 (재작업 R1~R5)
+- 명령: ./gradlew.bat test bootJar; grep 4종 + ClaudeCliAgent `api/issues-repos` + BundleController `setIssueProjects`(0줄); e2e/scripts/start-app.sh(8778) → /api/system/status → stop-app.sh
+- 결과: 251건 통과·실패 0, BUILD SUCCESSFUL. grep 모두 기대대로(금지 문구 0줄, ClaudeCliAgent 208행 `api/issues-repos`, BundleController `setIssueProjects` 0줄, version 2.3.0). 8778 기동 status 200(version 2.3.0), issues-repos 토큰 없음 ok:false, set 정상 응답. 종료 확인(포트 닫힘). security-scan 호출: 하드코딩 비밀 없음(테스트 가짜 토큰만), Critical/Major 0
+- 변경 설명서: [results/T-028-github-저장소-목록-api.md](./results/T-028-github-저장소-목록-api.md)
 
 ## 이력
 | 일자 | 상태 | 내용 |
 |---|---|---|
 | 2026-11-27 | 대기 | PM 작성(사용자 요청 — GitHub 저장소 고르기, OI-09 결정 변경, OI-42 가정). security-reviewer 1회 권장(외부 API·토큰·상태 변경 API) |
+| 2026-11-27 | 반려 | **PM 검수**: 지시서 변조 없음(상태·검증 증거만), 변경 설명서 형식·`파일 지도`↔`git status` 일치, 검증 명령 재실행 통과(`gradlew test bootJar` BUILD SUCCESSFUL, grep 4종 기대대로·금지 문구 0줄, 2.3.0). 완료 조건은 충족했으나 **security-reviewer 지적(MEDIUM 1·LOW 2건)과 설명서 `## 제안`을 이번 작업에서 닫는다**(사용자 권장 범위). 아래 R1~R5를 반영하고, 각각 단위 테스트(Spring 없이)를 더한다. 범위·완료 조건·검증 명령은 그대로, 검증 증거·설명서(`## 주요 결정`·`## 검증`·그림 2에 R1·R2·R3 반영)는 다시 쓴다. security-reviewer는 다시 부르지 않는다(PM 검수로 확인). 재작업 지시: **R1 (MEDIUM, 구성 묶음 가져오기)** `admin/BundleController.applySettings`(213~223행)가 `settings.setIssueProjects`를 직접 부르지 않고 `IssueProjects`(필요하면 `IssueAgentService` 위임)의 `synchronized` 메서드를 거친다. 동작: 기존 대상 ∪ 묶음의 대상 → `setProjects`와 같은 규칙(표기는 `GitHubClient.ownerRepo` — `a/b/c` 거부, 새로 들어오는 것만 GitHub 확인·R2 소유자 확인, 합계가 상한 50을 넘으면 대상 목록을 바꾸지 않음, 기존 대상은 지우지 않음, 추가가 있으면 스캔 한 번). 결과 한 줄(추가·거부 수, 상한 초과면 그 사실)을 가져오기 응답에 싣는다(토큰 없음이면 새 대상은 전부 거부되고 그 사유가 보이면 된다). **R2 (LOW1, 조직 저장소)** `addProject`(메신저 `이슈 프로젝트 추가` 포함)·`setProjects`·R1에서 **새로 들어오는** 저장소는 GitHub 응답의 `owner.type`이 `User`일 때만 받는다(예: `GitHubClient.Project`에 소유자 유형을 담거나 `project()` 파싱 때 확인). 거부 사유 "조직 저장소는 대상으로 할 수 없습니다"(OI-42 ①). 이미 저장된 대상은 다시 검사하지 않는다. **R3 (LOW2, 요청 크기)** `setProjects`는 받은 `path` 원소가 100개(상한 50의 두 배, 상수)를 넘으면 표기 검사·중복 제거 전에 아무것도 저장하지 않고 거부한다(`rejected`는 비움, `result`에 사유). **R4 (LOW4, 새로고침 남용)** GitHub 목록 조회는 마지막 조회 **시도**(성공·실패) 뒤 10초(상수) 안에는 `refresh=true`여도 다시 부르지 않는다 — 캐시가 있으면 캐시, 없으면 `ok:false` + "잠시 뒤 다시 시도하세요". 시계는 기존 `clock` 필드로 시험한다. **R5 (설명서 제안·reviewer 권고)** `ClaudeCliAgent.MAINTAIN_DENIED_APIS`에 `api/issues-repos`를 더하고 `ClaudeCliAgentTest`에 확인을 넣는다(부분 문자열 우회는 남는 위험 — 02 §6). **반영하지 않는 것**: LOW3(`rejected[].path` 입력 그대로) → T-029에서 출력 이스케이프, LOW5(Host 미확인·DNS rebinding) → OI-21에 기록(PM). 재검증: 검증 명령 전부 + `grep -n "api/issues-repos" src/main/java/io/github/lib0823/devagent/agent/claude/ClaudeCliAgent.java` + `grep -n "setIssueProjects" src/main/java/io/github/lib0823/devagent/admin/BundleController.java`(0줄) + 8778 격리 기동 `/api/system/status` 200 |
+| 2026-11-27 | 완료 | **PM 재검수 통과**: 지시서 변조 없음(HEAD 대비 상태·검증 증거만 — 반려 이력 행은 PM 작성 미커밋분), `파일 지도`↔`git status --porcelain` 일치(새 테스트 2개 포함), 그림 3·재작업 이력 있음. 재실행: `gradlew.bat test bootJar` BUILD SUCCESSFUL·**251건 실패 0**, grep 4종 기대대로(금지 문구 0줄, `affiliation=owner`, `issues-repos`·`issues-projects/set`, 2.3.0), `ClaudeCliAgent.java:208` `api/issues-repos`, `BundleController` `setIssueProjects` 0줄, 8778 격리 기동 status 200·version 2.3.0 후 종료(포트 닫힘). 코드 확인: R1 `IssueProjects.mergeProjects`(synchronized, 합집합·상한·스캔 한 번·결과 한 줄), R2 `resolveNew`의 `isUserOwned`, R3 `MAX_REQUEST_PATHS` 선처리 거부, R4 `REPO_REFRESH_MIN_MS` 마지막 시도 기준, R5 금지 목록. 07 TC-026에 ④~⑦ 추가. 커밋은 T-029와 한 묶음(2.3.0, 메인 세션) |
